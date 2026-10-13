@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc"],
+  "categories": { "correctness": "error" },
+  "options": { "typeAware": true },
+  "env": { "node": true },
+  "ignorePatterns": [".planning/**", "dist/**", "node_modules/**", "coverage/**", ".cache/**"],
+  "rules": {
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-unsafe-assignment": "error",
+    "typescript/no-unsafe-argument": "error",
+    "typescript/no-unsafe-return": "error",
+    "eslint/no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["**/dist/**", "**/.planning/**"],
+            "message": "Import source contracts, not generated output or local planning files."
+          }
+        ]
+      }
+    ]
+  }
+}
