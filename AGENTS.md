@@ -8,6 +8,8 @@ The development scaffold is installed. The CLI implements help, version, package
 
 Versioned read contracts and explicit project/checkout resolution through an injected reader are implemented in the library. Follow [the operation contracts](docs/operation-contracts.md) and ADR 0002. Registration, Git discovery, context CLI wiring, and effectful worktree/job operations remain later work; a completed observation establishes no ownership or durable acceptance.
 
+The injectable process runner is implemented through `executeProcess` and `nodeProcessRunner`; follow [its contract](docs/process-runner.md). Keep termination cause, root exit, process-group evidence, output completeness, and domain success separate. Do not retry uncertain writes automatically or treat an absent original group as proof that escaped descendants/services stopped. Supply explicit environment and apply retention/redaction policy to captured output and artifacts.
+
 ## Toolchain
 
 Use Node 24 LTS, pnpm, strict TypeScript, ESM, and NodeNext module resolution. Honor `.node-version` and `package.json#packageManager`. Preserve the lockfile; do not switch package managers.

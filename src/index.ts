@@ -34,3 +34,16 @@ export {
   type OperationResult,
 } from './contracts/operation-result.js';
 export type { ProjectContextReader } from './ports/project-context-reader.js';
+export { executeProcess } from './application/execute-process.js';
+export { nodeProcessRunner } from './core/node-process-runner.js';
+export {
+  processRequestSchema,
+  processOutputSchema,
+  processExecutionSchema,
+  processResultSchema,
+  type ProcessRequest,
+  type ProcessOutput,
+  type ProcessExecution,
+  type ProcessResult,
+} from './contracts/process.js';
+export type { ProcessRunner } from './ports/process-runner.js';

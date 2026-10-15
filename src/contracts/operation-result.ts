@@ -10,6 +10,7 @@ export const operationErrorSchema = z.strictObject({
     'invalid_context_source',
     'context_source_unavailable',
     'cancelled',
+    'unsupported_platform',
   ]),
   message: z.string().min(1),
 });

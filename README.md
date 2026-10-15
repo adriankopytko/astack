@@ -10,6 +10,8 @@ The development scaffold is ready: a compiled CLI/library, strict TypeScript, ty
 
 The library now provides versioned read results and explicit project/checkout context resolution through an injected reader. Production registration, Git discovery, context CLI wiring, owned worktrees, and delegation remain unimplemented. See [operation contracts](docs/operation-contracts.md) for the executable APIs and the separate durable v1 design.
 
+The library also provides `executeProcess(request, runner, signal?)` and `nodeProcessRunner`: explicit argv/cwd/environment, bounded output and optional private artifacts, timeout/cancellation, and observed Linux/macOS process-group teardown. See [the process runner contract](docs/process-runner.md). It does not add a general execution CLI command or establish service shutdown from a process exit.
+
 Local planning material is intentionally ignored. Durable contributor requirements belong in this README, [AGENTS.md](AGENTS.md), and tracked architecture decisions.
 
 ## First delivery
