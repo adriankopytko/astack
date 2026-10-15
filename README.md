@@ -8,6 +8,8 @@ One orchestrator selects work and decides what happens next. Astack prepares own
 
 The development scaffold is ready: a compiled CLI/library, strict TypeScript, typed Oxlint rules, Oxfmt, dependency checks, isolated tests, and Linux/macOS CI. The CLI currently provides help, version, package information, and agent guidance through `--skill`. Project primitives, agent delegation, persistence, and the service are the next implementation slices.
 
+The library now provides versioned read results and explicit project/checkout context resolution through an injected reader. Production registration, Git discovery, context CLI wiring, owned worktrees, and delegation remain unimplemented. See [operation contracts](docs/operation-contracts.md) for the executable APIs and the separate durable v1 design.
+
 Local planning material is intentionally ignored. Durable contributor requirements belong in this README, [AGENTS.md](AGENTS.md), and tracked architecture decisions.
 
 ## First delivery
@@ -74,17 +76,18 @@ pnpm dev info --json
 pnpm check
 ```
 
-| Command                             | Purpose                                                  |
-| ----------------------------------- | -------------------------------------------------------- |
-| `pnpm dev <arguments>`              | Run the CLI from TypeScript                              |
-| `pnpm build`                        | Clean and compile JS, declarations and source maps       |
-| `pnpm start <arguments>`            | Run the compiled CLI after building                      |
-| `pnpm typecheck`                    | Check source, tests and tooling                          |
-| `pnpm lint`                         | Run typed Oxlint checks                                  |
-| `pnpm check:boundaries`             | Validate resolved production dependencies                |
-| `pnpm format` / `pnpm format:check` | Write/check Oxfmt formatting                             |
-| `pnpm test`                         | Build and run isolated CLI/boundary tests                |
-| `pnpm check`                        | Run formatting, lint, types, boundaries, build and tests |
+| Command                             | Purpose                                                                   |
+| ----------------------------------- | ------------------------------------------------------------------------- |
+| `pnpm dev <arguments>`              | Run the CLI from TypeScript                                               |
+| `pnpm build`                        | Clean and compile JS, declarations and source maps                        |
+| `pnpm start <arguments>`            | Run the compiled CLI after building                                       |
+| `pnpm typecheck`                    | Check source, tests and tooling                                           |
+| `pnpm lint`                         | Run typed Oxlint checks                                                   |
+| `pnpm lint:fix`                     | Format, fix lint rules for readable blocks and spacing, then format again |
+| `pnpm check:boundaries`             | Validate resolved production dependencies                                 |
+| `pnpm format` / `pnpm format:check` | Write/check Oxfmt formatting                                              |
+| `pnpm test`                         | Build and run isolated CLI/boundary tests                                 |
+| `pnpm check`                        | Run formatting, lint, types, boundaries, build and tests                  |
 
 The package remains private. `pnpm pack --pack-destination .cache` can inspect its distribution allowlist; it does not publish. Hono and SQLite wiring will be added with their first real consumer. Dependency installation explicitly allows esbuild's setup script for tsx; scripts fail on stale dependencies instead of silently reinstalling them.
 
@@ -95,6 +98,12 @@ Default checks use temporary repositories, databases, and child processes. They 
 `astack --skill` prints the bundled [CLI skill](skills/astack-cli/SKILL.md) as Markdown with YAML frontmatter. Agents can read it directly; it is an additional output option alongside help and command-specific JSON. Use it without a subcommand. It does not install instructions or launch agents.
 
 The skill ships in the package and is resolved relative to the CLI module, so the installed command works from any directory. Keep this guide aligned with implemented commands as the CLI grows. During development, use `pnpm dev --skill` from this repository.
+
+## Read operation results
+
+`info --json` emits `{ "schemaVersion": 1, "outcome": "completed", "value": { "name": "astack", "version": "0.1.0", "stage": "foundation" } }`. This replaces the initial scaffold's unversioned JSON shape. Human-readable `info` is unchanged. Library calls accept versioned requests and return completed observations or rejections with stable error codes.
+
+For example, `getApplicationInfo({ schemaVersion: 1 }, '0.1.0')` returns that envelope. `resolveProjectContext(request, reader, signal?)` resolves an explicit registered project/checkout using read-only facts supplied by the caller. It does not inspect cwd, register projects, run Git, or establish resource ownership. The package exports schemas to validate both results and decoded JSON. See [ADR 0002](docs/adr/0002-version-operation-contracts.md) for the versioning decision.
 
 ## State and safety
 

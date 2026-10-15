@@ -1,11 +1,47 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "unicorn", "oxc"],
+  "jsPlugins": [{ "name": "stylistic", "specifier": "@stylistic/eslint-plugin" }],
   "categories": { "correctness": "error" },
   "options": { "typeAware": true },
   "env": { "node": true },
   "ignorePatterns": [".planning/**", "dist/**", "node_modules/**", "coverage/**", ".cache/**"],
   "rules": {
+    "eslint/curly": ["error", "all"],
+    "stylistic/curly-newline": ["error", { "minElements": 1 }],
+    "stylistic/max-statements-per-line": ["error", { "max": 1 }],
+    "stylistic/padding-line-between-statements": [
+      "error",
+      { "blankLine": "always", "prev": "block-like", "next": "*" },
+      {
+        "blankLine": "always",
+        "prev": "*",
+        "next": ["if", "for", "while", "do", "switch", "try", "return", "throw"]
+      },
+      {
+        "blankLine": "always",
+        "prev": "*",
+        "next": {
+          "selector": "ExpressionStatement:matches([expression.callee.name='assert'], [expression.callee.object.name='assert'])"
+        }
+      },
+      {
+        "blankLine": "always",
+        "prev": {
+          "selector": "ExpressionStatement:matches([expression.callee.name='assert'], [expression.callee.object.name='assert'])"
+        },
+        "next": "*"
+      },
+      {
+        "blankLine": "any",
+        "prev": {
+          "selector": "ExpressionStatement:matches([expression.callee.name='assert'], [expression.callee.object.name='assert'])"
+        },
+        "next": {
+          "selector": "ExpressionStatement:matches([expression.callee.name='assert'], [expression.callee.object.name='assert'])"
+        }
+      }
+    ],
     "typescript/no-floating-promises": "error",
     "typescript/no-misused-promises": "error",
     "typescript/no-explicit-any": "error",

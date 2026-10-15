@@ -122,6 +122,7 @@ const scenarios: Scenario[] = [
 for (const scenario of scenarios) {
   await test(`boundaries: ${scenario.name}`, async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'astack-boundaries-'));
+
     try {
       await writeFile(join(cwd, 'package.json'), '{"type":"module"}');
       await writeFile(
@@ -131,24 +132,30 @@ for (const scenario of scenarios) {
           include: ['src/**/*.ts'],
         }),
       );
+
       for (const [path, contents] of Object.entries(scenario.files)) {
         const target = join(cwd, path);
         await mkdir(dirname(target), { recursive: true });
         await writeFile(target, contents);
       }
+
       const result = spawnSync(process.execPath, [checker, '--config', config, 'src'], {
         cwd,
         encoding: 'utf8',
         timeout: 30_000,
       });
+
       assert.ifError(result.error);
+
       const output = result.stdout + result.stderr;
+
       if (scenario.violation) {
         assert.notEqual(result.status, 0, output);
         assert.ok(output.includes(scenario.violation), output);
       } else {
         assert.equal(result.status, 0, output);
       }
+
       assert.doesNotMatch(output, /missing-typescript-transpiler|0 modules/);
     } finally {
       await rm(cwd, { recursive: true, force: true });

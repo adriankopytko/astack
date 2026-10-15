@@ -6,11 +6,17 @@ Astack is a reusable Node toolkit for one orchestrator to delegate implementatio
 
 The development scaffold is installed. The CLI implements help, version, package information and `--skill` agent guidance; project/worktree operations and delegation are not implemented yet. Use [README.md](README.md) and tracked ADRs as the durable contributor contract. Ignored `.planning` material is supplementary local context, not a prerequisite for contributors.
 
+Versioned read contracts and explicit project/checkout resolution through an injected reader are implemented in the library. Follow [the operation contracts](docs/operation-contracts.md) and ADR 0002. Registration, Git discovery, context CLI wiring, and effectful worktree/job operations remain later work; a completed observation establishes no ownership or durable acceptance.
+
 ## Toolchain
 
 Use Node 24 LTS, pnpm, strict TypeScript, ESM, and NodeNext module resolution. Honor `.node-version` and `package.json#packageManager`. Preserve the lockfile; do not switch package managers.
 
 Use Oxlint for linting, Oxfmt for formatting, and dependency-cruiser for resolved module boundaries. Pin tools locally. Typed Oxlint rules are enabled with the pinned TypeScript 7/tool combination; retain the authoritative TypeScript check/build. dependency-cruiser uses its separately pinned TypeScript 6 parser via pnpm package extensions. Preserve that compatibility setup until the checker supports our compiler API. Do not introduce another lint/format stack without a demonstrated missing requirement and a documented decision.
+
+Require braces for control statements and put nonempty block bodies on separate lines. Keep one statement per line. Add blank lines before control-flow statements, returns, and throws, and after block-like statements when another statement follows. Keep `else`/`else if` attached to their chain; no extra blank line is needed before the enclosing block's closing brace. Separate `assert(...)`/`assert.*(...)` groups from setup and mutations; consecutive assertions may stay together. Keep ordinary declaration groups together unless there is a meaningful change of step.
+
+Oxlint enforces `eslint/curly` natively and the remaining layout rules through the pinned Stylistic plugin. `pnpm lint:fix` formats, applies lint fixes, and formats again so braces, statement splitting, and spacing are handled together. Meaningful intermediate names and separation of semantic steps still require review; split complicated nested calls when it makes their purpose clearer rather than applying mechanical naming rules.
 
 Use `node:sqlite` for local persistence as recorded in [ADR 0001](docs/adr/0001-use-node-sqlite.md). Hono belongs in service transport code when needed. Start with one package; add packages or architectural infrastructure only for concrete consumers.
 
@@ -64,7 +70,7 @@ Configuration initialization preserves authored skills, instructions, scripts, a
 
 Use the repository's pnpm scripts: `build`, `typecheck`, `lint`, `check:boundaries`, `format:check`, and applicable isolated tests. The combined `check` script includes the graph check, build and isolated tests. `pnpm test` builds before exercising compiled CLI entrypoints. Use `pnpm dev` for development; do not invent service/delegation commands before they exist.
 
-Use Node's test runner with disposable Git repositories, temporary state directories/databases, controlled child processes, and injected dependencies. Default verification must not start real user agents, mutate GitHub tracking, or use live Klamra resources. Live-provider checks are explicit opt-in. Prefer tests of ownership, retry, interruption, stale SHA, and race behavior over tests that merely repeat implementation details.
+Use Node's test runner with disposable Git repositories, temporary state directories/databases, controlled child processes, and injected dependencies. Default verification must not start real user agents, mutate GitHub tracking, or use live user-project resources. Live-provider checks are explicit opt-in. Prefer tests of ownership, retry, interruption, stale SHA, and race behavior over tests that merely repeat implementation details.
 
 Exclude `.planning`, generated output and local service state from routine formatting, source checks, tests and package contents. Configure exclusions explicitly rather than assuming all tools honor gitignore.
 

@@ -18,6 +18,7 @@ export function createProgram(version: string): Command {
       if (!options.skill) {
         program.help({ error: true });
       }
+
       const skill = await readFile(
         new URL('../../skills/astack-cli/SKILL.md', import.meta.url),
         'utf8',
@@ -30,10 +31,21 @@ export function createProgram(version: string): Command {
     .description('Show package information; orchestration is not implemented yet')
     .option('--json', 'Print machine-readable JSON')
     .action((options: { json?: boolean }) => {
-      const info = getApplicationInfo(version);
+      const result = getApplicationInfo({ schemaVersion: 1 }, version);
+
+      if (result.outcome === 'rejected') {
+        process.stdout.write(
+          options.json ? `${JSON.stringify(result)}\n` : `${result.error.message}\n`,
+        );
+        process.exitCode = 1;
+
+        return;
+      }
+
+      const info = result.value;
       process.stdout.write(
         options.json
-          ? `${JSON.stringify(info)}\n`
+          ? `${JSON.stringify(result)}\n`
           : `${info.name} ${info.version} (${info.stage})\n`,
       );
     });

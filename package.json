@@ -27,6 +27,7 @@
     "build": "pnpm clean && tsc -p tsconfig.build.json && node tools/prepare-bin.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint --type-aware --max-warnings 0 src tests tools",
+    "lint:fix": "oxfmt --write . && oxlint --type-aware --fix --max-warnings 0 src tests tools && oxfmt --write .",
     "check:boundaries": "depcruise --config .dependency-cruiser.cjs src",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
@@ -38,6 +39,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@stylistic/eslint-plugin": "5.10.0",
     "@types/node": "24.19.2",
     "dependency-cruiser": "18.6.0",
     "oxfmt": "0.72.0",
