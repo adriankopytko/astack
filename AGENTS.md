@@ -70,6 +70,8 @@ Exclude `.planning`, generated output and local service state from routine forma
 
 ## Documentation and changes
 
+Use Conventional Commits for commit messages: `<type>[optional scope]: <description>`, for example `feat(cli): add project selection` or `fix(core): preserve dirty worktrees`. Use `!` or a `BREAKING CHANGE:` footer for breaking changes.
+
 Keep changes bounded and build primitives with an actual consuming operation. Record durable architecture decisions under `docs/adr/`; update README when runnable commands or capabilities change. Clearly distinguish implemented behavior from planned interfaces. Preserve unrelated user changes and avoid introducing automatic publication or extra provider side effects into routine development.
 
 Update `skills/astack-cli/SKILL.md` when CLI commands or their operation contracts change. This is the canonical guide printed by `astack --skill`; preserve its package inclusion and resolution independent of cwd. Describe available behavior accurately and keep future capabilities explicitly marked as planned.
