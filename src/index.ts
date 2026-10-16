@@ -142,3 +142,34 @@ export {
   type StateRepository,
   type StateClaim,
 } from './contracts/state.js';
+export {
+  registerProject,
+  type ProjectRegistrationDependencies,
+} from './application/register-project.js';
+export { selectProjectContext } from './application/select-project-context.js';
+export { listProjects } from './application/list-projects.js';
+export type { ProjectDependencies } from './application/project-facts.js';
+export type { ProjectRegistry } from './ports/project-registry.js';
+export type { CheckoutIdentityReader } from './ports/checkout-identity-reader.js';
+export { nodeCheckoutIdentityReader } from './adapters/filesystem/checkout-identity.js';
+export {
+  projectRegistrationRequestSchema,
+  projectRegistrationSchema,
+  projectRegistrationResultSchema,
+  projectSelectionRequestSchema,
+  projectSelectionSchema,
+  projectSelectionResultSchema,
+  projectListRequestSchema,
+  projectListResultSchema,
+  type RegisteredProject,
+  type RegistryCheckout,
+  type CheckoutLocation,
+  type RunBinding,
+  type ProjectRegistrationRequest,
+  type ProjectRegistration,
+  type ProjectRegistrationResult,
+  type ProjectSelectionRequest,
+  type ProjectSelection,
+  type ProjectListRequest,
+  type ProjectList,
+} from './contracts/projects.js';

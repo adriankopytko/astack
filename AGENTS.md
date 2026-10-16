@@ -4,9 +4,9 @@
 
 Astack is a reusable Node toolkit for one orchestrator to delegate implementation and review across projects. Keep project-specific technologies, trackers, prompts, and environment schemas out of generic mechanisms.
 
-The development scaffold is installed. The CLI implements help, version, package information and `--skill` agent guidance; project/worktree operations and delegation are not implemented yet. Use [README.md](README.md) and tracked ADRs as the durable contributor contract. Ignored `.planning` material is supplementary local context, not a prerequisite for contributors.
+The development scaffold is installed. The CLI implements help, version, package information, `--skill` guidance, project registration/listing, and context/doctor diagnostics. Worktree lifecycle and delegation are not implemented yet. Use [README.md](README.md) and tracked ADRs as the durable contributor contract. Ignored `.planning` material is supplementary local context, not a prerequisite for contributors.
 
-Versioned read contracts and explicit project/checkout resolution through an injected reader are implemented in the library. Follow [the operation contracts](docs/operation-contracts.md) and ADR 0002. Registration, context CLI wiring, and effectful worktree/job operations remain later work; a completed observation establishes no ownership or durable acceptance.
+Versioned read contracts and explicit project/checkout resolution through an injected reader are implemented in the library. Follow [the operation contracts](docs/operation-contracts.md) and ADR 0002. Effectful worktree/job operations remain later work; a completed observation establishes no ownership or durable acceptance.
 
 Read-only Git inspection is implemented through `inspectGitRepository` and `createGitInspector`; follow [its contract](docs/git-inspection.md). Use an explicit checkout and trusted executable/runner, preserve full commit IDs and incomplete-output errors, and keep raw remote URLs and diagnostics out of results. Common-directory identity and repeated observations establish neither ownership nor an atomic snapshot; recheck before effects.
 
@@ -15,6 +15,8 @@ The injectable process runner is implemented through `executeProcess` and `nodeP
 Managed asset writes/inspection and shared private-artifact helpers are implemented; follow [their contract](docs/managed-files.md). Preserve unowned/edited files and unresolved intents, select trusted roots, coordinate writers, and keep operational stage/journal files out of commits. A proposed ownership record is not host authority; automatic pending-write reconciliation and project initialization remain later work.
 
 Typed SQLite persistence is implemented through `openSqliteState` and the state application operations; follow [its contract](docs/sqlite-state.md). Keep immutable numbered migrations in compiled state-adapter modules, transactions synchronous and bounded, and state outside repositories. Persist local intent before external effects, preserve expired claims and uncertain outcomes, and reopen/inspect after an uncertain commit. Storage records and claim tokens are not worker authorization or proof of provider success; service dispatch, registration policy, report validation, and automatic recovery remain later work.
+
+Project registration and CLI context selection are implemented; follow [their contract](docs/projects.md) and ADR 0003. Explicit saved-attempt/checkout/project/path selectors must agree and take priority over caller-directory discovery. Preserve distinct linked checkout IDs, stale filesystem identity evidence, and deliberate registration markers. Read-only diagnostics do not initialize state or grant execution policy; registration does not initialize project files or authorize workers.
 
 ## Toolchain
 

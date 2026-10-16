@@ -32,6 +32,12 @@ export const operationErrorSchema = z.strictObject({
     'state_directory_unsafe',
     'state_unavailable',
     'state_closed',
+    'state_read_only',
+    'project_context_required',
+    'project_selector_conflict',
+    'project_registration_conflict',
+    'project_checkout_stale',
+    'run_not_found',
   ]),
   message: z.string().min(1),
 });

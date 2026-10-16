@@ -4,7 +4,7 @@ import { completed, type OperationResult } from '../../contracts/operation-resul
 import type { StateWriteResult } from '../../contracts/state.js';
 import { sha256 } from '../../core/file-paths.js';
 import { stateMigrations } from './migrations.js';
-import { sqliteCode, stateFailure, stateRejection } from './errors.js';
+import { StateError, sqliteCode, stateFailure, stateRejection } from './errors.js';
 
 export const stateApplicationId = 0x4153544b;
 
@@ -57,16 +57,32 @@ function verifyHistory(db: DatabaseSync): number {
   return version;
 }
 
-export function openStateDatabase(path: string, busyTimeoutMs: number): StateDatabase {
+export function openStateDatabase(
+  path: string,
+  busyTimeoutMs: number,
+  readOnly = false,
+): StateDatabase {
   const db = new DatabaseSync(path, {
     timeout: busyTimeoutMs,
     enableForeignKeyConstraints: true,
     enableDoubleQuotedStringLiterals: false,
     allowExtension: false,
+    readOnly,
   });
 
   try {
-    verifyHistory(db);
+    const initialVersion = verifyHistory(db);
+
+    if (readOnly) {
+      if (initialVersion !== stateMigrations.length) {
+        stateFailure('state_schema_mismatch');
+      }
+
+      db.exec('PRAGMA query_only=ON; PRAGMA trusted_schema=OFF;');
+
+      return new StateDatabase(db, true);
+    }
+
     db.exec(
       'PRAGMA foreign_keys=ON; PRAGMA trusted_schema=OFF; PRAGMA synchronous=FULL; PRAGMA locking_mode=NORMAL; PRAGMA temp_store=MEMORY; PRAGMA wal_autocheckpoint=1000;',
     );
@@ -118,7 +134,10 @@ export class StateDatabase {
   private readonly statements = new Map<string, StatementSync>();
   private poisoned = false;
 
-  constructor(private readonly db: DatabaseSync) {}
+  constructor(
+    private readonly db: DatabaseSync,
+    private readonly readOnly = false,
+  ) {}
 
   statement(sql: string): StatementSync {
     if (this.poisoned || !this.db.isOpen) {
@@ -170,6 +189,10 @@ export class StateDatabase {
   write<T>(
     operation: () => { value: T; disposition: 'created' | 'existing' | 'updated' },
   ): StateWriteResult<T> {
+    if (this.readOnly) {
+      return stateRejection(new StateError('state_read_only'));
+    }
+
     let committing = false;
     let began = false;
 

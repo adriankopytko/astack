@@ -106,4 +106,24 @@ CREATE INDEX effects_by_attempt ON effects(attempt_id);
 CREATE INDEX resources_by_attempt ON resources(attempt_id);
 `,
   },
+  {
+    version: 2,
+    sql: `
+CREATE TABLE project_registrations (
+  project_id TEXT PRIMARY KEY REFERENCES projects(id),
+  repository_id TEXT NOT NULL UNIQUE REFERENCES repositories(id),
+  registered_at INTEGER NOT NULL CHECK(registered_at >= 0),
+  UNIQUE(project_id, repository_id)
+) STRICT;
+CREATE TABLE registered_checkouts (
+  checkout_id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  repository_id TEXT NOT NULL,
+  registered_at INTEGER NOT NULL CHECK(registered_at >= 0),
+  location TEXT NOT NULL CHECK(json_valid(location)),
+  FOREIGN KEY(checkout_id, project_id, repository_id) REFERENCES checkouts(id, project_id, repository_id),
+  FOREIGN KEY(project_id, repository_id) REFERENCES project_registrations(project_id, repository_id)
+) STRICT;
+`,
+  },
 ] as const;

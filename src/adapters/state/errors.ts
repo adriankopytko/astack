@@ -28,6 +28,11 @@ export function sqliteCode(error: unknown): number | null {
 }
 
 const messages: Partial<Record<OperationErrorCode, string>> = {
+  project_registration_conflict:
+    'Registration conflicts with recorded project or checkout identities.',
+  project_checkout_stale:
+    'The recorded checkout filesystem identity has changed; reconcile it explicitly.',
+  state_read_only: 'This state connection permits reads only.',
   state_busy:
     'Local state is busy; retry the storage operation after the competing transaction ends.',
   state_conflict:

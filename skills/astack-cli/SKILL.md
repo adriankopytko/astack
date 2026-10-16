@@ -1,34 +1,54 @@
 ---
 name: astack-cli
-description: Use the astack CLI when asked to work with astack tooling or delegate project implementation and review through astack. Discover installed capabilities before attempting orchestration.
+description: Use the astack CLI to register checkouts, inspect project context, or discover installed orchestration capabilities. Read supported commands before attempting delegation.
 ---
 
 # Using astack
 
-## Discover the installed capabilities
+## Discover capabilities
 
-Run `astack --skill` to read the guidance shipped with the installed version. This prints Markdown with skill frontmatter to stdout; it does not install a skill, select a project, or start an agent.
+`astack --skill` prints this installed guide as Markdown with skill frontmatter. Invoke it without a subcommand. Use `astack --help` and command-specific `--help` for argument syntax. Help and command JSON remain available separately.
 
-Use `astack --help` for command discovery and `astack <command> --help` for supported arguments. Invoke `--skill` on its own, without a subcommand. Help and JSON output remain available separately.
-
-In the astack source checkout, use `pnpm dev` in place of `astack`, for example `pnpm dev --skill`. After building, `pnpm start --skill` uses the compiled CLI. Run these pnpm commands from the astack repository; an installed `astack` binary can print its skill from any directory.
+From the astack source repository use `pnpm dev` instead of `astack`; after building use `pnpm start`. An installed binary resolves this guide independently of cwd.
 
 ## Commands available now
 
-| Command              | Result                                                                  |
-| -------------------- | ----------------------------------------------------------------------- |
-| `astack --skill`     | This agent guide                                                        |
-| `astack --help`      | Available commands and options                                          |
-| `astack --version`   | Installed package version                                               |
-| `astack info`        | Human-readable package information                                      |
-| `astack info --json` | Versioned completed result; `value` contains `name`, `version`, `stage` |
+| Command                                                                 | Result                                                                                      |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `astack --skill`                                                        | Installed agent guide                                                                       |
+| `astack --help` / `--version`                                           | Command discovery / version                                                                 |
+| `astack info [--json]`                                                  | Package information; not project/job status                                                 |
+| `astack project register [path] [--id <project-id>] [--json]`           | Deliberately register a canonical checkout in local state; default path is caller directory |
+| `astack project list [--limit <count>] [--after <project-id>] [--json]` | Paginated recorded project identities and primary checkout paths                            |
+| `astack context [selectors] [--json]`                                   | Inspect target identity, selection source, Git state, and readiness                         |
+| `astack doctor [selectors] [--json]`                                    | Alias for `context`                                                                         |
 
-The current stage is `foundation`. Project initialization, project selection, worktrees, implementation delegation, review delegation, persistence, and service commands are not implemented yet. Package information is not project or job status. If a request needs one of those capabilities, report the missing capability rather than inventing a command or treating an unknown command as accepted work.
+Global `--state-directory <path>` selects isolated host state. `--git-executable <absolute-path>` selects trusted Git; otherwise the CLI searches absolute host PATH entries. Git inspection requires Git 2.45 or later.
 
-`info --json` returns `{ "schemaVersion": 1, "outcome": "completed", "value": { ... } }`; read package fields under `value`. This replaces the early scaffold's unversioned shape. Library-only explicit context resolution is available through an injected reader; it does not introduce a project-context CLI command. A completed read is an observation, not an accepted job or proof of ownership.
+Context selectors are `--project <project-id>`, `--checkout <checkout-id>`, `--run <attempt-id>`, and `--path <path>`.
 
-## As orchestration becomes available
+## Select the intended target
 
-Use the installed command contracts to resolve the intended project and distinguish accepted work from completed work. Calling from a directory containing several projects does not establish a unique target. Follow the user's requested implementation/review scope and configured automation policy; an implementation handoff alone does not authorize an automatic review.
+- From a neutral directory or another project, use an explicit project ID, checkout ID, or path. `project list` supplies saved IDs; listed paths are recorded facts and can be stale.
+- Without selectors, context inspects the nearest Git repository from caller cwd. A collection directory never causes child-project discovery or guessing.
+- An explicit project selects its primary checkout unless an explicit path selects another checkout belonging to that project. An explicit checkout selects that checkout.
+- A saved attempt binds its project/repository/checkout. Other explicit selectors must agree. `--run` uses an existing persisted attempt ID; this CLI cannot create runs yet. Saved assignment commits and observed HEAD are separate facts.
+- Explicit targets override ambient cwd. An explicit `--path` is an assertion and must agree with other explicit selectors. Conflicts reject rather than falling back.
 
-For completion, rely on operation results and commit-specific evidence rather than an idle agent or a pushed PR alone. A failed or uncertain command is not evidence that repeating an external effect is safe; inspect its result and supported recovery instructions before retrying.
+Context can inspect an unregistered repository without registering it or creating state. Register only when the user intends to establish a local project identity. Registration creates no project config, skills, worktrees, or execution policy. A linked checkout needs deliberate registration; it then shares project identity while keeping its own checkout ID. Independent clones and duplicate basenames remain separate.
+
+Moved/replaced registrations reject as stale. Do not bypass this by silently selecting another checkout, changing IDs, or treating matching remotes as ownership. Relocation/reconciliation is not implemented yet.
+
+## Interpret results
+
+Read commands emit `{ schemaVersion: 1, outcome: 'completed', value: ... }` or `rejected` with a stable error code. Registration emits `persisted` with `disposition` and identities, `rejected`, or `uncertain`. A completed read is an observation; persisted registration is local identity evidence. Neither means an agent job was accepted.
+
+After `uncertain`, inspect the registry and supplied identities before retrying persistence. No provider effect or automatic retry is implied. Missing state permits empty-registry diagnostics; unsafe/corrupt/incompatible state remains an error. Read-only commands do not migrate old schemas; deliberate registration or an explicit library read-write open can migrate them.
+
+Doctor currently reports Git readiness, other providers as `not_checked`, configuration provenance as `none`/`not_implemented`, and delegation as unavailable. Do not interpret registration or a clean checkout as execution authorization.
+
+## Planned capabilities
+
+The stage remains `foundation`. Initialization, managed worktree lifecycle, trusted project/role configuration, agent delegation, service dispatch/recovery, GitHub workflows, and automatic review are not implemented commands. Report missing capabilities rather than inventing commands or treating unknown commands as accepted work.
+
+As those operations arrive, use commit-specific results and explicit automation policy. A pushed PR or idle agent alone is not proof of completion or authorization for another action.

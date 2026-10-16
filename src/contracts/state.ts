@@ -76,6 +76,7 @@ const commit = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/);
 
 export const stateOpenRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
+  mode: z.enum(['read-write', 'read-only']).default('read-write'),
   stateDirectory: absolutePath.optional(),
   busyTimeoutMs: z.number().int().min(0).max(1000).default(100),
 });

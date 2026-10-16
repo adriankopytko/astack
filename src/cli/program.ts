@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { Command } from 'commander';
 import { getApplicationInfo } from '../application/get-application-info.js';
+import { wireProjectCommands } from './projects.js';
 
 /** Construct commands without parsing arguments or performing startup effects. */
 export function createProgram(version: string): Command {
@@ -49,6 +50,8 @@ export function createProgram(version: string): Command {
           : `${info.name} ${info.version} (${info.stage})\n`,
       );
     });
+
+  wireProjectCommands(program);
 
   return program;
 }

@@ -4,7 +4,7 @@
 
 Issue #10 implements typed local persistence through `node:sqlite`. It does not implement a coordinating service, project discovery/registration policy, agent launch, report authentication, or automatic recovery. The state adapter receives trusted host decisions; a stored assertion is not verified provider evidence or permission to remove a resource.
 
-`openSqliteState(request, { now? }?)` explicitly opens a connection. Imports open no database. The returned `StateStore` implements the state port and the existing `ProjectContextReader`, so `resolveProjectContext(request, store)` can consume saved projections today.
+`openSqliteState(request, { now? }?)` explicitly opens a connection. Imports open no database. The returned `StateStore` implements the state port and the existing `ProjectContextReader`, so `resolveProjectContext(request, store)` can consume saved projections today. The returned `registry` shares that connection and serves [project registration/context operations](projects.md); close both through `store.close()`.
 
 ```ts
 const opened = await openSqliteState({ schemaVersion: 1 });
@@ -18,7 +18,7 @@ if (opened.outcome === 'opened') {
 }
 ```
 
-Pass `{ schemaVersion: 1, stateDirectory: '/isolated/state', busyTimeoutMs: 100 }` to select isolated state. No CLI state/service commands exist yet.
+Pass `{ schemaVersion: 1, stateDirectory: '/isolated/state', busyTimeoutMs: 100 }` to select isolated state. Optional `mode: 'read-only'` opens existing compatible state without bootstrap or migrations; absent state returns `state_not_found`, incompatible history requires an explicit read-write open, and write methods reject with `state_read_only`. Read-only SQLite may access/create WAL shared-memory sidecars. The project CLI consumes state; direct state/service commands do not exist yet.
 
 ## Directory and lifetime
 
@@ -36,7 +36,7 @@ Linux and macOS are supported. The default is `~/.local/state/astack`, resolved 
 
 Connections use foreign keys, WAL journal mode, FULL synchronous durability, NORMAL locking, in-memory temporary storage, a 1000-page automatic WAL checkpoint threshold, disabled trusted schema, disabled double-quoted string literals, and disabled extension loading. The adapter verifies foreign keys, journal mode and synchronous mode. Busy timeout defaults to 100 ms and is configurable from 0 to 1000 ms. SQLite calls and lock waits are synchronous; these bounds are not a hard real-time deadline for filesystem or storage faults.
 
-Migrations are numbered immutable SQL constants in `src/adapters/state/migrations.ts`, compiled into `dist/adapters/state/migrations.js` and included through the existing `dist` package allowlist. They do not depend on cwd or ignored planning files. Add a new migration for changes to a released schema; do not edit an applied migration.
+Migrations are numbered immutable SQL constants in `src/adapters/state/migrations.ts`, compiled into `dist/adapters/state/migrations.js` and included through the existing `dist` package allowlist. They do not depend on cwd or ignored planning files. Migration 2 adds deliberate project/checkout registrations with filesystem identity observations; existing projection rows are not automatically adopted. Add a new migration for changes to a released schema; do not edit an applied migration.
 
 The adapter checks `application_id`, `user_version`, ordered migration numbers and SQL checksums. Unknown/newer/modified history or an unrelated database is refused. Recheck history after acquiring `BEGIN IMMEDIATE` so competing opens cannot apply the same migration twice. Migration SQL, ledger entries, and version/application markers commit transactionally. No automatic downgrade, destructive reset, or repair is provided. Schema checksums detect migration-history mismatches; they are not a tamper-proof database signature or a full corruption scan.
 

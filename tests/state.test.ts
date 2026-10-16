@@ -35,6 +35,7 @@ import {
   type StateRecord,
 } from '../src/index.js';
 import { openStateDatabase } from '../src/adapters/state/database.js';
+import { stateMigrations } from '../src/adapters/state/migrations.js';
 
 const options = { timeout: 15_000 };
 const sha = 'a'.repeat(40);
@@ -276,10 +277,13 @@ await test(
         const raw = new DatabaseSync(join(path, 'state.sqlite'));
 
         try {
-          assert.equal(raw.prepare('PRAGMA user_version').get()?.user_version, 1);
+          assert.equal(
+            raw.prepare('PRAGMA user_version').get()?.user_version,
+            stateMigrations.length,
+          );
           assert.equal(
             raw.prepare('SELECT COUNT(*) AS count FROM state_migrations').get()?.count,
-            1,
+            stateMigrations.length,
           );
           assert.equal(raw.prepare('PRAGMA journal_mode').get()?.journal_mode, 'wal');
         } finally {

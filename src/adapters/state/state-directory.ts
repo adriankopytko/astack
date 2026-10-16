@@ -118,10 +118,19 @@ export async function auditStateFiles(root: FileRoot): Promise<void> {
 
 export async function prepareStateDirectory(
   selected?: string,
+  readOnly = false,
 ): Promise<{ root: FileRoot; databasePath: string }> {
   const target = await canonicalTarget(selected ?? join(homedir(), '.local', 'state', 'astack'));
   await outsideRepository(target);
-  await mkdir(target, { recursive: true, mode: 0o700 });
+
+  if (readOnly && !(await exists(target))) {
+    stateFailure('state_not_found');
+  }
+
+  if (!readOnly) {
+    await mkdir(target, { recursive: true, mode: 0o700 });
+  }
+
   const root = await canonicalFileRoot(target);
   await outsideRepository(root.path);
 
@@ -143,6 +152,10 @@ export async function prepareStateDirectory(
 
     if (!empty) {
       stateFailure('state_directory_unsafe');
+    }
+
+    if (readOnly) {
+      stateFailure('state_not_found');
     }
 
     try {
@@ -181,6 +194,10 @@ export async function prepareStateDirectory(
   const databasePath = await checkedFilePath(root, 'state.sqlite');
 
   if (!(await exists(databasePath))) {
+    if (readOnly) {
+      stateFailure('state_directory_unsafe');
+    }
+
     if (
       (await Promise.all(databaseNames.slice(1).map((name) => exists(join(root.path, name))))).some(
         Boolean,
