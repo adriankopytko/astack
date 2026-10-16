@@ -1,7 +1,11 @@
-import { mkdtemp, open, type FileHandle } from 'node:fs/promises';
-import { join } from 'node:path';
+import type { FileHandle } from 'node:fs/promises';
 import type { Readable } from 'node:stream';
 import type { ProcessExecution, ProcessOutput, ProcessRequest } from '../contracts/process.js';
+import {
+  createPrivateArtifactDirectory,
+  openPrivateArtifact,
+  type PrivateArtifactDirectory,
+} from './private-artifacts.js';
 
 export function systemErrorCode(
   error: unknown,
@@ -46,9 +50,15 @@ export class ProcessOutputCollector {
     this.capture = Buffer.alloc(captureLimit);
   }
 
-  async openArtifact(path: string): Promise<void> {
-    this.file = await open(path, 'wx', 0o600);
-    this.output.artifact = { path, writtenBytes: 0, truncated: false, complete: false };
+  async openArtifact(directory: PrivateArtifactDirectory, name: string): Promise<void> {
+    const artifact = await openPrivateArtifact(directory, name);
+    this.file = artifact.file;
+    this.output.artifact = {
+      path: artifact.path,
+      writtenBytes: 0,
+      truncated: false,
+      complete: false,
+    };
   }
 
   async collect(stream: Readable, onFailure: (error: unknown) => void): Promise<void> {
@@ -129,7 +139,11 @@ export async function prepareProcessArtifacts(
     return;
   }
 
-  const directory = await mkdtemp(join(request.artifacts.directory, 'process-'));
-  await stdout.openArtifact(join(directory, 'stdout.bin'));
-  await stderr.openArtifact(join(directory, 'stderr.bin'));
+  const directory = await createPrivateArtifactDirectory(
+    request.artifacts.directory,
+    'astack:process-output',
+    'process-',
+  );
+  await stdout.openArtifact(directory, 'stdout.bin');
+  await stderr.openArtifact(directory, 'stderr.bin');
 }

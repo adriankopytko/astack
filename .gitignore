@@ -1,6 +1,11 @@
 # Local foundation and planning documents
 /.planning/
 
+# In-flight managed-file publications; completed ownership records remain trackable
+.astack-stage-*/
+.astack-managed/*.pending.json
+.astack-managed/*.json.*.tmp
+
 # Dependencies and package-manager caches
 node_modules/
 .pnpm-store/

@@ -10,6 +10,8 @@ Versioned read contracts and explicit project/checkout resolution through an inj
 
 The injectable process runner is implemented through `executeProcess` and `nodeProcessRunner`; follow [its contract](docs/process-runner.md). Keep termination cause, root exit, process-group evidence, output completeness, and domain success separate. Do not retry uncertain writes automatically or treat an absent original group as proof that escaped descendants/services stopped. Supply explicit environment and apply retention/redaction policy to captured output and artifacts.
 
+Managed asset writes/inspection and shared private-artifact helpers are implemented; follow [their contract](docs/managed-files.md). Preserve unowned/edited files and unresolved intents, select trusted roots, coordinate writers, and keep operational stage/journal files out of commits. A proposed ownership record is not host authority; automatic pending-write reconciliation and project initialization remain later work.
+
 ## Toolchain
 
 Use Node 24 LTS, pnpm, strict TypeScript, ESM, and NodeNext module resolution. Honor `.node-version` and `package.json#packageManager`. Preserve the lockfile; do not switch package managers.

@@ -47,3 +47,24 @@ export {
   type ProcessResult,
 } from './contracts/process.js';
 export type { ProcessRunner } from './ports/process-runner.js';
+export { writeManagedFile, inspectManagedFile } from './application/managed-files.js';
+export {
+  nodeManagedFileStore,
+  createNodeManagedFileStore,
+  type ManagedWriteProgress,
+} from './core/node-managed-file-store.js';
+export {
+  managedFileRequestSchema,
+  inspectManagedFileRequestSchema,
+  managedFileRecordSchema,
+  managedWriteIntentSchema,
+  managedFileResultSchema,
+  managedFileInspectionSchema,
+  type ManagedFileRequest,
+  type ManagedFileRecord,
+  type ManagedWriteIntent,
+  type ManagedFileResult,
+  type ManagedFileInspection,
+  type InspectManagedFileRequest,
+} from './contracts/managed-files.js';
+export type { ManagedFileStore } from './ports/managed-file-store.js';
