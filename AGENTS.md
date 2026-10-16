@@ -6,7 +6,9 @@ Astack is a reusable Node toolkit for one orchestrator to delegate implementatio
 
 The development scaffold is installed. The CLI implements help, version, package information and `--skill` agent guidance; project/worktree operations and delegation are not implemented yet. Use [README.md](README.md) and tracked ADRs as the durable contributor contract. Ignored `.planning` material is supplementary local context, not a prerequisite for contributors.
 
-Versioned read contracts and explicit project/checkout resolution through an injected reader are implemented in the library. Follow [the operation contracts](docs/operation-contracts.md) and ADR 0002. Registration, Git discovery, context CLI wiring, and effectful worktree/job operations remain later work; a completed observation establishes no ownership or durable acceptance.
+Versioned read contracts and explicit project/checkout resolution through an injected reader are implemented in the library. Follow [the operation contracts](docs/operation-contracts.md) and ADR 0002. Registration, context CLI wiring, and effectful worktree/job operations remain later work; a completed observation establishes no ownership or durable acceptance.
+
+Read-only Git inspection is implemented through `inspectGitRepository` and `createGitInspector`; follow [its contract](docs/git-inspection.md). Use an explicit checkout and trusted executable/runner, preserve full commit IDs and incomplete-output errors, and keep raw remote URLs and diagnostics out of results. Common-directory identity and repeated observations establish neither ownership nor an atomic snapshot; recheck before effects.
 
 The injectable process runner is implemented through `executeProcess` and `nodeProcessRunner`; follow [its contract](docs/process-runner.md). Keep termination cause, root exit, process-group evidence, output completeness, and domain success separate. Do not retry uncertain writes automatically or treat an absent original group as proof that escaped descendants/services stopped. Supply explicit environment and apply retention/redaction policy to captured output and artifacts.
 

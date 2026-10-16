@@ -68,3 +68,19 @@ export {
   type InspectManagedFileRequest,
 } from './contracts/managed-files.js';
 export type { ManagedFileStore } from './ports/managed-file-store.js';
+export { inspectGitRepository } from './application/inspect-git-repository.js';
+export { createGitInspector, type GitInspectorOptions } from './adapters/git/git-inspector.js';
+export type { GitInspector } from './ports/git-inspector.js';
+export {
+  gitInspectionRequestSchema,
+  gitRepositoryInspectionSchema,
+  gitInspectionResultSchema,
+  type GitInspectionRequest,
+  type GitRepositoryInspection,
+  type GitInspectionResult,
+  type GitHead,
+  type GitRef,
+  type GitStatusEntry,
+  type GitWorktree,
+  type GitRemoteEndpoint,
+} from './contracts/git.js';

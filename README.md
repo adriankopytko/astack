@@ -8,11 +8,13 @@ One orchestrator selects work and decides what happens next. Astack prepares own
 
 The development scaffold is ready: a compiled CLI/library, strict TypeScript, typed Oxlint rules, Oxfmt, dependency checks, isolated tests, and Linux/macOS CI. The CLI currently provides help, version, package information, and agent guidance through `--skill`. Project primitives, agent delegation, persistence, and the service are the next implementation slices.
 
-The library now provides versioned read results and explicit project/checkout context resolution through an injected reader. Production registration, Git discovery, context CLI wiring, owned worktrees, and delegation remain unimplemented. See [operation contracts](docs/operation-contracts.md) for the executable APIs and the separate durable v1 design.
+The library now provides versioned read results and explicit project/checkout context resolution through an injected reader. Production registration, context CLI wiring, owned worktrees, and delegation remain unimplemented. See [operation contracts](docs/operation-contracts.md) for the executable APIs and the separate durable v1 design.
 
 The library also provides `executeProcess(request, runner, signal?)` and `nodeProcessRunner`: explicit argv/cwd/environment, bounded output and optional private artifacts, timeout/cancellation, and observed Linux/macOS process-group teardown. See [the process runner contract](docs/process-runner.md). It does not add a general execution CLI command or establish service shutdown from a process exit.
 
 Managed-file operations can create or upgrade owned generated assets, preserve detected edits/collisions, and inspect interrupted publication. Ownership/version/digest records and pending intents live with the selected root; large process output uses separate private artifacts. See [managed files](docs/managed-files.md) for path policy, concurrency limits, and recovery boundaries. Project initialization and automatic reconciliation are later operations.
+
+`inspectGitRepository(request, inspector, signal?)` now reads canonical repository/checkout identity, full refs and commit targets, worktree registration, remote endpoint summaries, and tracked/untracked status through an injected Git adapter and process runner. It performs no registration or ownership claim. See [Git inspection](docs/git-inspection.md) for supported selectors, execution controls, and consistency limits. CLI wiring remains planned.
 
 Local planning material is intentionally ignored. Durable contributor requirements belong in this README, [AGENTS.md](AGENTS.md), and tracked architecture decisions.
 
@@ -54,7 +56,7 @@ src/
   core/          process, file and Git mechanisms
   ports/         provider/runtime/storage interfaces
   application/   project, worktree, job and handoff operations
-  adapters/      GitHub CLI, Herdr and SQLite implementations
+  adapters/      Git, GitHub CLI, Herdr and SQLite implementations
   cli/           command parsing, rendering and dependency wiring
   service/       scheduling, lifecycle, transport and dependency wiring
 tests/
