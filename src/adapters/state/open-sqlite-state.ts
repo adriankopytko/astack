@@ -9,6 +9,8 @@ import { auditStateFiles, prepareStateDirectory } from './state-directory.js';
 import { createStateStore } from './store.js';
 import { createSqliteProjectRegistry } from './project-registry.js';
 import type { ProjectRegistry } from '../../ports/project-registry.js';
+import type { WorktreeStore } from '../../ports/worktrees.js';
+import { createSqliteWorktreeStore } from './worktree-store.js';
 
 export interface SqliteStateDependencies {
   /** Trusted wall-clock milliseconds, used only for short claims and release observations. */
@@ -21,6 +23,7 @@ export type StateOpenResult =
       stateDirectory: string;
       store: StateStore;
       registry: ProjectRegistry;
+      worktrees: WorktreeStore;
     }
   | RejectedResult;
 
@@ -58,6 +61,7 @@ export async function openSqliteState(
         stateDirectory: root.path,
         store: createStateStore(database, dependencies.now ?? Date.now),
         registry: createSqliteProjectRegistry(database),
+        worktrees: createSqliteWorktreeStore(database, dependencies.now ?? Date.now),
       };
     } catch (error) {
       database.close();

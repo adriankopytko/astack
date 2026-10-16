@@ -1,6 +1,6 @@
 ---
 name: astack-cli
-description: Use the astack CLI to register checkouts, inspect project context, or discover installed orchestration capabilities. Read supported commands before attempting delegation.
+description: Use the astack CLI to register projects, manage owned worktrees, inspect context, or discover installed orchestration capabilities before delegation.
 ---
 
 # Using astack
@@ -13,15 +13,19 @@ From the astack source repository use `pnpm dev` instead of `astack`; after buil
 
 ## Commands available now
 
-| Command                                                                 | Result                                                                                      |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `astack --skill`                                                        | Installed agent guide                                                                       |
-| `astack --help` / `--version`                                           | Command discovery / version                                                                 |
-| `astack info [--json]`                                                  | Package information; not project/job status                                                 |
-| `astack project register [path] [--id <project-id>] [--json]`           | Deliberately register a canonical checkout in local state; default path is caller directory |
-| `astack project list [--limit <count>] [--after <project-id>] [--json]` | Paginated recorded project identities and primary checkout paths                            |
-| `astack context [selectors] [--json]`                                   | Inspect target identity, selection source, Git state, and readiness                         |
-| `astack doctor [selectors] [--json]`                                    | Alias for `context`                                                                         |
+| Command                                                                                           | Result                                                                                      |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `astack --skill`                                                                                  | Installed agent guide                                                                       |
+| `astack --help` / `--version`                                                                     | Command discovery / version                                                                 |
+| `astack info [--json]`                                                                            | Package information; not project/job status                                                 |
+| `astack project register [path] [--id <project-id>] [--json]`                                     | Deliberately register a canonical checkout in local state; default path is caller directory |
+| `astack project list [--limit <count>] [--after <project-id>] [--json]`                           | Paginated recorded project identities and primary checkout paths                            |
+| `astack context [selectors] [--json]`                                                             | Inspect target identity, selection source, Git state, and readiness                         |
+| `astack doctor [selectors] [--json]`                                                              | Alias for `context`                                                                         |
+| `astack worktree prepare --project <id> --key <key> --branch <branch> --base <full-sha> [--json]` | Prepare or verify an owned isolated checkout                                                |
+| `astack worktree inspect <id> [--json]`                                                           | Observe ownership, phase, and Git evidence                                                  |
+| `astack worktree remove <id> [--json]`                                                            | Remove a verified clean owned checkout; preserve its branch                                 |
+| `astack worktree reconcile <id> --operation <id> --writer-stopped [--json]`                       | Settle interrupted state after trusted host quiescence confirmation                         |
 
 Global `--state-directory <path>` selects isolated host state. `--git-executable <absolute-path>` selects trusted Git; otherwise the CLI searches absolute host PATH entries. Git inspection requires Git 2.45 or later.
 
@@ -47,8 +51,18 @@ After `uncertain`, inspect the registry and supplied identities before retrying 
 
 Doctor currently reports Git readiness, other providers as `not_checked`, configuration provenance as `none`/`not_implemented`, and delegation as unavailable. Do not interpret registration or a clean checkout as execution authorization.
 
+## Owned worktrees
+
+Preparation requires a registered project, stable owner key, new task branch, and full local commit SHA. Optional `--checkout` selects a registered source and `--run` binds an existing saved attempt; branch/base must match that assignment. Existing branches are not adopted. Managed checkouts live in private containers under host state, and receive separate registered checkout IDs. Repeated prepare verifies/reuses the same resource; a pending reservation never launches a second writer.
+
+Worktree outcomes include `prepared`, `reused`, `removed`, `reconciled`, `inspected`, `blocked`, and `pending`. Inspecting a pending record does not establish readiness. Routine removal preserves dirty, untracked, and ignored files, edited ownership markers, changed identities/branches, locked resources, and task branches. Attempt-bound cleanup also requires a terminal result and release of other retained resources. Host/runtime callers must independently establish that workers/services stopped.
+
+After interruption, inspect the record and exact operation ID. Use `--writer-stopped` only after the trusted host/operator has verified the original writer and its children stopped. The flag is an attestation, not an automatic process check. Never infer it from PID absence, age, agent idleness, or a worker/PR assertion. Reconcile reads provider/filesystem evidence and settles state without repeating Git creation/removal. Unmarked containers and branch-only partial creation remain preserved; no force, branch deletion, or automatic repair is available.
+
+Worktree creation currently rejects configured content-filter commands and sparse checkout until execution profiles support them. Project provisioning, LFS/submodule initialization, hooks, and agent launch are separate future capabilities. Do not bypass a blocked/pending outcome by choosing a different directory or forcing Git cleanup.
+
 ## Planned capabilities
 
-The stage remains `foundation`. Initialization, managed worktree lifecycle, trusted project/role configuration, agent delegation, service dispatch/recovery, GitHub workflows, and automatic review are not implemented commands. Report missing capabilities rather than inventing commands or treating unknown commands as accepted work.
+The stage remains `foundation`. Initialization, trusted project/role configuration, agent delegation, service dispatch/recovery, GitHub workflows, and automatic review are not implemented commands. Report missing capabilities rather than inventing commands or treating unknown commands as accepted work.
 
 As those operations arrive, use commit-specific results and explicit automation policy. A pushed PR or idle agent alone is not proof of completion or authorization for another action.

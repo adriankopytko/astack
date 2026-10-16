@@ -126,4 +126,37 @@ CREATE TABLE registered_checkouts (
 ) STRICT;
 `,
   },
+  {
+    version: 3,
+    sql: `
+CREATE TABLE managed_worktrees (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  repository_id TEXT NOT NULL,
+  source_checkout_id TEXT NOT NULL,
+  attempt_id TEXT REFERENCES attempts(id),
+  owner_key TEXT NOT NULL,
+  branch TEXT NOT NULL,
+  checkout_path TEXT NOT NULL UNIQUE,
+  phase TEXT NOT NULL CHECK(phase IN ('preparing', 'ready', 'removing', 'removed', 'abandoned')),
+  revision INTEGER NOT NULL CHECK(revision >= 0),
+  operation_id TEXT NOT NULL,
+  data TEXT NOT NULL CHECK(json_valid(data))
+    CHECK(json_extract(data, '$.intent.id') IS id)
+    CHECK(json_extract(data, '$.intent.projectId') IS project_id)
+    CHECK(json_extract(data, '$.intent.repositoryId') IS repository_id)
+    CHECK(json_extract(data, '$.intent.sourceCheckoutId') IS source_checkout_id)
+    CHECK(json_extract(data, '$.intent.run.id') IS attempt_id)
+    CHECK(json_extract(data, '$.intent.key') IS owner_key)
+    CHECK(json_extract(data, '$.intent.branch') IS branch)
+    CHECK(json_extract(data, '$.intent.checkoutPath') IS checkout_path)
+    CHECK(json_extract(data, '$.phase') IS phase)
+    CHECK(json_extract(data, '$.revision') IS revision)
+    CHECK(json_extract(data, '$.operationId') IS operation_id),
+  UNIQUE(project_id, owner_key), UNIQUE(repository_id, branch),
+  FOREIGN KEY(project_id, repository_id) REFERENCES project_registrations(project_id, repository_id),
+  FOREIGN KEY(source_checkout_id, project_id, repository_id) REFERENCES checkouts(id, project_id, repository_id)
+) STRICT;
+`,
+  },
 ] as const;

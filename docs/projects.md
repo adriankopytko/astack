@@ -58,7 +58,7 @@ Unregistered repositories can be inspected without registration. A linked checko
 
 Context reports selection source, registration state, project/checkout IDs, Git facts, saved-attempt binding where requested, and readiness. Git is marked ready only after successful inspection. Codex, Herdr, and GitHub are `not_checked`: their adapters/readiness probes are not implemented. Configuration provenance is `{ source: 'none', status: 'not_implemented' }`; no repository configuration is read as trusted execution policy.
 
-Delegation is always `unavailable` in this version. Reasons include missing registration when applicable, and unimplemented execution policy/delegation. Registration, a clean worktree, available Git, or a completed context read is not authority to execute project hooks or agents. Project profiles, trusted host policy, owned worktrees, Herdr spaces, and worker dispatch arrive in their respective issues.
+Delegation is always `unavailable` in this version. Reasons include missing registration when applicable, and unimplemented execution policy/delegation. Registration, a clean worktree, available Git, or a completed context read is not authority to execute project hooks or agents. Owned worktree lifecycle is available through [separate operations](worktrees.md). Project profiles, trusted host execution policy, Herdr spaces, and worker dispatch arrive in their respective issues.
 
 ## State access, failures and cancellation
 

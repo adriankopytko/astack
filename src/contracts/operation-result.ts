@@ -38,6 +38,9 @@ export const operationErrorSchema = z.strictObject({
     'project_registration_conflict',
     'project_checkout_stale',
     'run_not_found',
+    'worktree_not_found',
+    'worktree_conflict',
+    'worktree_configuration_unsupported',
   ]),
   message: z.string().min(1),
 });

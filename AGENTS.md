@@ -4,9 +4,9 @@
 
 Astack is a reusable Node toolkit for one orchestrator to delegate implementation and review across projects. Keep project-specific technologies, trackers, prompts, and environment schemas out of generic mechanisms.
 
-The development scaffold is installed. The CLI implements help, version, package information, `--skill` guidance, project registration/listing, and context/doctor diagnostics. Worktree lifecycle and delegation are not implemented yet. Use [README.md](README.md) and tracked ADRs as the durable contributor contract. Ignored `.planning` material is supplementary local context, not a prerequisite for contributors.
+The development scaffold is installed. The CLI implements help, version, package information, `--skill` guidance, project registration/listing, context/doctor diagnostics, and owned worktree lifecycle. Delegation is not implemented yet. Use [README.md](README.md) and tracked ADRs as the durable contributor contract. Ignored `.planning` material is supplementary local context, not a prerequisite for contributors.
 
-Versioned read contracts and explicit project/checkout resolution through an injected reader are implemented in the library. Follow [the operation contracts](docs/operation-contracts.md) and ADR 0002. Effectful worktree/job operations remain later work; a completed observation establishes no ownership or durable acceptance.
+Versioned read contracts and explicit project/checkout resolution through an injected reader are implemented in the library. Follow [the operation contracts](docs/operation-contracts.md) and ADR 0002. Job submission/dispatch operations remain later work; a completed observation establishes no ownership or durable acceptance.
 
 Read-only Git inspection is implemented through `inspectGitRepository` and `createGitInspector`; follow [its contract](docs/git-inspection.md). Use an explicit checkout and trusted executable/runner, preserve full commit IDs and incomplete-output errors, and keep raw remote URLs and diagnostics out of results. Common-directory identity and repeated observations establish neither ownership nor an atomic snapshot; recheck before effects.
 
@@ -17,6 +17,8 @@ Managed asset writes/inspection and shared private-artifact helpers are implemen
 Typed SQLite persistence is implemented through `openSqliteState` and the state application operations; follow [its contract](docs/sqlite-state.md). Keep immutable numbered migrations in compiled state-adapter modules, transactions synchronous and bounded, and state outside repositories. Persist local intent before external effects, preserve expired claims and uncertain outcomes, and reopen/inspect after an uncertain commit. Storage records and claim tokens are not worker authorization or proof of provider success; service dispatch, registration policy, report validation, and automatic recovery remain later work.
 
 Project registration and CLI context selection are implemented; follow [their contract](docs/projects.md) and ADR 0003. Explicit saved-attempt/checkout/project/path selectors must agree and take priority over caller-directory discovery. Preserve distinct linked checkout IDs, stale filesystem identity evidence, and deliberate registration markers. Read-only diagnostics do not initialize state or grant execution policy; registration does not initialize project files or authorize workers.
+
+Owned worktree prepare/inspect/remove/reconcile operations and CLI commands are implemented; follow [their contract](docs/worktrees.md) and ADR 0004. Persist intent before effects, retain pending writer claims, and verify ownership, directory identity, branch retention, and tracked/untracked/ignored files before removal. Never force-remove, prune, or delete task branches. Manual reconciliation requires an operation-bound trusted host attestation that the writer and its children stopped; do not infer it from age, PID absence, idle status, or worker assertions. Configuration profiles, provisioning, agent launch, and automatic coordinator recovery remain later work.
 
 ## Toolchain
 

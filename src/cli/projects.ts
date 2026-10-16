@@ -32,7 +32,7 @@ interface SelectionOptions {
   json?: boolean;
 }
 
-async function gitExecutable(explicit?: string): Promise<string | null> {
+export async function gitExecutable(explicit?: string): Promise<string | null> {
   if (explicit !== undefined) {
     return isAbsolute(explicit) ? explicit : null;
   }

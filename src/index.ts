@@ -173,3 +173,29 @@ export {
   type ProjectListRequest,
   type ProjectList,
 } from './contracts/projects.js';
+export {
+  prepareWorktree,
+  inspectWorktree,
+  removeWorktree,
+  reconcileWorktree,
+} from './application/worktrees.js';
+export type { WorktreeDependencies } from './application/worktree-evidence.js';
+export { createNodeWorktreeFiles } from './adapters/filesystem/worktree-files.js';
+export { createWorktreeGit } from './adapters/git/worktree-git.js';
+export type { WorktreeStore, WorktreeFiles, WorktreeGit } from './ports/worktrees.js';
+export {
+  worktreePrepareRequestSchema,
+  worktreeIdRequestSchema,
+  worktreeReconcileRequestSchema,
+  worktreeIntentSchema,
+  worktreeRecordSchema,
+  worktreeObservationSchema,
+  worktreeResultSchema,
+  type WorktreeIntent,
+  type WorktreeRecord,
+  type WorktreeObservation,
+  type WorktreeReason,
+  type WorktreeResult,
+  type WorktreePrepareRequest,
+  type WorktreeReconcileRequest,
+} from './contracts/worktrees.js';

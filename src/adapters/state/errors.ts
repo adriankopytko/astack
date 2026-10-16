@@ -28,6 +28,8 @@ export function sqliteCode(error: unknown): number | null {
 }
 
 const messages: Partial<Record<OperationErrorCode, string>> = {
+  worktree_conflict:
+    'Worktree ownership or lifecycle state conflicts; inspect the current record before continuing.',
   project_registration_conflict:
     'Registration conflicts with recorded project or checkout identities.',
   project_checkout_stale:

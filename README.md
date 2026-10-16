@@ -6,7 +6,7 @@ One orchestrator selects work and decides what happens next. Astack prepares own
 
 ## Status
 
-The development scaffold is ready: a compiled CLI/library, strict TypeScript, typed Oxlint rules, Oxfmt, dependency checks, isolated tests, and Linux/macOS CI. The CLI provides help, version, package information, `--skill` guidance, project registration/listing, and context/doctor diagnostics. Owned worktrees, agent delegation, and the service are the next implementation slices.
+The development scaffold is ready: a compiled CLI/library, strict TypeScript, typed Oxlint rules, Oxfmt, dependency checks, isolated tests, and Linux/macOS CI. The CLI provides help, version, package information, `--skill` guidance, project registration/listing, context/doctor diagnostics, and owned worktree lifecycle commands. Trusted configuration, agent delegation, and the service are the next implementation slices.
 
 The library now provides versioned read results and explicit project/checkout context resolution through an injected reader. See [operation contracts](docs/operation-contracts.md) for the executable APIs and the separate durable v1 design.
 
@@ -20,6 +20,8 @@ Managed-file operations can create or upgrade owned generated assets, preserve d
 
 `project register [path]`, `project list`, and `context` (alias `doctor`) connect Git inspection to explicit local registration. Select a project, checkout, saved attempt, or path from any directory; without selectors, inspect the nearest repository. Read-only diagnostics do not initialize missing state or grant execution authority. See [project registration and context](docs/projects.md) for selectors, stale-location checks, and provider/configuration readiness.
 
+`worktree prepare`, `inspect`, `remove`, and `reconcile` now manage isolated owned checkouts at explicit commit SHAs. Ownership is persisted before Git writes; routine cleanup preserves dirty/untracked/ignored files and task branches. Interrupted effects remain pending until operation-bound host quiescence confirmation and fresh evidence permit reconciliation. See [owned worktrees](docs/worktrees.md) for contracts, supported Git configuration, and recovery limits.
+
 Local planning material is intentionally ignored. Durable contributor requirements belong in this README, [AGENTS.md](AGENTS.md), and tracked architecture decisions.
 
 ## First delivery
@@ -32,7 +34,7 @@ Local planning material is intentionally ignored. Durable contributor requiremen
 - Shared port and service-name allocation across managed projects.
 - Idempotent project initialization, project-owned setup/verification hooks, and focused skills.
 
-Begin with project resolution, repository inspection, and owned worktree lifecycle. Broader task scheduling, automatic fix loops, additional providers, remote execution, and public hosting follow concrete usage.
+Next, add trusted project configuration and service/runtime integration. Broader task scheduling, automatic fix loops, additional providers, remote execution, and public hosting follow concrete usage.
 
 ## Development stack
 
