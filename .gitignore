@@ -6,6 +6,13 @@
 .astack-managed/*.pending.json
 .astack-managed/*.json.*.tmp
 
+# Local SQLite state and sidecars (runtime state belongs outside repositories)
+.astack-state.json
+state.sqlite
+state.sqlite-wal
+state.sqlite-shm
+state.sqlite-journal
+
 # Dependencies and package-manager caches
 node_modules/
 .pnpm-store/

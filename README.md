@@ -6,7 +6,7 @@ One orchestrator selects work and decides what happens next. Astack prepares own
 
 ## Status
 
-The development scaffold is ready: a compiled CLI/library, strict TypeScript, typed Oxlint rules, Oxfmt, dependency checks, isolated tests, and Linux/macOS CI. The CLI currently provides help, version, package information, and agent guidance through `--skill`. Project primitives, agent delegation, persistence, and the service are the next implementation slices.
+The development scaffold is ready: a compiled CLI/library, strict TypeScript, typed Oxlint rules, Oxfmt, dependency checks, isolated tests, and Linux/macOS CI. The CLI currently provides help, version, package information, and agent guidance through `--skill`. Project registration, owned worktrees, agent delegation, and the service are the next implementation slices.
 
 The library now provides versioned read results and explicit project/checkout context resolution through an injected reader. Production registration, context CLI wiring, owned worktrees, and delegation remain unimplemented. See [operation contracts](docs/operation-contracts.md) for the executable APIs and the separate durable v1 design.
 
@@ -15,6 +15,8 @@ The library also provides `executeProcess(request, runner, signal?)` and `nodePr
 Managed-file operations can create or upgrade owned generated assets, preserve detected edits/collisions, and inspect interrupted publication. Ownership/version/digest records and pending intents live with the selected root; large process output uses separate private artifacts. See [managed files](docs/managed-files.md) for path policy, concurrency limits, and recovery boundaries. Project initialization and automatic reconciliation are later operations.
 
 `inspectGitRepository(request, inspector, signal?)` now reads canonical repository/checkout identity, full refs and commit targets, worktree registration, remote endpoint summaries, and tracked/untracked status through an injected Git adapter and process runner. It performs no registration or ownership claim. See [Git inspection](docs/git-inspection.md) for supported selectors, execution controls, and consistency limits. CLI wiring remains planned.
+
+`openSqliteState(request)` opens private local state with numbered transactional migrations. Library operations persist project identity projections, idempotent job intent, attempts and pending effects, short claims, terminal results, and resource records. The store also supplies the existing context reader. See [SQLite state](docs/sqlite-state.md) for API contracts, isolated directories, contention, and uncertain-commit handling. Saving intent does not launch an agent or validate a worker report; service dispatch and project registration policy remain planned.
 
 Local planning material is intentionally ignored. Durable contributor requirements belong in this README, [AGENTS.md](AGENTS.md), and tracked architecture decisions.
 
@@ -95,7 +97,7 @@ pnpm check
 | `pnpm test`                         | Build and run isolated CLI/boundary tests                                 |
 | `pnpm check`                        | Run formatting, lint, types, boundaries, build and tests                  |
 
-The package remains private. `pnpm pack --pack-destination .cache` can inspect its distribution allowlist; it does not publish. Hono and SQLite wiring will be added with their first real consumer. Dependency installation explicitly allows esbuild's setup script for tsx; scripts fail on stale dependencies instead of silently reinstalling them.
+The package remains private. `pnpm pack --pack-destination .cache` can inspect its distribution allowlist; it does not publish. SQLite migrations ship as compiled adapter modules; Hono wiring will be added with the service transport. Dependency installation explicitly allows esbuild's setup script for tsx; scripts fail on stale dependencies instead of silently reinstalling them.
 
 Default checks use temporary repositories, databases, and child processes. They must not operate on user projects, live agent sessions, or GitHub tracking. Live-provider checks require explicit opt-in. Linux and macOS are the initial portability targets.
 

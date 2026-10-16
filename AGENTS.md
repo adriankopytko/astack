@@ -14,6 +14,8 @@ The injectable process runner is implemented through `executeProcess` and `nodeP
 
 Managed asset writes/inspection and shared private-artifact helpers are implemented; follow [their contract](docs/managed-files.md). Preserve unowned/edited files and unresolved intents, select trusted roots, coordinate writers, and keep operational stage/journal files out of commits. A proposed ownership record is not host authority; automatic pending-write reconciliation and project initialization remain later work.
 
+Typed SQLite persistence is implemented through `openSqliteState` and the state application operations; follow [its contract](docs/sqlite-state.md). Keep immutable numbered migrations in compiled state-adapter modules, transactions synchronous and bounded, and state outside repositories. Persist local intent before external effects, preserve expired claims and uncertain outcomes, and reopen/inspect after an uncertain commit. Storage records and claim tokens are not worker authorization or proof of provider success; service dispatch, registration policy, report validation, and automatic recovery remain later work.
+
 ## Toolchain
 
 Use Node 24 LTS, pnpm, strict TypeScript, ESM, and NodeNext module resolution. Honor `.node-version` and `package.json#packageManager`. Preserve the lockfile; do not switch package managers.

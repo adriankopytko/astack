@@ -16,6 +16,8 @@ Use versioned transactional migrations, prepared statements, explicit database s
 
 Runtime state lives outside source/worktree directories. An explicit state-directory override provides isolated development and verification. Include migration assets in the compiled package deliberately.
 
+The implemented [state contract](../sqlite-state.md) uses WAL, FULL synchronous durability, foreign keys, bounded busy waits, and checksummed numbered migrations compiled with the adapter. Explicit short claims coordinate pending effects; expiry requires reconciliation rather than granting permission to repeat an external write.
+
 ## Consequences
 
 The [Node 24.20.0 API](https://nodejs.org/download/release/v24.20.0/docs/api/sqlite.html) is marked release candidate, and `DatabaseSync` operations execute synchronously. Accept that API maturity for the initial project; keep storage details within the state adapter.

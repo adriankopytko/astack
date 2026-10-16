@@ -108,7 +108,7 @@ The resolver never consults ambient cwd or providers. Production registration, n
 
 ## Durable v1 model — design only
 
-No durable job, report, or service schema is exported yet. Add one with its consuming operation, including version migration and invalid-input tests. The following constraints govern that implementation.
+The [SQLite state operations](sqlite-state.md) now export typed local job-intent, attempt, effect, result, and resource storage records. These are persistence contracts, not a service submission API or authenticated worker-report format. Service dispatch, report validation, and the complete workflow below remain design requirements. Add their schemas with consuming operations, including version migration and invalid-input tests.
 
 ### Identity, acceptance, and effects
 

@@ -1,0 +1,59 @@
+import { stateOpenRequestSchema } from '../../contracts/state.js';
+import { rejected, type RejectedResult } from '../../contracts/operation-result.js';
+import { parseOperationRequest } from '../../core/parse-operation-request.js';
+import { FileSafetyError } from '../../core/file-paths.js';
+import type { StateStore } from '../../ports/state-store.js';
+import { openStateDatabase } from './database.js';
+import { StateError, stateRejection } from './errors.js';
+import { auditStateFiles, prepareStateDirectory } from './state-directory.js';
+import { createStateStore } from './store.js';
+
+export interface SqliteStateDependencies {
+  /** Trusted wall-clock milliseconds, used only for short claims and release observations. */
+  now?: () => number;
+}
+export type StateOpenResult =
+  | { schemaVersion: 1; outcome: 'opened'; stateDirectory: string; store: StateStore }
+  | RejectedResult;
+
+export async function openSqliteState(
+  input: unknown,
+  dependencies: SqliteStateDependencies = {},
+): Promise<StateOpenResult> {
+  const request = parseOperationRequest(stateOpenRequestSchema, input);
+
+  if (!request.valid) {
+    return request.result;
+  }
+
+  if (process.platform !== 'linux' && process.platform !== 'darwin') {
+    return rejected(
+      'unsupported_platform',
+      'Private SQLite state currently requires Linux or macOS.',
+    );
+  }
+
+  try {
+    const { root, databasePath } = await prepareStateDirectory(request.value.stateDirectory);
+    const database = openStateDatabase(databasePath, request.value.busyTimeoutMs);
+
+    try {
+      await auditStateFiles(root);
+
+      return {
+        schemaVersion: 1,
+        outcome: 'opened',
+        stateDirectory: root.path,
+        store: createStateStore(database, dependencies.now ?? Date.now),
+      };
+    } catch (error) {
+      database.close();
+
+      throw error;
+    }
+  } catch (error) {
+    return stateRejection(
+      error instanceof FileSafetyError ? new StateError('state_directory_unsafe') : error,
+    );
+  }
+}
