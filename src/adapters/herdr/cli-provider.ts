@@ -7,9 +7,11 @@ import {
   type HerdrTarget,
   type HerdrServer,
   type HerdrSnapshot,
+  type HerdrSpace,
 } from '../../contracts/herdr.js';
 import { completed, rejected, type OperationResult } from '../../contracts/operation-result.js';
 import type { HerdrProvider, HerdrEndpointReader } from '../../ports/herdr.js';
+import type { InteractiveWorkerProvider } from '../../ports/runtime.js';
 import type { ProcessRunner } from '../../ports/process-runner.js';
 
 const worktree = z.object({
@@ -90,13 +92,14 @@ export function createHerdrCliProvider(options: {
   endpoint: HerdrEndpointReader;
   environment?: Readonly<Record<string, string>>;
   timeoutMs?: number;
-}): HerdrProvider {
+}): HerdrProvider & InteractiveWorkerProvider {
   async function invoke(
     target: HerdrTarget,
     cwd: string,
     args: string[],
     signal?: AbortSignal,
     expected?: HerdrServer,
+    timeoutMs = options.timeoutMs ?? 10_000,
   ): Promise<OperationResult<{ body: unknown; server: HerdrServer }>> {
     if (!isAbsolute(options.executable)) {
       return rejected('herdr_unavailable', 'Select an absolute trusted Herdr executable.');
@@ -139,11 +142,11 @@ export function createHerdrCliProvider(options: {
         args,
         cwd,
         env,
-        timeoutMs: options.timeoutMs ?? 10_000,
+        timeoutMs,
         maxCaptureBytes: 4_194_304,
       });
 
-      if (!request.success || (options.timeoutMs ?? 10_000) > 120_000) {
+      if (!request.success || timeoutMs > 120_000) {
         return rejected('herdr_unavailable', 'Herdr process settings exceed the supported bounds.');
       }
 
@@ -195,7 +198,133 @@ export function createHerdrCliProvider(options: {
     }
   }
 
-  return {
+  async function guard(
+    space: HerdrSpace,
+    launch: boolean,
+    signal?: AbortSignal,
+    allowWorking = false,
+  ) {
+    const response = await provider.snapshot(space.target, space.root, signal);
+
+    if (response.outcome === 'rejected') {
+      return response;
+    }
+
+    const snapshot = response.value;
+    const handle = space.handle;
+    const pane = snapshot.panes.find((item) => item.paneId === handle?.paneId);
+    const occupants = snapshot.agents.filter(
+      (item) =>
+        item.kind !== null &&
+        (item.paneId === handle?.paneId || item.name === space.expectedAgentName),
+    );
+    const occupant = occupants[0];
+
+    if (
+      !handle ||
+      !isDeepStrictEqual(snapshot.server, space.server) ||
+      !pane ||
+      pane.workspaceId !== handle.workspaceId ||
+      pane.tabId !== handle.tabId ||
+      pane.terminalId !== handle.terminalId ||
+      pane.cwd !== space.root ||
+      pane.foregroundCwd !== space.root ||
+      (launch
+        ? occupants.length !== 0
+        : occupants.length !== 1 ||
+          !space.agent?.nativeSessionId ||
+          !occupant ||
+          occupant.paneId !== handle.paneId ||
+          occupant.terminalId !== handle.terminalId ||
+          occupant.workspaceId !== handle.workspaceId ||
+          occupant.tabId !== handle.tabId ||
+          occupant.name !== space.expectedAgentName ||
+          occupant.kind !== 'codex' ||
+          occupant.nativeSessionId !== space.agent.nativeSessionId ||
+          occupant.cwd !== space.root ||
+          occupant.foregroundCwd !== space.root ||
+          occupant.status === 'blocked' ||
+          occupant.status === 'unknown' ||
+          (!allowWorking && occupant.status === 'working'))
+    ) {
+      return rejected(
+        'runtime_conflict',
+        'Fresh Herdr target evidence does not match the reserved worker.',
+      );
+    }
+
+    return completed(null);
+  }
+
+  async function control(
+    space: HerdrSpace,
+    args: string[],
+    type: string,
+    launch: boolean,
+    signal?: AbortSignal,
+    timeoutMs?: number,
+  ) {
+    const checked = await guard(space, launch, signal, type === 'ok');
+
+    if (checked.outcome === 'rejected') {
+      return checked;
+    }
+
+    const response = await invoke(space.target, space.root, args, signal, space.server, timeoutMs);
+
+    if (response.outcome === 'rejected') {
+      return response;
+    }
+
+    return z.object({ result: z.object({ type: z.literal(type) }) }).safeParse(response.value.body)
+      .success
+      ? completed(null)
+      : rejected('herdr_invalid_output', 'Herdr did not acknowledge the requested runtime action.');
+  }
+
+  const provider: HerdrProvider & InteractiveWorkerProvider = {
+    async launch(input, signal) {
+      return control(
+        input.space,
+        [
+          'agent',
+          'start',
+          input.space.expectedAgentName ?? '',
+          '--kind',
+          'codex',
+          '--pane',
+          input.space.handle?.paneId ?? '',
+          '--timeout',
+          String(Math.min(input.timeoutMs - 1000, 29_000)),
+          '--',
+          ...input.args,
+          '--cd',
+          input.space.root,
+        ],
+        'agent_started',
+        true,
+        signal,
+        input.timeoutMs,
+      );
+    },
+    async input(space, text, signal) {
+      return control(
+        space,
+        ['agent', 'prompt', space.handle?.paneId ?? '', '--', text],
+        'agent_prompted',
+        false,
+        signal,
+      );
+    },
+    async interrupt(space, signal) {
+      return control(
+        space,
+        ['agent', 'send-keys', space.handle?.paneId ?? '', 'esc'],
+        'ok',
+        false,
+        signal,
+      );
+    },
     async snapshot(target, cwd, signal) {
       const response = await invoke(target, cwd, ['api', 'snapshot'], signal);
 
@@ -304,4 +433,6 @@ export function createHerdrCliProvider(options: {
           );
     },
   };
+
+  return provider;
 }

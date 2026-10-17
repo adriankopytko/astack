@@ -6,7 +6,7 @@ import {
 } from '../contracts/service.js';
 import { rejected, completed, type OperationResult } from '../contracts/operation-result.js';
 import { parseOperationRequest } from '../core/parse-operation-request.js';
-import { gitExecutable } from '../core/host-git.js';
+import { gitExecutable, hostExecutable } from '../core/host-git.js';
 import { hasFileCode } from '../core/file-paths.js';
 import { nodeProcessRunner } from '../core/node-process-runner.js';
 import { openSqliteState } from '../adapters/state/open-sqlite-state.js';
@@ -24,13 +24,17 @@ import {
   inspectServiceJob,
   type ServiceDependencies,
 } from '../application/service.js';
+import { composeCodexHerdrRuntime } from './codex-runtime.js';
 import { listenLocalService } from '../service/local-transport.js';
 import type { CoordinatorOwnership, ServiceWorkerRuntime } from '../ports/service.js';
 
 /** Explicit composition boundary shared by the CLI and library hosts; construction imports do no IO. */
 export async function startLocalService(
   input: unknown,
-  options: { runtimes?: readonly ServiceWorkerRuntime[] } = {},
+  options: {
+    runtimes?: readonly ServiceWorkerRuntime[];
+    codexHerdr?: { herdrExecutable?: string; codexExecutable?: string };
+  } = {},
 ) {
   const request = parseOperationRequest(serviceRunRequestSchema, input);
 
@@ -79,6 +83,32 @@ export async function startLocalService(
       now: Date.now,
       nextId: (kind) => `${kind}-${randomUUID()}`,
     };
+    const runtimes = [...(options.runtimes ?? [])];
+
+    if (options.codexHerdr) {
+      const herdr = await hostExecutable('herdr', options.codexHerdr.herdrExecutable);
+      const codex = await hostExecutable('codex', options.codexHerdr.codexExecutable);
+
+      if (!herdr || !codex) {
+        ownership.release();
+        opened.store.close();
+
+        return rejected(
+          'runtime_unavailable',
+          'Select trusted absolute Herdr and Codex executables before enabling codex-herdr.',
+        );
+      }
+
+      runtimes.push(
+        composeCodexHerdrRuntime({
+          opened,
+          dependencies,
+          herdrExecutable: herdr,
+          codexExecutable: codex,
+        }),
+      );
+    }
+
     let fatal = false;
     let closing: Promise<OperationResult<{ closed: true }>> | null = null;
     let resolveClosed: (result: OperationResult<{ closed: true }>) => void = () => {};
@@ -89,7 +119,7 @@ export async function startLocalService(
     const coordinator = createServiceCoordinator({
       sessionId,
       limits: request.value.limits,
-      runtimes: options.runtimes ?? [],
+      runtimes,
       dependencies,
       onFailure: () => {
         fatal = true;

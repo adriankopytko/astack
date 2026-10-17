@@ -1,6 +1,6 @@
 ---
 name: astack-cli
-description: Use the astack CLI to register projects, manage owned worktrees, inspect approved configuration and the local service queue, reconcile explicit Herdr layouts, or discover installed orchestration capabilities before delegation.
+description: Use the astack CLI to register projects, manage owned worktrees, inspect approved configuration and the local service queue, reconcile explicit Herdr layouts, control verified interactive Codex workers, or discover installed orchestration capabilities before delegation.
 ---
 
 # Using astack
@@ -23,7 +23,7 @@ From the astack source repository use `pnpm dev` instead of `astack`; after buil
 | `astack context [selectors] [--json]`                                                             | Inspect target identity, selection source, Git state, and readiness                         |
 | `astack doctor [selectors] [--json]`                                                              | Alias for `context`                                                                         |
 | `astack config inspect --project <id> [--role <name>] [--json]`                                   | Resolve approved configuration, provenance, and prerequisites; alias `config check`         |
-| `astack service run [--capacity <count>] [--role-capacity <count>]`                               | Foreground local coordinator; no real worker runtimes installed                             |
+| `astack service run [--codex-herdr] [--capacity <count>] [--role-capacity <count>]`               | Foreground local coordinator; opt-in codex-herdr runtime                                    |
 | `astack service status / wake [--json]`                                                           | Live coordinator evidence / request a reconciliation pass                                   |
 | `astack service submit <required options> [--json]`                                               | Persist configured intent, attempt and pending effect atomically                            |
 | `astack service inspect <job-id> [--json]`                                                        | Read saved job evidence, also when service is offline                                       |
@@ -35,6 +35,11 @@ From the astack source repository use `pnpm dev` instead of `astack`; after buil
 | `astack worktree inspect <id> [--json]`                                                           | Observe ownership, phase, and Git evidence                                                  |
 | `astack worktree remove <id> [--json]`                                                            | Remove a verified clean owned checkout; preserve its branch                                 |
 | `astack worktree reconcile <id> --operation <id> --writer-stopped [--json]`                       | Settle interrupted state after trusted host quiescence confirmation                         |
+| `astack runtime capabilities`                                                                     | Supported interactive controls and explicit provider limits                                 |
+| `astack runtime inspect --attempt <id> [--json]`                                                  | Read saved worker/native-session identity and current liveness                              |
+| `astack runtime reconcile --attempt <id> [--json]`                                                | Bind a matching pending launch without another provider write                               |
+| `astack runtime input --attempt <id> --key <key> [--json]`                                        | Submit bounded stdin text once under refreshed policy                                       |
+| `astack runtime interrupt --attempt <id> --key <key> [--json]`                                    | Request Escape once; not task cancellation or shutdown                                      |
 
 Global `--state-directory <path>` selects isolated host state. `--git-executable <absolute-path>` selects trusted Git; otherwise the CLI searches absolute host PATH entries. Git inspection requires Git 2.45 or later.
 
@@ -68,7 +73,7 @@ Worktree outcomes include `prepared`, `reused`, `removed`, `reconciled`, `inspec
 
 After interruption, inspect the record and exact operation ID. Use `--writer-stopped` only after the trusted host/operator has verified the original writer and its children stopped. The flag is an attestation, not an automatic process check. Never infer it from PID absence, age, agent idleness, or a worker/PR assertion. Reconcile reads provider/filesystem evidence and settles state without repeating Git creation/removal. Unmarked containers and branch-only partial creation remain preserved; no force, branch deletion, or automatic repair is available.
 
-Worktree creation currently rejects configured content-filter commands and sparse checkout until execution profiles support them. Project provisioning, LFS/submodule initialization, hooks, and agent launch are separate future capabilities. Do not bypass a blocked/pending outcome by choosing a different directory or forcing Git cleanup.
+Worktree creation currently rejects configured content-filter commands and sparse checkout until execution profiles support them. Project provisioning, LFS/submodule initialization and hooks remain later capabilities; runtime launch is separate from worktree preparation. Do not bypass a blocked/pending outcome by choosing a different directory or forcing Git cleanup.
 
 ## Approved project and role configuration
 
@@ -78,15 +83,15 @@ Portable `.astack/project.json` is a proposal. The trusted host/operator maintai
 
 Settings resolve defaults → user → approved project → local → request. Objects merge by fields; arrays replace completely. Host-only permissions, timeout limits and mandatory hooks apply after merging. A changed proposal blocks until reviewed; it never grants new permissions. Missing executables, approved environment names or exact protected skill bytes require the reported host action. Never put credential values in JSON, command arguments, skill contents or reports.
 
-Library configured job acceptance saves immutable policy/provenance and skill pins. Its dispatch gate refreshes policy and prerequisites and blocks changed policy or legacy jobs without snapshots. Generic service dispatch is available through injected runtimes. Hook execution and actual agent launch remain unavailable in the installed CLI. Do not bypass a block by removing a required hook, editing permission controls, or accepting a new job without host authorization.
+Library configured job acceptance saves immutable policy/provenance and skill pins. Its dispatch gate refreshes policy and prerequisites and blocks changed policy or legacy jobs without snapshots. Generic service dispatch is available through injected runtimes. Hook execution remains unavailable. Interactive agent launch requires the explicit codex-herdr service opt-in and supported role configuration. Do not bypass a block by removing a required hook, editing permission controls, or accepting a new job without host authorization.
 
 ## Local service and durable queue
 
-Run `astack service run [--capacity <count>] [--role-capacity <count>]` in the foreground with explicit host state. Use `service status --json` for live readiness/counts and `service inspect <job-id> --json` for saved job/attempt/effect evidence, including offline. `service wake` requests reconciliation after a meaningful external change; it does not clear unknown claims or grant permissions.
+Run `astack service run [--codex-herdr] [--capacity <count>] [--role-capacity <count>]` in the foreground with explicit host state. Use `service status --json` for live readiness/counts and `service inspect <job-id> --json` for saved job/attempt/effect evidence, including offline. `service wake` requests reconciliation after a meaningful external change; it does not clear unknown claims or grant permissions.
 
 `service submit --project <id> [--checkout <id>] --role <name> --key <stable-key> --branch <branch> --commit <full-sha> --task '<description>' --json` persists generic delegation intent. Prepare/select the intended registered checkout explicitly. Submission creates no worktree. A receipt is durable intent, not agent start. Retry a lost acknowledgment with the same key; changed assignment/task/policy under that key conflicts. Never submit replacement work with a new key merely because the client disconnected.
 
-The installed CLI has no Codex/Herdr worker adapters yet. Configured executables are not runtime registrations. A `runtime_unavailable` block is expected until integration; do not launch a substitute worker to bypass it.
+The built-in `codex-herdr` runtime is enabled only with `service run --codex-herdr [--codex-executable <approved-absolute-path>]`. Configured executables alone do not register a runtime. This host opt-in accepts the configured local servers’ shell, inherited environment, canonical Codex resolution and ambient native configuration. Each project role still needs an unchanged enabled host policy selecting this runtime and approved command. Do not enable execution or substitute a worker merely to bypass a block.
 
 One coordinator owns each private state directory through a kernel-backed lock. Other instances reject. SIGINT/SIGTERM drain foreground work and release the coordinator; they do not prove existing workers stopped. On restart, claimed launches are inspected without replaying them. Unknown launches retain capacity despite claim expiry. Only trusted runtime evidence can establish launch absence or quiescence. `awaiting_result` means a known worker stopped, not that the task succeeded.
 
@@ -96,7 +101,7 @@ Transport is a private Unix socket with same-host-user authority, not a TCP serv
 
 Use `herdr configure --project <id> [--session default] [--socket <path>] [--label <text>]` to save an explicit host target without contacting Herdr. The shared default session is deliberate; use a named session only for an explicit isolation preference. `herdr ensure --project <id>` associates or creates one primary space without focus changes. `herdr inspect --project <id>` reads current evidence. Global `--herdr-executable <absolute-path>` selects trusted CLI code. Only installed protocol 22 is supported initially.
 
-`herdr worker prepare --attempt <id>` opens an existing Astack-owned ready worktree in its saved project's primary group. It requires a saved attempt, valid accepted policy, exact initial branch/SHA, intact ownership and fresh registry identity. It creates no Git checkout and starts no agent. Existing unowned worker layouts block. The saved expected agent name/pane are inputs for the later launch integration.
+`herdr worker prepare --attempt <id>` opens an existing Astack-owned ready worktree in its saved project's primary group. It requires a saved attempt, valid accepted policy, exact initial branch/SHA, intact ownership and fresh registry identity. It creates no Git checkout and starts no agent. Existing unowned worker layouts block. The runtime consumes the saved expected agent name/pane.
 
 `herdr worker inspect --attempt <id>` verifies current layout/attribution. `herdr worker bind-agent --attempt <id> --kind <kind>` records only an already detected matching agent, including actual foreground cwd, terminal and available native session ID. It launches nothing. Provider idle/done status is not task success or permission for another writer.
 
@@ -104,8 +109,20 @@ Targets always come from saved project settings, never caller cwd, `HERDR_*` pan
 
 After an uncertain write, inspect its space/operation IDs. `herdr reconcile <id> --operation <id> --writer-stopped` only settles fresh matching evidence after trusted host confirmation that the original writer/children stopped and no late write can arrive. Never infer that from a timeout or idle agent. Reconciliation never repeats creation/opening; absent or changed evidence remains blocked. There is no force, close-group, automatic adoption, Herdr update, or fallback runtime repair.
 
+## Interactive Codex controls
+
+`runtime capabilities` prints supported controls without contacting state/providers. `runtime inspect --attempt <id> [--json]` reads saved intent and fresh identity. `runtime reconcile --attempt <id>` can bind a fully matching pending launch without repeating it. Launch happens through the capacity-owning service; starting a session does not send the task description.
+
+Herdr owns execution. The host-approved command executable must match the selected canonical Codex path resolved by that server. Native arguments must include each flag once: `--sandbox read-only|workspace-write`, `--ask-for-approval on-request|never`, `--no-daemon`, `--no-alt-screen`. The runtime appends the verified checkout with `--cd`. Other flags, hooks, requested environment/skills and control timeouts below five seconds report missing capabilities. Never drop required configuration to make a blocked launch pass. No headless, model routing, resume or bypass execution is supported.
+
+`runtime input --attempt <id> --key <stable-key> [--codex-executable <approved-path>] [--json]` reads at most 16 KiB of UTF-8 from stdin; it accepts idle/done sessions and rejects approval dialogs, active/unknown UI and terminal control characters. Input is not echoed or saved; only its digest/key/acknowledgement are persisted. Herdr receives text in process argv, so do not include credentials. `runtime interrupt --attempt <id> --key <stable-key> ...` requests Escape; it does not establish cancellation or stopped descendants. Approval/question UIs require deliberate operator handling.
+
+Each new control refreshes accepted policy and verifies saved project/checkout ownership, branch, endpoint, workspace/pane/terminal, foreground cwd, expected name/kind and native session. Missing/changed evidence blocks; no fallback or replacement agent is launched. One trusted controller per worker is a host precondition: Herdr cannot atomically compare native identity with a write or prove server executable resolution.
+
+Repeated keys return the saved receipt/current observation; changed text/kind conflicts. A pending launch is never launched again. A pending input/interrupt blocks subsequent controls because UI state cannot prove delivery. Reconcile does not clear unknown delivery or absent launches; do not edit state, change keys, or start another worker to bypass uncertainty. Abort/timeout/service exit do not prove Herdr or Codex stopped. Idle/done and Escape acknowledge neither an accepted task result nor free capacity; workflow reports/cancellation remain later work.
+
 ## Planned capabilities
 
-The stage remains `foundation`. Initialization, real agent delegation, workflow-specific handoffs/reports, GitHub workflows, and automatic review are not implemented commands. Report missing capabilities rather than inventing commands or treating unknown commands as accepted work.
+The stage remains `foundation`. Initialization, workflow-specific implementation/review delegation and handoffs/reports, GitHub workflows, and automatic review are not implemented commands. Report missing capabilities rather than inventing commands or treating unknown commands as accepted work.
 
 As those operations arrive, use commit-specific results and explicit automation policy. A pushed PR or idle agent alone is not proof of completion or authorization for another action.

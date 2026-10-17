@@ -10,9 +10,18 @@ import {
   inspectHerdrWorker,
   bindHerdrAgent,
   reconcileHerdrSpace,
-  type HerdrDependencies,
 } from '../application/herdr.js';
 import type { HerdrResult, HerdrSettings } from '../contracts/herdr.js';
+import { runtimeCapabilities } from '../contracts/runtime.js';
+import type { RuntimeStatus } from '../contracts/runtime.js';
+import type { OperationResult } from '../contracts/operation-result.js';
+import {
+  inspectRuntime,
+  reconcileRuntime,
+  inputRuntime,
+  interruptRuntime,
+  type RuntimeDependencies,
+} from '../application/runtime.js';
 import type { StateWriteResult } from '../contracts/state.js';
 import { openSqliteState } from '../adapters/state/open-sqlite-state.js';
 import { createHerdrCliProvider } from '../adapters/herdr/cli-provider.js';
@@ -28,11 +37,18 @@ import { nodeProcessRunner } from '../core/node-process-runner.js';
 import { gitExecutable, hostExecutable } from '../core/host-git.js';
 import { rejected } from '../contracts/operation-result.js';
 
-function render(result: HerdrResult | StateWriteResult<HerdrSettings>, json?: boolean): void {
+type CommandResult = HerdrResult | StateWriteResult<HerdrSettings> | OperationResult<RuntimeStatus>;
+
+function render(result: CommandResult, json?: boolean): void {
   if (json) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } else if ('error' in result) {
     process.stdout.write(`${result.error.code}: ${result.error.message}\n`);
+  } else if (result.outcome === 'completed') {
+    const value = result.value;
+    process.stdout.write(
+      `Runtime: codex-herdr\nState: ${value.state}\nLaunch: ${value.session?.launchId ?? 'none'}\nReason: ${value.reason ?? 'none'}\n`,
+    );
   } else if (result.outcome === 'persisted') {
     process.stdout.write(
       `Project: ${result.value.projectId}\nHerdr session: ${result.value.target.session}\nConfiguration: ${result.disposition}\n`,
@@ -45,7 +61,8 @@ function render(result: HerdrResult | StateWriteResult<HerdrSettings>, json?: bo
 
   if (
     ['blocked', 'pending', 'rejected', 'uncertain'].includes(result.outcome) ||
-    ('reason' in result && result.reason !== null)
+    ('reason' in result && result.reason !== null) ||
+    (result.outcome === 'completed' && ['blocked', 'unknown'].includes(result.value.state))
   ) {
     process.exitCode = 1;
   }
@@ -60,7 +77,8 @@ export function wireHerdrCommands(program: Command): void {
   async function execute(
     writable: boolean,
     json: boolean | undefined,
-    action: (deps: HerdrDependencies) => Promise<HerdrResult | StateWriteResult<HerdrSettings>>,
+    action: (deps: RuntimeDependencies) => Promise<CommandResult>,
+    codexExecutable?: string,
   ) {
     const host = program.opts<{
       stateDirectory?: string;
@@ -94,17 +112,22 @@ export function wireHerdrCommands(program: Command): void {
       }
 
       const executable = await hostExecutable('herdr', host.herdrExecutable);
-      const deps: HerdrDependencies = {
+      const provider = createHerdrCliProvider({
+        executable: executable ?? '',
+        runner: nodeProcessRunner,
+        endpoint: nodeHerdrEndpointReader,
+      });
+      const deps: RuntimeDependencies = {
         registry: opened.registry,
         state: opened.store,
         herdr: opened.herdr,
         git: createGitInspector({ executable: git, runner: nodeProcessRunner }),
         identity: nodeCheckoutIdentityReader,
-        provider: createHerdrCliProvider({
-          executable: executable ?? '',
-          runner: nodeProcessRunner,
-          endpoint: nodeHerdrEndpointReader,
-        }),
+        provider,
+        worker: provider,
+        queue: opened.service,
+        runtime: opened.runtime,
+        canonicalCodexExecutable: (await hostExecutable('codex', codexExecutable)) ?? '',
         files: createNodeWorktreeFiles(join(opened.stateDirectory, 'worktrees')),
         configuration: createNodeConfigurationReader(opened.stateDirectory),
         prerequisites: createNodeConfigurationProbe(
@@ -119,6 +142,105 @@ export function wireHerdrCommands(program: Command): void {
         process.exitCode = 1;
       }
     }
+  }
+
+  const runtime = program
+    .command('runtime')
+    .description('Inspect and control saved Herdr-owned Codex workers');
+  runtime
+    .command('capabilities')
+    .description('Print supported controls and provider limits')
+    .action(() => {
+      process.stdout.write(`${JSON.stringify(runtimeCapabilities)}\n`);
+    });
+
+  for (const operation of ['inspect', 'reconcile', 'input', 'interrupt'] as const) {
+    const command = runtime
+      .command(operation)
+      .description(
+        operation === 'input'
+          ? 'Submit bounded text from stdin once per key; never answer approval dialogs'
+          : operation === 'interrupt'
+            ? 'Request Escape once per key; does not prove cancellation or shutdown'
+            : operation === 'reconcile'
+              ? 'Associate observed launch identity without repeating external effects'
+              : 'Read fresh worker identity and liveness',
+      )
+      .requiredOption('--attempt <id>', 'Saved service attempt')
+      .option('--json', 'Print structured evidence');
+
+    if (operation === 'input' || operation === 'interrupt') {
+      command
+        .requiredOption('--key <key>', 'Stable idempotency key for this exact action')
+        .option(
+          '--codex-executable <absolute-path>',
+          'Approved canonical Codex path resolved by this server',
+        );
+    }
+
+    command.action(
+      async (options: {
+        attempt: string;
+        key?: string;
+        json?: boolean;
+        codexExecutable?: string;
+      }) => {
+        let text = '';
+
+        if (operation === 'input') {
+          let size = 0;
+          const chunks: Buffer[] = [];
+
+          for await (const chunk of process.stdin) {
+            const buffer = Buffer.from(chunk as Uint8Array);
+            size += buffer.length;
+
+            if (size > 16_384) {
+              render(
+                rejected('invalid_request', 'Runtime input must fit 16 KiB UTF-8.'),
+                options.json,
+              );
+              process.stdin.destroy();
+
+              return;
+            }
+
+            chunks.push(buffer);
+          }
+
+          text = Buffer.concat(chunks).toString('utf8');
+
+          if (text.includes('\uFFFD')) {
+            render(
+              rejected('invalid_request', 'Runtime input must be lossless UTF-8.'),
+              options.json,
+            );
+
+            return;
+          }
+        }
+
+        await execute(
+          operation !== 'inspect',
+          options.json,
+          (deps) => {
+            const input = { schemaVersion: 1, attemptId: options.attempt };
+
+            switch (operation) {
+              case 'inspect':
+                return inspectRuntime(input, deps);
+              case 'reconcile':
+                return reconcileRuntime(input, deps);
+              case 'input':
+                return inputRuntime({ ...input, key: options.key, text }, deps);
+              case 'interrupt':
+                return interruptRuntime({ ...input, key: options.key }, deps);
+            }
+          },
+          options.codexExecutable,
+        );
+      },
+    );
   }
 
   herdr

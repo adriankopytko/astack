@@ -203,4 +203,33 @@ CREATE UNIQUE INDEX one_herdr_primary ON herdr_spaces(project_id) WHERE kind='pr
 CREATE UNIQUE INDEX one_herdr_worker_checkout ON herdr_spaces(checkout_id) WHERE kind='worker';
 `,
   },
+  {
+    version: 6,
+    sql: `
+CREATE TABLE runtime_sessions (
+  attempt_id TEXT PRIMARY KEY REFERENCES attempts(id),
+  job_id TEXT NOT NULL REFERENCES service_entries(job_id),
+  effect_id TEXT NOT NULL UNIQUE REFERENCES effects(id),
+  launch_id TEXT NOT NULL UNIQUE,
+  space_id TEXT NOT NULL UNIQUE REFERENCES herdr_spaces(id),
+  data TEXT NOT NULL CHECK(json_valid(data))
+    CHECK(json_extract(data, '$.attemptId') IS attempt_id)
+    CHECK(json_extract(data, '$.jobId') IS job_id)
+    CHECK(json_extract(data, '$.effectId') IS effect_id)
+    CHECK(json_extract(data, '$.launchId') IS launch_id)
+    CHECK(json_extract(data, '$.space.id') IS space_id)
+) STRICT;
+CREATE TABLE runtime_actions (
+  attempt_id TEXT NOT NULL REFERENCES runtime_sessions(attempt_id),
+  action_key TEXT NOT NULL,
+  state TEXT NOT NULL CHECK(state IN ('pending', 'acknowledged')),
+  data TEXT NOT NULL CHECK(json_valid(data))
+    CHECK(json_extract(data, '$.attemptId') IS attempt_id)
+    CHECK(json_extract(data, '$.key') IS action_key)
+    CHECK(json_extract(data, '$.state') IS state),
+  PRIMARY KEY(attempt_id, action_key)
+) STRICT;
+CREATE UNIQUE INDEX one_pending_runtime_action ON runtime_actions(attempt_id) WHERE state='pending';
+`,
+  },
 ] as const;

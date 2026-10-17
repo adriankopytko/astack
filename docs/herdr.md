@@ -2,7 +2,7 @@
 
 ## Implemented scope
 
-Issue #16 adds project-bound Herdr settings, persistent primary project spaces, grouped workspaces for Astack-owned worker checkouts, and verified attribution of already detected agents. It does **not** launch Codex, send prompts, execute project hooks, close workspaces, or register a service worker runtime. Those are separate operations. The installed service still has no real agent runtime adapters.
+Issue #16 adds project-bound Herdr settings, persistent primary project spaces, grouped workspaces for Astack-owned worker checkouts, and verified attribution of already detected agents. It does **not** launch Codex, send prompts, execute project hooks, close workspaces, or register a service worker runtime. Those are separate operations. The separate [interactive runtime](runtime.md) now supplies opt-in service execution.
 
 The integration was implemented against the installed Herdr 0.9.0 bundled protocol 22 schema (`herdr api schema --json`). The adapter explicitly supports protocol 22 and rejects incompatible snapshots. No live user layouts or agents are needed for default verification.
 
@@ -58,13 +58,13 @@ Subsequent inspection permits commits made on the assigned branch while preservi
 
 ## Agent attribution
 
-Preparation saves a bounded expected agent name derived from project/attempt identity. It creates no agent. A later runtime launch must use the recorded pane and expected name and independently satisfy its execution policy.
+Preparation saves a bounded expected agent name derived from project/attempt identity. It creates no agent. Runtime launch must use the recorded pane and expected name and independently satisfy its execution policy.
 
 `bindHerdrAgent({ schemaVersion: 1, attemptId, kind }, dependencies, signal?)` records an **already detected** agent only after fresh evidence agrees on expected name, kind, workspace, tab, pane, terminal, launch cwd and actual foreground cwd. Available native session IDs are retained; native session file paths are excluded. Binding and a retained `herdr-agent` resource are committed together. Repeated equivalent bindings are safe; a different occupant/session is not silently accepted.
 
 Snapshot observations expose the agent's current `idle`, `working`, `blocked`, `done` or `unknown` status. These are provider observations, not accepted implementation/review results or proof that all writers stopped. In particular, Herdr's idle/done states do not release capacity, authorize a new writer, or complete an Astack attempt.
 
-The namespace/terminal/name/cwd evidence establishes current attribution, not authentication against a hostile same-user operator. If no native session ID is available, the binding explicitly records null; it cannot prove continuity of two indistinguishable same-name/same-kind occupants in the same terminal. The upcoming launch adapter must preserve its own launch receipt and strengthen native-session evidence when available. This UI attribution alone is not a worker authorization token or proof of quiescence.
+The namespace/terminal/name/cwd evidence establishes current attribution, not authentication against a hostile same-user operator. If no native session ID is available, the binding explicitly records null; it cannot prove continuity of two indistinguishable same-name/same-kind occupants in the same terminal. The runtime preserves its own launch intent and requires nonempty native-session evidence before control. This UI attribution alone is not a worker authorization token or proof of quiescence.
 
 ## Server and layout identity
 
@@ -95,3 +95,7 @@ A missing binary/server, unsafe endpoint, unsupported protocol, truncated/lossy 
 Invalid/versioned requests and pre-cancelled operations cause no provider effect. Cancellation before persistence rejects. Cancellation after reservation can leave a pending intent; cancellation or failure after invocation never permits an automatic retry. Verified publication is persisted after fresh evidence even if cancellation arrives late. State uncertainty follows the normal reopen/inspect contract.
 
 Default tests use injected provider layouts/process runners, disposable Git repositories, real owned worktrees and temporary SQLite state. They cover same-label projects, explicit sessions, ambiguity, competing writers, lost acknowledgements, server/layout changes, unowned layouts, provider blockers and verified/mismatched agent attribution. They neither mutate the user's live Herdr layout nor start real coding agents. Any live-provider check is a separate explicit opt-in.
+
+## Runtime consumer
+
+The separate [interactive Codex runtime](runtime.md) now consumes ready worker layouts. Herdr owns process execution; Astack reserves launch/action intent and verifies native session attribution. Layout operations themselves still launch no agents and close no resources.

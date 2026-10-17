@@ -296,3 +296,24 @@ export {
   type WorktreePrepareRequest,
   type WorktreeReconcileRequest,
 } from './contracts/worktrees.js';
+export {
+  runtimeCapabilities,
+  runtimeRequestSchema,
+  runtimeInputRequestSchema,
+  runtimeInterruptRequestSchema,
+  runtimeSessionSchema,
+  runtimeActionSchema,
+  runtimeStatusSchema,
+  runtimeResultSchema,
+} from './contracts/runtime.js';
+export type { RuntimeSession, RuntimeAction, RuntimeStatus } from './contracts/runtime.js';
+export type { InteractiveWorkerProvider, RuntimeStore } from './ports/runtime.js';
+export {
+  launchRuntime,
+  inspectRuntime,
+  reconcileRuntime,
+  inputRuntime,
+  interruptRuntime,
+  createCodexHerdrRuntime,
+} from './application/runtime.js';
+export type { RuntimeDependencies } from './application/runtime.js';

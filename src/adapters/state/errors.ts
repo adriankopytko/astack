@@ -28,6 +28,8 @@ export function sqliteCode(error: unknown): number | null {
 }
 
 const messages: Partial<Record<OperationErrorCode, string>> = {
+  runtime_conflict:
+    'Runtime assignment or action conflicts with saved intent; inspect before continuing.',
   herdr_conflict:
     'Herdr assignment or pending intent conflicts with saved ownership; inspect it before continuing.',
   service_already_running: 'Another coordinator owns this local state directory.',

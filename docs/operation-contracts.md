@@ -148,3 +148,7 @@ Manual review initiation is default. An accepted handoff creates an automatic re
 ### Required later verification
 
 The state/service/handoff issues must exercise duplicate commands, interrupted effects, unknown launch outcomes, stale SHA changes, invalid worker bindings, CI deadlines and missing checks, suspension/resume, and independent cleanup. Resource release requires verified shutdown; age, an idle agent, or a process exit alone is not proof of safe cleanup.
+
+## Interactive runtime operations
+
+[The Codex/Herdr runtime contract](runtime.md) documents versioned launch, inspect, reconcile, input and interrupt operations consumed by the service and CLI. Herdr owns interactive execution; Astack preserves stable launch/action identity, refreshed policy and explicit saved attribution. Liveness and terminal-input acknowledgement remain separate from domain completion and verified quiescence.

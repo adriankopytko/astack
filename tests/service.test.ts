@@ -687,3 +687,32 @@ await test(
     });
   },
 );
+
+await test(
+  'host explicitly installs codex-herdr without starting a provider for an empty queue',
+  options,
+  async () => {
+    await fixture(async ({ state }) => {
+      // Executable fixtures are never invoked: an empty queue must not query Herdr or launch Codex.
+      const service = await startLocalService(
+        { schemaVersion: 1, stateDirectory: state, gitExecutable: gitPath },
+        { codexHerdr: { herdrExecutable: process.execPath, codexExecutable: process.execPath } },
+      );
+
+      assert.equal(service.outcome, 'listening', JSON.stringify(service));
+
+      if (service.outcome !== 'listening') {
+        assert.fail('Missing fixture service');
+      }
+
+      try {
+        const status = service.status();
+
+        assert.ok(status.outcome === 'completed');
+        assert.deepEqual(status.value.runtimes, ['codex-herdr']);
+      } finally {
+        assert.equal((await service.close()).outcome, 'completed');
+      }
+    });
+  },
+);

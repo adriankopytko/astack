@@ -2,7 +2,7 @@
 
 ## Scope
 
-Issue #10 implements typed local persistence through `node:sqlite`. Its low-level methods do not implement coordination or provider execution. Separate operations now consume it for registration, configuration, worktrees and [durable service dispatch](service.md); real agent launch/report authentication remain later work. The state adapter receives trusted host decisions; a stored assertion is not verified provider evidence or permission to remove a resource.
+Issue #10 implements typed local persistence through `node:sqlite`. Its low-level methods do not implement coordination or provider execution. Separate operations now consume it for registration, configuration, worktrees and [durable service dispatch](service.md); interactive runtime launch has its own contract; report authentication remains later work. The state adapter receives trusted host decisions; a stored assertion is not verified provider evidence or permission to remove a resource.
 
 `openSqliteState(request, { now? }?)` explicitly opens a connection. Imports open no database. The returned `StateStore` implements the state port and the existing `ProjectContextReader`, so `resolveProjectContext(request, store)` can consume saved projections today. The returned `registry` shares that connection and serves [project registration/context operations](projects.md); close both through `store.close()`. The returned `worktrees` port shares that connection and persists [owned worktree lifecycle](worktrees.md).
 
@@ -115,3 +115,7 @@ Intent, effect payloads, evidence, and resource handles are JSON objects limited
 Disposable databases exercise migrations and reopen, equivalent/conflicting writes across connections, atomic rollback, competing/expired claims, unknown-effect preservation, terminal results and independent resources, bounded contention, abrupt process exit during a transaction, malformed/unsupported history, private directory policy, compiled migration availability, and lost commit acknowledgement. No production state, live agents, user projects, or remote providers are used.
 
 See [Node 24 SQLite](https://nodejs.org/download/release/v24.20.0/docs/api/sqlite.html), [SQLite transaction behavior](https://sqlite.org/lang_transaction.html), and [SQLite pragmas](https://sqlite.org/pragma.html) for the underlying synchronous API, transaction, and durability semantics.
+
+## Interactive runtime records
+
+Migration 6 adds one runtime session per saved service attempt, unique launch/effect/space bindings, and keyed digest-only action history with a unique pending action per attempt. Session/resource intent is atomic before launch; actions reserve before input/interrupt. Uncertain acknowledgements preserve pending intent. See [the runtime contract](runtime.md) and ADR 0008 for provider identity, server trust and recovery limits.

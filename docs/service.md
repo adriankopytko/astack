@@ -2,7 +2,7 @@
 
 ## Implemented scope
 
-Astack can run one foreground coordinator per private local state directory. It owns a durable queue and dispatches through explicitly injected runtime adapters. The installed CLI currently supplies **no worker runtime adapters**: it can accept configured requests and report `runtime_unavailable`, but cannot launch Codex, Herdr, project hooks, or shell commands. A configured executable alone never installs or authorizes a runtime adapter.
+Astack can run one foreground coordinator per private local state directory. It owns a durable queue and dispatches through explicitly injected runtime adapters. The installed CLI supplies no runtime by default; `service run --codex-herdr` explicitly enables interactive Codex execution through Herdr. Project hooks and workflow task delivery remain separate work. A configured executable alone never installs or authorizes a runtime adapter.
 
 Library hosts use `startLocalService(request, { runtimes? })`. The CLI and socket transport share application operations; the dispatcher contains no CLI parsing, socket objects, or ambient project selection. `createServiceCoordinator` is the injected application mechanism; a real host must hold coordinator ownership throughout its lifetime.
 
@@ -101,3 +101,7 @@ Cancellation before a submission transaction rejects without acceptance. A disco
 ## Composition boundaries
 
 `src/host/local-service.ts` is the explicit composition root shared by the CLI foreground command and library hosts. It wires concrete state/Git/filesystem dependencies to application operations and the socket transport. Only `src/cli/service.ts` may import that exact host file; dependency-cruiser rejects other CLI/host edges, and `cli`/`service` still cannot import each other. Core mechanisms, ports and adapters do not import host/transport/application policy.
+
+## Built-in interactive runtime
+
+`service run --codex-herdr [--codex-executable <absolute-path>]` explicitly enables [Herdr-owned interactive Codex](runtime.md). Global `--herdr-executable` selects trusted CLI code. Each saved project/role still requires an enabled unchanged policy, configured Herdr target and owned ready checkout. Launch prepares its grouped layout and starts a session without submitting the workflow task text. Reconnection inspects native identity; UI done/idle and Escape never establish quiescence or release capacity. Without opt-in the built-in runtime list remains empty. Host server trust and unsupported configuration requirements are detailed in the runtime contract.

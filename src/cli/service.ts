@@ -46,51 +46,82 @@ export function wireServiceCommands(program: Command): void {
     .description('Own a durable local queue through a private Unix socket');
   service
     .command('run')
-    .description('Run the coordinator in the foreground; no runtime adapters are installed yet')
+    .description('Run the coordinator in the foreground with explicitly enabled runtimes')
+    .option('--codex-herdr', 'Trust Herdr-owned Codex execution in each configured project server')
+    .option(
+      '--codex-executable <absolute-path>',
+      'Approved canonical Codex path resolved by the selected servers',
+    )
     .option('--capacity <count>', 'Global active/uncertain capacity', integer, 1)
     .option('--role-capacity <count>', 'Default capacity per role', integer, 1)
     .option('--json', 'Print the listening event as JSON')
-    .action(async (options: { capacity: number; roleCapacity: number; json?: boolean }) => {
-      const host = program.opts<{ stateDirectory?: string; gitExecutable?: string }>();
-      const started = await startLocalService({
-        schemaVersion: 1,
-        ...(host.stateDirectory === undefined
-          ? {}
-          : { stateDirectory: resolve(process.cwd(), host.stateDirectory) }),
-        ...(host.gitExecutable === undefined ? {} : { gitExecutable: host.gitExecutable }),
-        limits: { global: options.capacity, defaultRole: options.roleCapacity, perRole: {} },
-      });
+    .action(
+      async (options: {
+        capacity: number;
+        roleCapacity: number;
+        codexHerdr?: boolean;
+        codexExecutable?: string;
+        json?: boolean;
+      }) => {
+        const host = program.opts<{
+          stateDirectory?: string;
+          gitExecutable?: string;
+          herdrExecutable?: string;
+        }>();
+        const started = await startLocalService(
+          {
+            schemaVersion: 1,
+            ...(host.stateDirectory === undefined
+              ? {}
+              : { stateDirectory: resolve(process.cwd(), host.stateDirectory) }),
+            ...(host.gitExecutable === undefined ? {} : { gitExecutable: host.gitExecutable }),
+            limits: { global: options.capacity, defaultRole: options.roleCapacity, perRole: {} },
+          },
+          options.codexHerdr
+            ? {
+                codexHerdr: {
+                  ...(host.herdrExecutable === undefined
+                    ? {}
+                    : { herdrExecutable: host.herdrExecutable }),
+                  ...(options.codexExecutable === undefined
+                    ? {}
+                    : { codexExecutable: options.codexExecutable }),
+                },
+              }
+            : {},
+        );
 
-      if (started.outcome === 'rejected') {
-        render(started, options.json);
+        if (started.outcome === 'rejected') {
+          render(started, options.json);
 
-        return;
-      }
-
-      const stop = () => {
-        void started.close();
-      };
-
-      process.on('SIGINT', stop);
-      process.on('SIGTERM', stop);
-      process.stdout.write(
-        options.json
-          ? `${JSON.stringify({ schemaVersion: 1, outcome: 'listening', sessionId: started.sessionId, socketPath: started.socketPath })}\n`
-          : `Service listening at ${started.socketPath}\nNo worker runtime is installed; agent launch is unavailable.\n`,
-      );
-
-      try {
-        const result = await started.closed;
-
-        if (result.outcome === 'rejected') {
-          process.stderr.write(`${result.error.message}\n`);
-          process.exitCode = 1;
+          return;
         }
-      } finally {
-        process.off('SIGINT', stop);
-        process.off('SIGTERM', stop);
-      }
-    });
+
+        const stop = () => {
+          void started.close();
+        };
+
+        process.on('SIGINT', stop);
+        process.on('SIGTERM', stop);
+        process.stdout.write(
+          options.json
+            ? `${JSON.stringify({ schemaVersion: 1, outcome: 'listening', sessionId: started.sessionId, socketPath: started.socketPath })}\n`
+            : `Service listening at ${started.socketPath}\nRuntimes: ${options.codexHerdr ? 'codex-herdr' : 'none enabled'}.\n`,
+        );
+
+        try {
+          const result = await started.closed;
+
+          if (result.outcome === 'rejected') {
+            process.stderr.write(`${result.error.message}\n`);
+            process.exitCode = 1;
+          }
+        } finally {
+          process.off('SIGINT', stop);
+          process.off('SIGTERM', stop);
+        }
+      },
+    );
 
   async function request(input: unknown, json?: boolean, inspectId?: string): Promise<void> {
     const host = program.opts<{ stateDirectory?: string }>();
@@ -143,7 +174,9 @@ export function wireServiceCommands(program: Command): void {
     });
   service
     .command('submit')
-    .description('Persist a generic delegation request; real agent runtimes remain unavailable')
+    .description(
+      'Persist a generic request; enabled runtimes may launch a session without delivering the task',
+    )
     .requiredOption('--project <id>', 'Explicit registered project ID')
     .option('--checkout <id>', 'Registered target checkout; default: primary')
     .requiredOption('--role <name>', 'Approved role')
