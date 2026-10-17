@@ -1,6 +1,6 @@
 ---
 name: astack-cli
-description: Use the astack CLI to register projects, manage owned worktrees, inspect context, or discover installed orchestration capabilities before delegation.
+description: Use the astack CLI to register projects, manage owned worktrees, inspect context and approved configuration, or discover installed orchestration capabilities before delegation.
 ---
 
 # Using astack
@@ -22,6 +22,7 @@ From the astack source repository use `pnpm dev` instead of `astack`; after buil
 | `astack project list [--limit <count>] [--after <project-id>] [--json]`                           | Paginated recorded project identities and primary checkout paths                            |
 | `astack context [selectors] [--json]`                                                             | Inspect target identity, selection source, Git state, and readiness                         |
 | `astack doctor [selectors] [--json]`                                                              | Alias for `context`                                                                         |
+| `astack config inspect --project <id> [--role <name>] [--json]`                                   | Resolve approved configuration, provenance, and prerequisites; alias `config check`         |
 | `astack worktree prepare --project <id> --key <key> --branch <branch> --base <full-sha> [--json]` | Prepare or verify an owned isolated checkout                                                |
 | `astack worktree inspect <id> [--json]`                                                           | Observe ownership, phase, and Git evidence                                                  |
 | `astack worktree remove <id> [--json]`                                                            | Remove a verified clean owned checkout; preserve its branch                                 |
@@ -49,7 +50,7 @@ Read commands emit `{ schemaVersion: 1, outcome: 'completed', value: ... }` or `
 
 After `uncertain`, inspect the registry and supplied identities before retrying persistence. No provider effect or automatic retry is implied. Missing state permits empty-registry diagnostics; unsafe/corrupt/incompatible state remains an error. Read-only commands do not migrate old schemas; deliberate registration or an explicit library read-write open can migrate them.
 
-Doctor currently reports Git readiness, other providers as `not_checked`, configuration provenance as `none`/`not_implemented`, and delegation as unavailable. Do not interpret registration or a clean checkout as execution authorization.
+Doctor reports Git readiness, other providers as `not_checked`, configuration provenance as `none`/`not_checked`, and delegation as unavailable. Use `config inspect` for separate configuration evidence. Do not interpret registration or a clean checkout as execution authorization.
 
 ## Owned worktrees
 
@@ -61,8 +62,18 @@ After interruption, inspect the record and exact operation ID. Use `--writer-sto
 
 Worktree creation currently rejects configured content-filter commands and sparse checkout until execution profiles support them. Project provisioning, LFS/submodule initialization, hooks, and agent launch are separate future capabilities. Do not bypass a blocked/pending outcome by choosing a different directory or forcing Git cleanup.
 
+## Approved project and role configuration
+
+Use `astack config inspect --project <id> [--checkout <id>] [--role implementer] [--json]` (alias `config check`). It reads existing state and reports effective settings, leaf provenance, pinned skill versions/digests, and actionable prerequisites. Exit 1 means blocked or rejected; readiness launches no command and grants no durable execution capability.
+
+Portable `.astack/project.json` is a proposal. The trusted host/operator maintains `<state-directory>/config/<project-id>.json` outside repositories with private directory/file permissions. Registration does not create or approve it. Do not copy a worker/PR proposal into this file as an automatic repair. Review and approval belong to the host/operator; there is no approval/init command yet.
+
+Settings resolve defaults → user → approved project → local → request. Objects merge by fields; arrays replace completely. Host-only permissions, timeout limits and mandatory hooks apply after merging. A changed proposal blocks until reviewed; it never grants new permissions. Missing executables, approved environment names or exact protected skill bytes require the reported host action. Never put credential values in JSON, command arguments, skill contents or reports.
+
+Library configured job acceptance saves immutable policy/provenance and skill pins. Its dispatch gate refreshes policy and prerequisites and blocks changed policy or legacy jobs without snapshots. Service dispatch, hook execution and actual agent launch remain unavailable. Do not bypass a block by removing a required hook, editing permission controls, or accepting a new job without host authorization.
+
 ## Planned capabilities
 
-The stage remains `foundation`. Initialization, trusted project/role configuration, agent delegation, service dispatch/recovery, GitHub workflows, and automatic review are not implemented commands. Report missing capabilities rather than inventing commands or treating unknown commands as accepted work.
+The stage remains `foundation`. Initialization, agent delegation, service dispatch/recovery, GitHub workflows, and automatic review are not implemented commands. Report missing capabilities rather than inventing commands or treating unknown commands as accepted work.
 
 As those operations arrive, use commit-specific results and explicit automation policy. A pushed PR or idle agent alone is not proof of completion or authorization for another action.

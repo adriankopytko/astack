@@ -112,7 +112,7 @@ export const projectSelectionSchema = z
       reasons: z.array(
         z.enum([
           'registration_required',
-          'execution_policy_not_implemented',
+          'execution_policy_not_checked',
           'delegation_not_implemented',
         ]),
       ),
@@ -124,7 +124,7 @@ export const projectSelectionSchema = z
       }),
       configuration: z.strictObject({
         source: z.literal('none'),
-        status: z.literal('not_implemented'),
+        status: z.literal('not_checked'),
       }),
     }),
   })
@@ -142,7 +142,7 @@ export const projectSelectionSchema = z
     if (
       value.registration !== expected ||
       reasons.includes('registration_required') !== !registered ||
-      !reasons.includes('execution_policy_not_implemented') ||
+      !reasons.includes('execution_policy_not_checked') ||
       !reasons.includes('delegation_not_implemented') ||
       (checkout &&
         (checkout.checkout.rootPath !== value.git.checkout.rootPath ||

@@ -57,6 +57,7 @@ function fingerprint(job: StateJob): string {
       operation: job.operation,
       idempotencyKey: job.idempotencyKey,
       intent: job.intent,
+      ...(job.configuration === undefined ? {} : { configuration: job.configuration }),
     }),
   );
 }

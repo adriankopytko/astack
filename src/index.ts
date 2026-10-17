@@ -1,4 +1,37 @@
 export { getApplicationInfo } from './application/get-application-info.js';
+export { ConfigurationReadError } from './core/configuration-error.js';
+export {
+  resolveConfiguration,
+  acceptConfiguredJob,
+  checkConfigurationDispatch,
+  type ConfigurationDependencies,
+} from './application/configuration.js';
+export {
+  createNodeConfigurationReader,
+  createNodeConfigurationProbe,
+} from './adapters/filesystem/configuration.js';
+export type {
+  ConfigurationReader,
+  ConfigurationProbe,
+  ConfigurationPrerequisites,
+} from './ports/configuration.js';
+export {
+  configurationPatchSchema,
+  portableConfigurationSchema,
+  effectiveConfigurationSchema,
+  hostConfigurationPolicySchema,
+  configurationRequestSchema,
+  configurationSnapshotSchema,
+  configurationResolutionSchema,
+  configurationResultSchema,
+  type ConfigurationPatch,
+  type EffectiveConfiguration,
+  type HostConfigurationPolicy,
+  type ConfigurationRequest,
+  type ConfigurationSnapshot,
+  type ConfigurationDiagnostic,
+  type ConfigurationResolution,
+} from './contracts/configuration.js';
 export {
   applicationInfoSchema,
   applicationInfoRequestSchema,
@@ -105,6 +138,7 @@ export {
   stateOpenRequestSchema,
   stateProjectRequestSchema,
   stateJobRequestSchema,
+  configuredJobRequestSchema,
   stateAttemptRequestSchema,
   stateClaimRequestSchema,
   stateEffectResolutionRequestSchema,
@@ -130,6 +164,7 @@ export {
   type StateOpenRequest,
   type StateProjectRequest,
   type StateJobRequest,
+  type ConfiguredJobRequest,
   type StateAttemptRequest,
   type StateClaimRequest,
   type StateEffectResolutionRequest,

@@ -4,6 +4,8 @@ The executable contracts below implement issue #7. The durable model later in th
 
 The effectful `executeProcess` operation from issue #8 has a separate [process execution contract](process-runner.md) and result schema. Its timeout/cancellation outcomes retain shutdown uncertainty instead of using the completed-read envelope.
 
+Subsequent operations have dedicated contracts for [registration/context](projects.md), [owned worktrees](worktrees.md), and [trusted configuration](configuration.md). Configuration resolution and its dispatch gate use completed/rejected reads; configured job acceptance uses the state write result and snapshots policy in the job transaction.
+
 ## Versioning and read results
 
 Requests carry integer `schemaVersion: 1`. Result envelopes carry their own `schemaVersion: 1`, independent of the package version. Missing or malformed versions are `invalid_request`; an otherwise readable positive integer version other than `1` is `unsupported_contract_version`. No automatic version coercion, field stripping, or downgrade occurs. The version check precedes operation-field validation.

@@ -197,7 +197,7 @@ export async function selectProjectContext(
         delegation: 'unavailable',
         reasons: [
           ...(registration === 'registered' ? [] : ['registration_required']),
-          'execution_policy_not_implemented',
+          'execution_policy_not_checked',
           'delegation_not_implemented',
         ],
         providers: {
@@ -206,7 +206,7 @@ export async function selectProjectContext(
           herdr: 'not_checked',
           github: 'not_checked',
         },
-        configuration: { source: 'none', status: 'not_implemented' },
+        configuration: { source: 'none', status: 'not_checked' },
       },
     });
     checkProjectCancellation(signal);

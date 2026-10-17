@@ -41,6 +41,10 @@ export const operationErrorSchema = z.strictObject({
     'worktree_not_found',
     'worktree_conflict',
     'worktree_configuration_unsupported',
+    'configuration_invalid',
+    'configuration_unsafe',
+    'configuration_unavailable',
+    'configuration_blocked',
   ]),
   message: z.string().min(1),
 });

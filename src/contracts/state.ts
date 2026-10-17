@@ -1,5 +1,6 @@
 import { isAbsolute } from 'node:path';
 import { z } from 'zod';
+import { configurationSnapshotSchema, configurationRequestSchema } from './configuration.js';
 import {
   checkoutRecordSchema,
   projectRecordSchema,
@@ -105,20 +106,40 @@ export const stateProjectRequestSchema = z
       });
     }
   });
-export const stateJobSchema = z.strictObject({
-  id: stateIdSchema,
-  projectId: checkoutRecordSchema.shape.projectId,
-  repositoryId: repositoryIdSchema,
-  checkoutId: checkoutRecordSchema.shape.id,
-  requester: stateIdSchema,
-  operation: stateIdSchema,
-  idempotencyKey: stateIdSchema,
-  createdAt: timestamp,
-  intent: metadata,
-});
+export const stateJobSchema = z
+  .strictObject({
+    id: stateIdSchema,
+    projectId: checkoutRecordSchema.shape.projectId,
+    repositoryId: repositoryIdSchema,
+    checkoutId: checkoutRecordSchema.shape.id,
+    requester: stateIdSchema,
+    operation: stateIdSchema,
+    idempotencyKey: stateIdSchema,
+    createdAt: timestamp,
+    intent: metadata,
+    configuration: configurationSnapshotSchema.optional(),
+  })
+  .refine(
+    (value) =>
+      value.configuration === undefined ||
+      (value.configuration.projectId === value.projectId &&
+        value.configuration.repositoryId === value.repositoryId &&
+        value.configuration.checkoutId === value.checkoutId),
+  )
+  .refine((value) => {
+    try {
+      return JSON.stringify(value).length <= 32_768;
+    } catch {
+      return false;
+    }
+  });
 export const stateJobRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   job: stateJobSchema,
+});
+export const configuredJobRequestSchema = stateJobRequestSchema.extend({
+  role: configurationRequestSchema.shape.role,
+  request: configurationRequestSchema.shape.request,
 });
 export const stateAttemptSchema = z.strictObject({
   id: stateIdSchema,
@@ -296,6 +317,7 @@ export type StateClaim = z.infer<typeof stateClaimSchema>;
 export type StateProjectRequest = z.infer<typeof stateProjectRequestSchema>;
 export type StateJob = z.infer<typeof stateJobSchema>;
 export type StateJobRequest = z.infer<typeof stateJobRequestSchema>;
+export type ConfiguredJobRequest = z.infer<typeof configuredJobRequestSchema>;
 export type StateAttempt = z.infer<typeof stateAttemptSchema>;
 export type StateAttemptRequest = z.infer<typeof stateAttemptRequestSchema>;
 export type StateEffectIntent = z.infer<typeof stateEffectIntentSchema>;
