@@ -333,3 +333,9 @@ export type {
 } from './ports/implementation.js';
 export { nodeImplementationContextReader } from './adapters/filesystem/implementation-context.js';
 export { createCodexImplementationInput } from './application/codex-implementation-input.js';
+
+export * from './contracts/review.js';
+export { submitReview, inspectReview, createReviewRuntime } from './application/review.js';
+export type { ReviewDependencies } from './application/review.js';
+export type { ReviewTargetReader } from './ports/review.js';
+export { createGhReviewTargetReader } from './adapters/github/review-target.js';

@@ -156,3 +156,7 @@ The state/service/handoff issues must exercise duplicate commands, interrupted e
 ## Explicit implementation workflow
 
 [Implementation delegation](implementation.md) documents strict task submission, owned-checkout/context checks, deterministic initial delivery, receipt-based reconnect, saved status and the untrusted worker report format. `submitImplementation`, `inspectImplementation` and `createImplementationRuntime` consume the earlier primitives without adding report acceptance or publication authority.
+
+## Explicit manual review workflow
+
+[Manual review delegation](review.md) documents project/base repository/PR/full SHA requests, dedicated owned reviewer checkouts, transactional target reuse and request aliases, repeat attempts, CI gates and host-authorized overrides. `submitReview`, `inspectReview` and `createReviewRuntime` share durable input delivery with implementation while preserving separate role/task/report contracts. Automatic initiation, integration provisioning, accepted reports and publication remain later operations.

@@ -29,6 +29,9 @@ import {
 } from '../application/implementation.js';
 import { createNodeWorktreeFiles } from '../adapters/filesystem/worktree-files.js';
 import { nodeImplementationContextReader } from '../adapters/filesystem/implementation-context.js';
+import { submitReview, inspectReview, type ReviewDependencies } from '../application/review.js';
+import { createGhReviewTargetReader } from '../adapters/github/review-target.js';
+import type { ReviewTargetReader } from '../ports/review.js';
 import { composeCodexHerdrRuntime } from './codex-runtime.js';
 import { listenLocalService } from '../service/local-transport.js';
 import type { CoordinatorOwnership, ServiceWorkerRuntime } from '../ports/service.js';
@@ -38,6 +41,8 @@ export async function startLocalService(
   input: unknown,
   options: {
     runtimes?: readonly ServiceWorkerRuntime[];
+    reviewTargets?: ReviewTargetReader;
+    githubExecutable?: string;
     codexHerdr?: { herdrExecutable?: string; codexExecutable?: string };
   } = {},
 ) {
@@ -94,6 +99,46 @@ export async function startLocalService(
       files: createNodeWorktreeFiles(join(opened.stateDirectory, 'worktrees')),
       instructions: nodeImplementationContextReader,
     };
+    const gh = await hostExecutable('gh', options.githubExecutable);
+    const environment: Record<string, string> = {};
+
+    for (const key of [
+      'HOME',
+      'PATH',
+      'GH_CONFIG_DIR',
+      'GH_TOKEN',
+      'GITHUB_TOKEN',
+      'GH_ENTERPRISE_TOKEN',
+      'GITHUB_ENTERPRISE_TOKEN',
+      'SSL_CERT_FILE',
+      'SSL_CERT_DIR',
+    ]) {
+      const value = process.env[key];
+
+      if (value !== undefined) {
+        environment[key] = value;
+      }
+    }
+
+    const reviewDependencies: ReviewDependencies = {
+      ...implementationDependencies,
+      targets:
+        options.reviewTargets ??
+        (gh
+          ? createGhReviewTargetReader({
+              executable: gh,
+              runner: nodeProcessRunner,
+              environment,
+              now: Date.now,
+            })
+          : {
+              read: async () =>
+                rejected(
+                  'github_unavailable',
+                  'Install or select a trusted GitHub CLI executable.',
+                ),
+            }),
+    };
     const runtimes = [...(options.runtimes ?? [])];
 
     if (options.codexHerdr) {
@@ -114,6 +159,7 @@ export async function startLocalService(
         composeCodexHerdrRuntime({
           opened,
           dependencies,
+          reviewDependencies,
           herdrExecutable: herdr,
           codexExecutable: codex,
         }),
@@ -165,6 +211,19 @@ export async function startLocalService(
             return coordinator.status();
           case 'inspect':
             return inspectServiceJob({ schemaVersion: 1, jobId: request.jobId }, opened.service);
+          case 'review_inspect':
+            return inspectReview({ schemaVersion: 1, jobId: request.jobId }, reviewDependencies);
+          case 'review_submit': {
+            const { operation: _operation, ...submission } = request;
+            const result = await submitReview(submission, reviewDependencies);
+
+            if (result.outcome === 'persisted') {
+              coordinator.wake();
+            }
+
+            return result;
+          }
+
           case 'implement_inspect':
             return inspectImplementation(
               { schemaVersion: 1, jobId: request.jobId },

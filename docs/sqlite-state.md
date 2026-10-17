@@ -123,3 +123,5 @@ Migration 6 adds one runtime session per saved service attempt, unique launch/ef
 ## Implementation acceptance
 
 Implementation jobs reuse existing job/configuration/attempt/effect records and runtime action receipts; no migration is added. Versioned task packets contain selected context, owned-checkout identity, instruction path/digest references and result contract version. The service store provides a read-only scoped idempotency lookup, and the worktree store provides a checkout lookup for the consuming ownership gate. See [implementation delegation](implementation.md).
+
+Migration 7 adds transactional manual-review request aliases and a target lookup index. Aliases preserve each normalized request key while same-target requests reuse one unresolved review. See [manual review](review.md). Existing migrations remain unchanged.

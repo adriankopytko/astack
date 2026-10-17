@@ -56,6 +56,7 @@ export const serviceEntrySchema = z
         'recovery_required',
       ])
       .nullable(),
+    readiness: operationErrorSchema.nullable().optional(),
     claim: stateClaimSchema.nullable(),
     observation: workerObservationSchema.nullable(),
   })

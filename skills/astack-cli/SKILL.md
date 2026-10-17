@@ -42,6 +42,8 @@ From the astack source repository use `pnpm dev` instead of `astack`; after buil
 | `astack runtime interrupt --attempt <id> --key <key> [--json]`                                    | Request Escape once; not task cancellation or shutdown                                      |
 | `astack implement submit <required options> [--json]`                                             | Accept an explicit implementation task for a ready owned checkout                           |
 | `astack implement inspect <job-id> [--json]`                                                      | Read saved implementation delivery/blocker evidence without accepting a result              |
+| `astack review submit <required options> [--json]`                                                | Manually accept exact repository/PR/SHA review with dedicated checkout and gates            |
+| `astack review inspect <job-id> [--json]`                                                         | Read saved review target, gate and delivery evidence offline                                |
 
 Global `--state-directory <path>` selects isolated host state. `--git-executable <absolute-path>` selects trusted Git; otherwise the CLI searches absolute host PATH entries. Git inspection requires Git 2.45 or later.
 
@@ -141,6 +143,20 @@ The worker returns a final JSON proposal with schema version, job/attempt/projec
 
 ## Planned capabilities
 
-The stage remains `foundation`. Initialization, review delegation, accepted reports and handoffs, GitHub workflows, and automatic review are not implemented commands. Report missing capabilities rather than inventing commands or treating unknown commands as accepted work.
+The stage remains `foundation`. Initialization, accepted reports, automatic handoffs, GitHub publication, and automatic review are not implemented commands. Report missing capabilities rather than inventing commands or treating unknown commands as accepted work.
 
 As those operations arrive, use commit-specific results and explicit automation policy. A pushed PR or idle agent alone is not proof of completion or authorization for another action.
+
+## Manually delegate PR review
+
+Use `astack review submit --project <id> --checkout <dedicated-owned-checkout-id> --key <request-key> --branch <review-branch> --commit <full-pr-head-sha> --host github.com --repo <owner/repo> --pr <number> [--check <name>] [--json]` after explicit worktree preparation. The commit must already exist locally. No implementation job is required. Use the base repository/PR for fork PRs. Use a separate approved reviewer role; Codex static review requires `--sandbox read-only` in its trusted command. Static review starts no services.
+
+Review is manual; submitting the command authorizes that exact request. It never discovers unrelated PRs or automatically starts after implementation. The service checks GitHub head/check evidence at acceptance and before dispatch/input. A stale head blocks; never silently submit a newer SHA. With no selected checks, all observed checks must pass and at least one must exist. `--check` is repeatable; each selected name must exist and pass. Missing/skipped/cancelled checks do not pass. This is not GitHub branch-protection evaluation.
+
+`--override-gate <reason>` permits early CI review only when the private host policy sets `execution.review.allowGateOverride: true`. Record the pending/failing evidence; never invent success or use an override to bypass identity, ownership, host policy, capacity or resource requirements. `--resource <name>` records an integration resource request and blocks until isolated provisioning is implemented. `--instruction` replaces the default AGENTS Markdown paths.
+
+A new key for the same project/repository/PR/SHA reuses the saved review and original checkout; aliases preserve retry identity. Different gate/resource/instruction/configuration requests conflict. `--repeat` requires a new key and fresh dedicated checkout and explicitly creates a new job/attempt. Reusing an implementation checkout or another review attempt's checkout is rejected. All reviews remain unresolved until report acceptance exists.
+
+Use `astack review inspect <job-id> [--json]` for saved target, initial gate evidence and delivery/blocker status, even offline. Detailed preflight blockers appear in `job.entry.readiness`; fresh post-delivery checks appear in `job.entry.observation.evidence.reviewGate`. `astack service wake` requests a targeted reconciliation pass after checks change; no cron, scanner or check watch is installed. Never resend pending/acknowledged input or start a replacement for an uncertain worker.
+
+Workers return the versioned review JSON proposal with exact IDs/target, findings, blockers, gate policy and check snapshots. A proposal, UI done and delivered input are not accepted completion. Report authentication, cancellation, fixes, GitHub publication, merging and automatic initiation remain planned.

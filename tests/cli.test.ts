@@ -48,7 +48,7 @@ await test('human-readable package information remains concise', () => {
 });
 
 await test('unknown commands fail instead of silently accepting work', () => {
-  for (const args of [['unavailable-command'], ['implement', 'invented']]) {
+  for (const args of [['unavailable-command'], ['implement', 'invented'], ['review', 'invented']]) {
     const result = spawnSync(process.execPath, [entrypoint, ...args], { encoding: 'utf8' });
 
     assert.notEqual(result.status, 0);

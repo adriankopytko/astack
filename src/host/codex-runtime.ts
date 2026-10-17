@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { createCodexHerdrRuntime } from '../application/runtime.js';
+import { createReviewRuntime, type ReviewDependencies } from '../application/review.js';
 import { createImplementationRuntime } from '../application/implementation.js';
 import { createCodexImplementationInput } from '../application/codex-implementation-input.js';
 import { nodeImplementationContextReader } from '../adapters/filesystem/implementation-context.js';
@@ -16,6 +17,7 @@ import type { ServiceDependencies } from '../application/service.js';
 export function composeCodexHerdrRuntime(input: {
   opened: Extract<StateOpenResult, { outcome: 'opened' }>;
   dependencies: ServiceDependencies;
+  reviewDependencies: ReviewDependencies;
   herdrExecutable: string;
   codexExecutable: string;
 }) {
@@ -37,7 +39,7 @@ export function composeCodexHerdrRuntime(input: {
     newId: () => randomUUID(),
   };
 
-  return createImplementationRuntime({
+  const implementation = createImplementationRuntime({
     runtime: createCodexHerdrRuntime(dependencies),
     dependencies: {
       ...input.dependencies,
@@ -45,6 +47,12 @@ export function composeCodexHerdrRuntime(input: {
       files: dependencies.files,
       instructions: nodeImplementationContextReader,
     },
+    workerInput: createCodexImplementationInput(dependencies),
+  });
+
+  return createReviewRuntime({
+    runtime: implementation,
+    dependencies: input.reviewDependencies,
     workerInput: createCodexImplementationInput(dependencies),
   });
 }

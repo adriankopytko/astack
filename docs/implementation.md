@@ -4,7 +4,7 @@
 
 An orchestrator selects a task, project, ready owned checkout, branch and initial full SHA. `implement submit` accepts a durable implementation job through the local service. The coordinator launches the configured worker and hands it a deterministic initial prompt through the runtime's durable input primitive. `implement inspect` reads saved delivery and blocker evidence, including after the service stops.
 
-This workflow does not select issues, create a checkout implicitly, provision project environments, publish changes, open PRs, trigger review, accept worker reports, cancel tasks, or clean up workers. Worktree preparation is an explicit existing primitive. Successful task completion still requires the later report validation operation; UI idle/done and terminal-input acknowledgement are insufficient.
+This workflow does not select issues, create a checkout implicitly, provision project environments, publish changes, open PRs, trigger review automatically, accept worker reports, cancel tasks, or clean up workers. Worktree preparation is an explicit existing primitive. Successful task completion still requires the later report validation operation; UI idle/done and terminal-input acknowledgement are insufficient.
 
 ## CLI sequence
 
@@ -102,3 +102,5 @@ Delivery evidence is separate from progress. `acceptedOutcome` remains null in t
 ## Verification
 
 Disposable Git/state and controlled input/runtime fixtures exercise two-project isolation, policy/task/attempt persistence before effects, duplicate submission after worker edits/policy revocation, capacity queueing, exact assignment/instruction references and result contract, launch refusal versus uncertainty, worker approval blockers, missing workflow support, context drift, lost prompt acknowledgements, reconnect without replay, bounded instruction reads, neutral-cwd CLI/local transport, and actual Codex-adapter recovery using fake provider calls. Default checks start no real user agents, touch no live Herdr layout and make no GitHub changes.
+
+Manual PR/SHA review is now a separate explicit workflow; see [review delegation](review.md). It does not reuse an implementation checkout or infer a PR from this task.

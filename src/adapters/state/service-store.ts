@@ -13,6 +13,7 @@ import {
   stateResourceIntentSchema,
 } from '../../contracts/state.js';
 import type { ServiceStore } from '../../ports/service.js';
+import { reviewTaskSchema, reviewSubmitRequestSchema } from '../../contracts/review-task.js';
 import { canonicalJson, type StateDatabase } from './database.js';
 import { acceptJobTransaction } from './store.js';
 import { stateFailure } from './errors.js';
@@ -78,6 +79,92 @@ export function createSqliteServiceStore(db: StateDatabase): ServiceStore {
   return {
     submit({ job, entry }) {
       return db.write(() => {
+        const review = reviewTaskSchema.safeParse(job.intent.task);
+
+        if (
+          review.success &&
+          (entry.role !== 'reviewer' ||
+            job.operation !== 'delegate:reviewer' ||
+            review.data.submission.projectId !== job.projectId ||
+            review.data.submission.checkoutId !== job.checkoutId ||
+            review.data.submission.key !== job.idempotencyKey ||
+            review.data.submission.branch !== entry.branch ||
+            review.data.submission.commit !== entry.commit)
+        ) {
+          stateFailure('state_conflict');
+        }
+
+        if (review.success) {
+          const submission = review.data.submission;
+          const alias = db
+            .statement(
+              'SELECT job_id, submission FROM review_requests WHERE project_id=? AND request_key=?',
+            )
+            .get(job.projectId, submission.key);
+
+          if (alias) {
+            if (String(alias.submission) !== canonicalJson(submission)) {
+              stateFailure('state_conflict');
+            }
+
+            return { value: required(String(alias.job_id)), disposition: 'existing' };
+          }
+
+          if (!submission.repeat) {
+            const target = submission.target;
+            const existing = db
+              .statement(`SELECT id FROM jobs WHERE project_id=? AND repository_id=? AND operation='delegate:reviewer'
+              AND json_extract(data, '$.intent.task.workflow')='review'
+              AND json_extract(data, '$.intent.task.submission.target.host')=?
+              AND json_extract(data, '$.intent.task.submission.target.repository')=?
+              AND json_extract(data, '$.intent.task.submission.target.number')=?
+              AND json_extract(data, '$.intent.task.submission.target.sha')=? ORDER BY json_extract(data, '$.createdAt') DESC, id DESC LIMIT 1`)
+              .get(
+                job.projectId,
+                job.repositoryId,
+                target.host,
+                target.repository,
+                target.number,
+                target.sha,
+              );
+
+            if (existing) {
+              const saved = required(String(existing.id));
+              const task = reviewTaskSchema.parse(saved.job.intent.task);
+
+              if (
+                canonicalJson(task.submission.gate) !== canonicalJson(submission.gate) ||
+                canonicalJson(task.submission.resources) !== canonicalJson(submission.resources) ||
+                canonicalJson(task.submission.request) !== canonicalJson(submission.request) ||
+                canonicalJson(task.submission.instructionPaths) !==
+                  canonicalJson(submission.instructionPaths)
+              ) {
+                stateFailure('state_conflict');
+              }
+
+              db.statement(
+                'INSERT INTO review_requests(project_id, request_key, job_id, submission) VALUES (?,?,?,?)',
+              ).run(job.projectId, submission.key, saved.job.id, canonicalJson(submission));
+
+              return { value: saved, disposition: 'existing' };
+            }
+          }
+        }
+
+        // A review checkout is dedicated across its lifetime, including unresolved/quiescent work.
+        const prior = db
+          .statement('SELECT data FROM jobs WHERE checkout_id=? AND id<>?')
+          .all(job.checkoutId, job.id);
+
+        for (const row of prior) {
+          const previous = stateJobSchema.parse(JSON.parse(String(row.data)));
+          const previousReview = reviewTaskSchema.safeParse(previous.intent.task).success;
+
+          if (review.success || previousReview) {
+            stateFailure('state_conflict');
+          }
+        }
+
         const accepted = acceptJobTransaction(db, job);
 
         if (accepted.disposition === 'existing') {
@@ -158,6 +245,17 @@ export function createSqliteServiceStore(db: StateDatabase): ServiceStore {
           canonicalJson(entry),
         );
 
+        if (review.success) {
+          db.statement(
+            'INSERT INTO review_requests(project_id, request_key, job_id, submission) VALUES (?,?,?,?)',
+          ).run(
+            job.projectId,
+            review.data.submission.key,
+            job.id,
+            canonicalJson(review.data.submission),
+          );
+        }
+
         return { value: required(job.id), disposition: 'created' };
       });
     },
@@ -170,6 +268,33 @@ export function createSqliteServiceStore(db: StateDatabase): ServiceStore {
           .get('local-host', projectId, `delegate:${role}`, key);
 
         return row ? required(String(row.id)) : null;
+      }),
+    reviewRequest: ({ projectId, key }) =>
+      db.read(() => {
+        const row = db
+          .statement(
+            'SELECT job_id, submission FROM review_requests WHERE project_id=? AND request_key=?',
+          )
+          .get(projectId, key);
+
+        if (!row) {
+          return null;
+        }
+
+        const job = required(String(row.job_id));
+        const submission = reviewSubmitRequestSchema.parse(JSON.parse(String(row.submission)));
+        const task = reviewTaskSchema.parse(job.job.intent.task);
+
+        if (
+          submission.projectId !== projectId ||
+          submission.key !== key ||
+          job.job.projectId !== projectId ||
+          canonicalJson(submission.target) !== canonicalJson(task.submission.target)
+        ) {
+          stateFailure('state_invalid_data');
+        }
+
+        return { job, submission };
       }),
     read: (id) => db.read(() => read(id)),
     list(after) {
@@ -263,12 +388,18 @@ export function createSqliteServiceStore(db: StateDatabase): ServiceStore {
         }
 
         return {
-          value: update({ ...current.entry, state: 'dispatching', reason: null, claim }),
+          value: update({
+            ...current.entry,
+            state: 'dispatching',
+            reason: null,
+            readiness: null,
+            claim,
+          }),
           disposition: 'updated',
         };
       });
     },
-    block(jobId, reason) {
+    block(jobId, reason, readiness) {
       return db.write(() => {
         const current = required(jobId);
 
@@ -277,7 +408,12 @@ export function createSqliteServiceStore(db: StateDatabase): ServiceStore {
         }
 
         return {
-          value: update({ ...current.entry, state: 'blocked', reason }),
+          value: update({
+            ...current.entry,
+            state: 'blocked',
+            reason,
+            readiness: readiness ?? null,
+          }),
           disposition: 'updated',
         };
       });

@@ -1,4 +1,5 @@
-import type { OperationResult } from '../contracts/operation-result.js';
+import type { ReviewRequestLookup } from './review.js';
+import type { OperationResult, OperationError } from '../contracts/operation-result.js';
 import type { StateJob, StateWriteResult } from '../contracts/state.js';
 import type {
   ServiceJob,
@@ -7,7 +8,7 @@ import type {
   WorkerObservation,
 } from '../contracts/service.js';
 
-export interface ServiceStore {
+export interface ServiceStore extends ReviewRequestLookup {
   submit(input: { job: StateJob; entry: ServiceEntry }): StateWriteResult<ServiceJob>;
   find(input: { projectId: string; role: string; key: string }): OperationResult<ServiceJob | null>;
   read(jobId: string): OperationResult<ServiceJob | null>;
@@ -19,7 +20,11 @@ export interface ServiceStore {
     now: number;
     limits: ServiceLimits;
   }): StateWriteResult<ServiceJob | null>;
-  block(jobId: string, reason: NonNullable<ServiceEntry['reason']>): StateWriteResult<ServiceJob>;
+  block(
+    jobId: string,
+    reason: NonNullable<ServiceEntry['reason']>,
+    readiness?: OperationError,
+  ): StateWriteResult<ServiceJob>;
   observe(jobId: string, observation: WorkerObservation, now: number): StateWriteResult<ServiceJob>;
 }
 

@@ -232,4 +232,21 @@ CREATE TABLE runtime_actions (
 CREATE UNIQUE INDEX one_pending_runtime_action ON runtime_actions(attempt_id) WHERE state='pending';
 `,
   },
+  {
+    version: 7,
+    sql: `
+CREATE TABLE review_requests (
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  request_key TEXT NOT NULL,
+  job_id TEXT NOT NULL REFERENCES service_entries(job_id),
+  submission TEXT NOT NULL CHECK(json_valid(submission)),
+  PRIMARY KEY(project_id, request_key)
+) STRICT;
+CREATE INDEX review_target_lookup ON jobs(project_id, repository_id,
+  json_extract(data, '$.intent.task.submission.target.host'),
+  json_extract(data, '$.intent.task.submission.target.repository'),
+  json_extract(data, '$.intent.task.submission.target.number'),
+  json_extract(data, '$.intent.task.submission.target.sha')) WHERE operation='delegate:reviewer';
+`,
+  },
 ] as const;

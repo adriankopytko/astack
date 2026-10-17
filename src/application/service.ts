@@ -1,4 +1,9 @@
-import { completed, rejected, type OperationResult } from '../contracts/operation-result.js';
+import {
+  completed,
+  rejected,
+  type OperationResult,
+  type OperationError,
+} from '../contracts/operation-result.js';
 import {
   serviceSubmitRequestSchema,
   serviceReadRequestSchema,
@@ -288,10 +293,15 @@ export function createServiceCoordinator(input: {
 
       if (provider?.preflight) {
         let ready = false;
+        let readiness: OperationError | undefined;
 
         try {
           const result = await provider.preflight(job, controller.signal);
           ready = result.outcome === 'completed' && result.value.ready === true;
+
+          if (result.outcome === 'rejected') {
+            readiness = result.error;
+          }
         } catch {
           ready = false;
         }
@@ -301,7 +311,7 @@ export function createServiceCoordinator(input: {
         }
 
         if (!ready) {
-          written(dependencies.queue.block(job.job.id, 'workflow_blocked'));
+          written(dependencies.queue.block(job.job.id, 'workflow_blocked', readiness));
 
           return;
         }

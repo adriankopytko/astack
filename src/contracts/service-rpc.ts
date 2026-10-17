@@ -11,6 +11,12 @@ import {
   implementationReadResultSchema,
   implementationSubmitResultSchema,
 } from './implementation.js';
+import {
+  reviewSubmitRequestSchema,
+  reviewReadRequestSchema,
+  reviewReadResultSchema,
+  reviewSubmitResultSchema,
+} from './review.js';
 import { createOperationResultSchema } from './operation-result.js';
 import { createStateWriteResultSchema } from './state.js';
 
@@ -21,6 +27,8 @@ export const serviceRpcRequestSchema = z.discriminatedUnion('operation', [
   serviceReadRequestSchema.extend({ operation: z.literal('inspect') }),
   implementationSubmitRequestSchema.extend({ operation: z.literal('implement_submit') }),
   implementationReadRequestSchema.extend({ operation: z.literal('implement_inspect') }),
+  reviewSubmitRequestSchema.extend({ operation: z.literal('review_submit') }),
+  reviewReadRequestSchema.extend({ operation: z.literal('review_inspect') }),
 ]);
 export const serviceRpcResponseSchema = z.union([
   createOperationResultSchema(serviceStatusSchema),
@@ -28,6 +36,8 @@ export const serviceRpcResponseSchema = z.union([
   createStateWriteResultSchema(serviceJobSchema),
   implementationReadResultSchema,
   implementationSubmitResultSchema,
+  reviewReadResultSchema,
+  reviewSubmitResultSchema,
 ]);
 export type ServiceRpcRequest = z.infer<typeof serviceRpcRequestSchema>;
 export type ServiceRpcResponse = z.infer<typeof serviceRpcResponseSchema>;

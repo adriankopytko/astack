@@ -28,6 +28,8 @@ function render(result: ServiceRpcResponse, json?: boolean): void {
       process.stdout.write(
         `Service: ${value.phase}\nSession: ${value.sessionId}\nRuntimes: ${value.runtimes.join(', ') || 'none installed'}\nJobs: ${JSON.stringify(value.counts)}\n`,
       );
+    } else if ('review' in value) {
+      process.stdout.write(`Job: ${value.job.job.id}\nState: ${value.review.state}\n`);
     } else if ('implementation' in value) {
       process.stdout.write(`Job: ${value.job.job.id}\nState: ${value.implementation.state}\n`);
     } else {

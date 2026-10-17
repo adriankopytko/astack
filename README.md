@@ -6,7 +6,7 @@ One orchestrator selects work and decides what happens next. Astack prepares own
 
 ## Status
 
-The development scaffold is ready: a compiled CLI/library, strict TypeScript, typed Oxlint rules, Oxfmt, dependency checks, isolated tests, and Linux/macOS CI. The CLI provides help, version, package information, `--skill` guidance, project registration/listing, context/doctor diagnostics, owned worktree lifecycle commands, and trusted configuration inspection. The local service foundation and explicit Herdr project/worker layout integration are implemented; an opt-in Herdr-owned interactive Codex runtime is implemented. Explicit implementation handoff to an owned checkout is implemented; review and accepted report handling remain next.
+The development scaffold is ready: a compiled CLI/library, strict TypeScript, typed Oxlint rules, Oxfmt, dependency checks, isolated tests, and Linux/macOS CI. The CLI provides help, version, package information, `--skill` guidance, project registration/listing, context/doctor diagnostics, owned worktree lifecycle commands, and trusted configuration inspection. The local service foundation and explicit Herdr project/worker layout integration are implemented; an opt-in Herdr-owned interactive Codex runtime is implemented. Explicit implementation and manual PR/SHA review handoff to dedicated owned checkouts are implemented; accepted report handling remains next.
 
 The library now provides versioned read results and explicit project/checkout context resolution through an injected reader. See [operation contracts](docs/operation-contracts.md) for the executable APIs and the separate durable v1 design.
 
@@ -30,7 +30,9 @@ Managed-file operations can create or upgrade owned generated assets, preserve d
 
 `runtime capabilities`, `inspect`, `reconcile`, `input` and `interrupt` expose interactive Codex control. Herdr owns execution; Astack persists intent before launch/input and verifies saved pane/native-session identity. Unknown writes never replay automatically, and UI idle/done never counts as task completion. See [the runtime contract](docs/runtime.md) for host opt-in, approved arguments, server trust and recovery limits.
 
-`implement submit --project <id> --checkout <owned-checkout-id> --key <key> --branch <branch> --commit <sha> --task <text>` accepts an explicit implementation job. The worker receives its saved assignment, repository instruction references, task/criteria and final JSON proposal contract. `implement inspect <job-id>` reads durable delivery and blocker evidence. Reconnect never repeats acknowledged/uncertain input. See [implementation delegation](docs/implementation.md); accepted success, reports, review and publication remain separate work.
+`implement submit --project <id> --checkout <owned-checkout-id> --key <key> --branch <branch> --commit <sha> --task <text>` accepts an explicit implementation job. The worker receives its saved assignment, repository instruction references, task/criteria and final JSON proposal contract. `implement inspect <job-id>` reads durable delivery and blocker evidence. Reconnect never repeats acknowledged/uncertain input. See [implementation delegation](docs/implementation.md); accepted success, reports and publication remain separate work.
+
+`review submit --project <id> --checkout <owned-checkout-id> --key <key> --branch <branch> --commit <full-pr-head-sha> --repo <owner/repo> --pr <number>` manually requests SHA-bound review. Targeted GitHub CLI reads gate dispatch; same-target requests reuse durable reviews, while `--repeat` requests a fresh attempt/checkout. `review inspect <job-id>` reads saved evidence offline. CI overrides need host permission and a recorded reason. See [manual review delegation](docs/review.md); automatic review and integration provisioning remain later work.
 
 Local planning material is intentionally ignored. Durable contributor requirements belong in this README, [AGENTS.md](AGENTS.md), and tracked architecture decisions.
 
@@ -44,7 +46,7 @@ Local planning material is intentionally ignored. Durable contributor requiremen
 - Shared port and service-name allocation across managed projects.
 - Idempotent project initialization, project-owned setup/verification hooks, and focused skills.
 
-Next, add review delegation and accepted report handling using the existing runtime and implementation handoff primitives. Broader task scheduling, automatic fix loops, additional providers, remote execution, and public hosting follow concrete usage.
+Next, add accepted report handling and cancellation using the existing runtime and implementation/review handoff primitives. Broader task scheduling, automatic fix loops, additional providers, remote execution, and public hosting follow concrete usage.
 
 ## Development stack
 
