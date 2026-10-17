@@ -2,7 +2,7 @@ import { constants } from 'node:fs';
 import { access, stat } from 'node:fs/promises';
 import { delimiter, isAbsolute, join } from 'node:path';
 
-export async function gitExecutable(explicit?: string): Promise<string | null> {
+export async function hostExecutable(name: string, explicit?: string): Promise<string | null> {
   if (explicit !== undefined) {
     return isAbsolute(explicit) ? explicit : null;
   }
@@ -12,7 +12,7 @@ export async function gitExecutable(explicit?: string): Promise<string | null> {
       continue;
     }
 
-    const candidate = join(directory, 'git');
+    const candidate = join(directory, name);
 
     try {
       await access(candidate, constants.X_OK);
@@ -26,4 +26,8 @@ export async function gitExecutable(explicit?: string): Promise<string | null> {
   }
 
   return null;
+}
+
+export function gitExecutable(explicit?: string): Promise<string | null> {
+  return hostExecutable('git', explicit);
 }

@@ -180,4 +180,27 @@ CREATE INDEX service_by_state ON service_entries(state, queued_at, job_id);
 CREATE INDEX service_queue_order ON service_entries(queued_at, job_id);
 `,
   },
+  {
+    version: 5,
+    sql: `
+CREATE TABLE herdr_projects (
+  project_id TEXT PRIMARY KEY REFERENCES project_registrations(project_id),
+  data TEXT NOT NULL CHECK(json_valid(data)) CHECK(json_extract(data, '$.projectId') IS project_id)
+) STRICT;
+CREATE TABLE herdr_spaces (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES herdr_projects(project_id),
+  checkout_id TEXT NOT NULL REFERENCES checkouts(id),
+  attempt_id TEXT UNIQUE REFERENCES attempts(id),
+  kind TEXT NOT NULL CHECK(kind IN ('primary', 'worker')),
+  data TEXT NOT NULL CHECK(json_valid(data)) CHECK(json_extract(data, '$.id') IS id)
+    CHECK(json_extract(data, '$.projectId') IS project_id)
+    CHECK(json_extract(data, '$.checkoutId') IS checkout_id)
+    CHECK(json_extract(data, '$.attemptId') IS attempt_id)
+    CHECK(json_extract(data, '$.kind') IS kind)
+) STRICT;
+CREATE UNIQUE INDEX one_herdr_primary ON herdr_spaces(project_id) WHERE kind='primary';
+CREATE UNIQUE INDEX one_herdr_worker_checkout ON herdr_spaces(checkout_id) WHERE kind='worker';
+`,
+  },
 ] as const;

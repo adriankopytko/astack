@@ -50,6 +50,11 @@ export const operationErrorSchema = z.strictObject({
     'service_endpoint_unsafe',
     'service_protocol_error',
     'service_stopping',
+    'herdr_unavailable',
+    'herdr_unsupported',
+    'herdr_invalid_output',
+    'herdr_not_configured',
+    'herdr_conflict',
   ]),
   message: z.string().min(1),
 });

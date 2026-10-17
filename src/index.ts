@@ -1,4 +1,38 @@
 export { getApplicationInfo } from './application/get-application-info.js';
+export {
+  configureHerdrProject,
+  ensureHerdrProject,
+  inspectHerdrProject,
+  prepareHerdrWorker,
+  inspectHerdrWorker,
+  bindHerdrAgent,
+  reconcileHerdrSpace,
+  type HerdrDependencies,
+} from './application/herdr.js';
+export { createHerdrCliProvider } from './adapters/herdr/cli-provider.js';
+export { nodeHerdrEndpointReader } from './adapters/filesystem/herdr-endpoint.js';
+export type { HerdrProvider, HerdrStore, HerdrEndpointReader } from './ports/herdr.js';
+export {
+  herdrTargetSchema,
+  herdrServerSchema,
+  herdrSettingsSchema,
+  herdrSpaceSchema,
+  herdrSnapshotSchema,
+  herdrResultSchema,
+  herdrConfigureRequestSchema,
+  herdrProjectRequestSchema,
+  herdrWorkerRequestSchema,
+  herdrAgentRequestSchema,
+  herdrReconcileRequestSchema,
+  type HerdrTarget,
+  type HerdrServer,
+  type HerdrSettings,
+  type HerdrSpace,
+  type HerdrSnapshot,
+  type HerdrHandle,
+  type HerdrAgent,
+  type HerdrResult,
+} from './contracts/herdr.js';
 export { startLocalService } from './host/local-service.js';
 export { requestLocalService } from './adapters/local/service-client.js';
 export { acquireCoordinatorOwnership } from './adapters/state/coordinator-ownership.js';

@@ -1,6 +1,6 @@
 ---
 name: astack-cli
-description: Use the astack CLI to register projects, manage owned worktrees, inspect approved configuration and the local service queue, or discover installed orchestration capabilities before delegation.
+description: Use the astack CLI to register projects, manage owned worktrees, inspect approved configuration and the local service queue, reconcile explicit Herdr layouts, or discover installed orchestration capabilities before delegation.
 ---
 
 # Using astack
@@ -27,6 +27,10 @@ From the astack source repository use `pnpm dev` instead of `astack`; after buil
 | `astack service status / wake [--json]`                                                           | Live coordinator evidence / request a reconciliation pass                                   |
 | `astack service submit <required options> [--json]`                                               | Persist configured intent, attempt and pending effect atomically                            |
 | `astack service inspect <job-id> [--json]`                                                        | Read saved job evidence, also when service is offline                                       |
+| `astack herdr configure / ensure / inspect --project <id> [--json]`                               | Explicit host target and persistent primary project space                                   |
+| `astack herdr worker prepare / inspect --attempt <id> [--json]`                                   | Grouped owned checkout layout and current attribution                                       |
+| `astack herdr worker bind-agent --attempt <id> --kind <kind> [--json]`                            | Record an already detected matching agent; never launch it                                  |
+| `astack herdr reconcile <id> --operation <id> --writer-stopped [--json]`                          | Settle pending layout evidence after trusted writer quiescence                              |
 | `astack worktree prepare --project <id> --key <key> --branch <branch> --base <full-sha> [--json]` | Prepare or verify an owned isolated checkout                                                |
 | `astack worktree inspect <id> [--json]`                                                           | Observe ownership, phase, and Git evidence                                                  |
 | `astack worktree remove <id> [--json]`                                                            | Remove a verified clean owned checkout; preserve its branch                                 |
@@ -87,6 +91,18 @@ The installed CLI has no Codex/Herdr worker adapters yet. Configured executables
 One coordinator owns each private state directory through a kernel-backed lock. Other instances reject. SIGINT/SIGTERM drain foreground work and release the coordinator; they do not prove existing workers stopped. On restart, claimed launches are inspected without replaying them. Unknown launches retain capacity despite claim expiry. Only trusted runtime evidence can establish launch absence or quiescence. `awaiting_result` means a known worker stopped, not that the task succeeded.
 
 Transport is a private Unix socket with same-host-user authority, not a TCP service or restricted worker-report endpoint. Use a short private state path if socket length is rejected. Preserve edited/unowned endpoint files and obtain host inspection; do not remove sockets, steal locks or force cleanup as an automatic repair. Runtime events, submissions, startup and explicit wake drive reconciliation; there is no recurring GitHub polling loop.
+
+## Herdr project and worker layouts
+
+Use `herdr configure --project <id> [--session default] [--socket <path>] [--label <text>]` to save an explicit host target without contacting Herdr. The shared default session is deliberate; use a named session only for an explicit isolation preference. `herdr ensure --project <id>` associates or creates one primary space without focus changes. `herdr inspect --project <id>` reads current evidence. Global `--herdr-executable <absolute-path>` selects trusted CLI code. Only installed protocol 22 is supported initially.
+
+`herdr worker prepare --attempt <id>` opens an existing Astack-owned ready worktree in its saved project's primary group. It requires a saved attempt, valid accepted policy, exact initial branch/SHA, intact ownership and fresh registry identity. It creates no Git checkout and starts no agent. Existing unowned worker layouts block. The saved expected agent name/pane are inputs for the later launch integration.
+
+`herdr worker inspect --attempt <id>` verifies current layout/attribution. `herdr worker bind-agent --attempt <id> --kind <kind>` records only an already detected matching agent, including actual foreground cwd, terminal and available native session ID. It launches nothing. Provider idle/done status is not task success or permission for another writer.
+
+Targets always come from saved project settings, never caller cwd, `HERDR_*` pane variables or UI focus. Labels are presentation. A changed endpoint, moved pane, wrong cwd, replacement terminal/session or missing worker layout blocks; do not redirect old IDs or create replacement agents. Primary project spaces remain open, and worker resources are retained for later cleanup.
+
+After an uncertain write, inspect its space/operation IDs. `herdr reconcile <id> --operation <id> --writer-stopped` only settles fresh matching evidence after trusted host confirmation that the original writer/children stopped and no late write can arrive. Never infer that from a timeout or idle agent. Reconciliation never repeats creation/opening; absent or changed evidence remains blocked. There is no force, close-group, automatic adoption, Herdr update, or fallback runtime repair.
 
 ## Planned capabilities
 

@@ -68,6 +68,8 @@ Resources outlive terminal results. The `(kind, key)` uniqueness constraint span
 
 Migration 4 adds service queue entries. Service submission atomically saves configured job, first attempt, pending launch effect and queue entry; capacity claiming and runtime observations remain bounded transactions. A separate private `coordinator.sqlite` lock file provides lifetime leadership without holding the job database open in a write transaction. Its release on process exit does not prove worker shutdown. See [the service contract](service.md).
 
+Migration 5 adds explicit Herdr project targets and primary/worker space reservations. Compare-and-set pending intent precedes provider writes; ready worker layout and agent resources are persisted with their attempt bindings. The primary association is project-scoped and is not released by worker lifecycle. See [Herdr integration](herdr.md).
+
 ## Claims and external effects
 
 Claims default to 10 seconds, with a configurable maximum of 30 seconds. A caller supplies stable owner and token IDs; an injected trusted wall clock supplies timestamps. Claim tokens are nonsecret fencing identifiers, not capabilities authenticating a worker. Tokens cannot be reused for another effect.

@@ -13,6 +13,8 @@ import type { WorktreeStore } from '../../ports/worktrees.js';
 import { createSqliteWorktreeStore } from './worktree-store.js';
 import { createSqliteServiceStore } from './service-store.js';
 import type { ServiceStore } from '../../ports/service.js';
+import type { HerdrStore } from '../../ports/herdr.js';
+import { createSqliteHerdrStore } from './herdr-store.js';
 
 export interface SqliteStateDependencies {
   /** Trusted wall-clock milliseconds, used only for short claims and release observations. */
@@ -27,6 +29,7 @@ export type StateOpenResult =
       registry: ProjectRegistry;
       worktrees: WorktreeStore;
       service: ServiceStore;
+      herdr: HerdrStore;
     }
   | RejectedResult;
 
@@ -66,6 +69,7 @@ export async function openSqliteState(
         registry: createSqliteProjectRegistry(database),
         worktrees: createSqliteWorktreeStore(database, dependencies.now ?? Date.now),
         service: createSqliteServiceStore(database),
+        herdr: createSqliteHerdrStore(database, dependencies.now ?? Date.now),
       };
     } catch (error) {
       database.close();

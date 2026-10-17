@@ -1,0 +1,307 @@
+import { isAbsolute } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
+import { z } from 'zod';
+import { processRequestSchema, processResultSchema } from '../../contracts/process.js';
+import {
+  herdrSnapshotSchema,
+  type HerdrTarget,
+  type HerdrServer,
+  type HerdrSnapshot,
+} from '../../contracts/herdr.js';
+import { completed, rejected, type OperationResult } from '../../contracts/operation-result.js';
+import type { HerdrProvider, HerdrEndpointReader } from '../../ports/herdr.js';
+import type { ProcessRunner } from '../../ports/process-runner.js';
+
+const worktree = z.object({
+  checkout_path: z.string(),
+  repo_root: z.string(),
+  repo_key: z.string(),
+  is_linked_worktree: z.boolean(),
+});
+const workspace = z.object({
+  workspace_id: z.string(),
+  label: z.string(),
+  worktree: worktree.nullable().optional(),
+});
+const pane = z.object({
+  workspace_id: z.string(),
+  tab_id: z.string(),
+  pane_id: z.string(),
+  terminal_id: z.string(),
+  cwd: z.string().nullable().optional(),
+  foreground_cwd: z.string().nullable().optional(),
+});
+const agent = pane.extend({
+  name: z.string().nullable().optional(),
+  agent: z.string().nullable().optional(),
+  agent_status: z.enum(['idle', 'working', 'blocked', 'done', 'unknown']),
+  agent_session: z.object({ kind: z.string(), value: z.string() }).nullable().optional(),
+});
+const snapshotResponse = z.object({
+  result: z.object({
+    type: z.literal('session_snapshot'),
+    snapshot: z.object({
+      protocol: z.literal(22),
+      workspaces: z.array(workspace),
+      tabs: z.array(z.object({ tab_id: z.string(), workspace_id: z.string() })),
+      panes: z.array(pane),
+      agents: z.array(agent),
+    }),
+  }),
+});
+
+function handle(value: z.infer<typeof pane>) {
+  return {
+    workspaceId: value.workspace_id,
+    tabId: value.tab_id,
+    paneId: value.pane_id,
+    terminalId: value.terminal_id,
+  };
+}
+
+function coherent(value: HerdrSnapshot): boolean {
+  const workspaces = new Map(value.workspaces.map((item) => [item.id, item]));
+  const tabs = new Map(value.tabs.map((item) => [item.id, item]));
+  const panes = new Map(value.panes.map((item) => [item.paneId, item]));
+
+  return (
+    workspaces.size === value.workspaces.length &&
+    tabs.size === value.tabs.length &&
+    panes.size === value.panes.length &&
+    new Set(value.agents.map((item) => item.paneId)).size === value.agents.length &&
+    value.tabs.every((item) => workspaces.has(item.workspaceId)) &&
+    value.panes.every((item) => tabs.get(item.tabId)?.workspaceId === item.workspaceId) &&
+    value.agents.every((item) => {
+      const existing = panes.get(item.paneId);
+
+      return (
+        existing?.workspaceId === item.workspaceId &&
+        existing.tabId === item.tabId &&
+        existing.terminalId === item.terminalId
+      );
+    })
+  );
+}
+
+/** Uses only explicit socket/session environment, explicit targets and bounded noninteractive CLI calls. */
+export function createHerdrCliProvider(options: {
+  executable: string;
+  runner: ProcessRunner;
+  endpoint: HerdrEndpointReader;
+  environment?: Readonly<Record<string, string>>;
+  timeoutMs?: number;
+}): HerdrProvider {
+  async function invoke(
+    target: HerdrTarget,
+    cwd: string,
+    args: string[],
+    signal?: AbortSignal,
+    expected?: HerdrServer,
+  ): Promise<OperationResult<{ body: unknown; server: HerdrServer }>> {
+    if (!isAbsolute(options.executable)) {
+      return rejected('herdr_unavailable', 'Select an absolute trusted Herdr executable.');
+    }
+
+    if (signal?.aborted) {
+      return rejected('cancelled', 'Herdr operation was cancelled before invocation.');
+    }
+
+    try {
+      const before = await options.endpoint.read(target);
+      const server: HerdrServer = { ...before, protocol: 22 };
+
+      if (expected && !isDeepStrictEqual(server, expected)) {
+        return rejected(
+          'herdr_conflict',
+          'Herdr endpoint changed; inspect saved handles before continuing.',
+        );
+      }
+
+      const env: Record<string, string> = {};
+
+      for (const key of ['PATH', 'HOME', 'XDG_CONFIG_HOME', 'HERDR_CONFIG_PATH']) {
+        const value = options.environment?.[key];
+
+        if (value !== undefined) {
+          env[key] = value;
+        }
+      }
+
+      Object.assign(env, {
+        HERDR_SOCKET_PATH: target.socketPath,
+        HERDR_SESSION: target.session,
+        HERDR_DISABLE_SOUND: '1',
+        NO_COLOR: '1',
+      });
+      const request = processRequestSchema.safeParse({
+        schemaVersion: 1,
+        executable: options.executable,
+        args,
+        cwd,
+        env,
+        timeoutMs: options.timeoutMs ?? 10_000,
+        maxCaptureBytes: 4_194_304,
+      });
+
+      if (!request.success || (options.timeoutMs ?? 10_000) > 120_000) {
+        return rejected('herdr_unavailable', 'Herdr process settings exceed the supported bounds.');
+      }
+
+      const execution = processResultSchema.parse(await options.runner.run(request.data, signal));
+
+      if (execution.outcome === 'rejected') {
+        return rejected(
+          'herdr_unavailable',
+          'Herdr could not be invoked; no fallback runtime was selected.',
+        );
+      }
+
+      if (
+        execution.outcome !== 'exited' ||
+        execution.exitCode !== 0 ||
+        execution.signal !== null ||
+        execution.error !== null ||
+        !execution.stdout.complete ||
+        execution.stdout.truncated ||
+        execution.stdout.text.includes('\uFFFD') ||
+        Buffer.byteLength(execution.stdout.text) !== execution.stdout.capturedBytes ||
+        !execution.stderr.complete ||
+        execution.stderr.truncated ||
+        execution.shutdown.processGroup !== 'absent'
+      ) {
+        return rejected(
+          'herdr_unavailable',
+          'Herdr returned incomplete or uncertain evidence; inspect before retrying writes.',
+        );
+      }
+
+      const after = await options.endpoint.read(target);
+
+      if (!isDeepStrictEqual(before, after)) {
+        return rejected(
+          'herdr_conflict',
+          'Herdr endpoint changed during the request; preserve pending intent.',
+        );
+      }
+
+      const body: unknown = JSON.parse(execution.stdout.text);
+
+      return completed({ body, server });
+    } catch {
+      return rejected(
+        'herdr_unavailable',
+        'Herdr is unavailable or its endpoint is unsafe; start/select the intended server explicitly.',
+      );
+    }
+  }
+
+  return {
+    async snapshot(target, cwd, signal) {
+      const response = await invoke(target, cwd, ['api', 'snapshot'], signal);
+
+      if (response.outcome === 'rejected') {
+        return response;
+      }
+
+      const raw = snapshotResponse.safeParse(response.value.body);
+
+      if (!raw.success) {
+        return rejected(
+          'herdr_unsupported',
+          'Herdr snapshot must match the supported protocol 22 contract.',
+        );
+      }
+
+      const value = raw.data.result.snapshot;
+      const parsed = herdrSnapshotSchema.safeParse({
+        server: response.value.server,
+        workspaces: value.workspaces.map((item) => ({
+          id: item.workspace_id,
+          label: item.label,
+          worktree: item.worktree
+            ? {
+                checkoutPath: item.worktree.checkout_path,
+                repositoryRoot: item.worktree.repo_root,
+                repositoryKey: item.worktree.repo_key,
+                linked: item.worktree.is_linked_worktree,
+              }
+            : null,
+        })),
+        tabs: value.tabs.map((item) => ({ id: item.tab_id, workspaceId: item.workspace_id })),
+        panes: value.panes.map((item) => ({
+          ...handle(item),
+          cwd: item.cwd ?? null,
+          foregroundCwd: item.foreground_cwd ?? null,
+        })),
+        agents: value.agents.map((item) => ({
+          ...handle(item),
+          name: item.name ?? null,
+          kind: item.agent ?? null,
+          nativeSessionId: item.agent_session?.kind === 'id' ? item.agent_session.value : null,
+          cwd: item.cwd ?? null,
+          foregroundCwd: item.foreground_cwd ?? null,
+          status: item.agent_status,
+        })),
+      });
+
+      return parsed.success && coherent(parsed.data)
+        ? completed(parsed.data)
+        : rejected('herdr_invalid_output', 'Herdr layout evidence is incomplete or contradictory.');
+    },
+    async createPrimary(input, signal) {
+      const result = await invoke(
+        input.target,
+        input.root,
+        ['workspace', 'create', '--cwd', input.root, '--label', input.label, '--no-focus'],
+        signal,
+        input.server,
+      );
+
+      if (result.outcome === 'rejected') {
+        return result;
+      }
+
+      return z
+        .object({ result: z.object({ type: z.literal('workspace_created') }) })
+        .safeParse(result.value.body).success
+        ? completed(null)
+        : rejected('herdr_invalid_output', 'Herdr did not acknowledge workspace creation.');
+    },
+    async openWorker(input, signal) {
+      const result = await invoke(
+        input.target,
+        input.root,
+        [
+          'worktree',
+          'open',
+          '--workspace',
+          input.parent,
+          '--path',
+          input.root,
+          '--label',
+          input.label,
+          '--no-focus',
+        ],
+        signal,
+        input.server,
+      );
+
+      if (result.outcome === 'rejected') {
+        return result;
+      }
+
+      const parsed = z
+        .object({
+          result: z.object({ type: z.literal('worktree_opened'), already_open: z.boolean() }),
+        })
+        .safeParse(result.value.body);
+
+      return parsed.success
+        ? completed({ alreadyOpen: parsed.data.result.already_open })
+        : rejected(
+            'herdr_invalid_output',
+            'Herdr did not acknowledge the requested worktree opening.',
+          );
+    },
+  };
+}
