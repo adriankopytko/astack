@@ -2,7 +2,7 @@
 
 ## Scope
 
-Issue #10 implements typed local persistence through `node:sqlite`. It does not implement a coordinating service, project discovery/registration policy, agent launch, report authentication, or automatic recovery. The state adapter receives trusted host decisions; a stored assertion is not verified provider evidence or permission to remove a resource.
+Issue #10 implements typed local persistence through `node:sqlite`. Its low-level methods do not implement coordination or provider execution. Separate operations now consume it for registration, configuration, worktrees and [durable service dispatch](service.md); real agent launch/report authentication remain later work. The state adapter receives trusted host decisions; a stored assertion is not verified provider evidence or permission to remove a resource.
 
 `openSqliteState(request, { now? }?)` explicitly opens a connection. Imports open no database. The returned `StateStore` implements the state port and the existing `ProjectContextReader`, so `resolveProjectContext(request, store)` can consume saved projections today. The returned `registry` shares that connection and serves [project registration/context operations](projects.md); close both through `store.close()`. The returned `worktrees` port shares that connection and persists [owned worktree lifecycle](worktrees.md).
 
@@ -18,7 +18,7 @@ if (opened.outcome === 'opened') {
 }
 ```
 
-Pass `{ schemaVersion: 1, stateDirectory: '/isolated/state', busyTimeoutMs: 100 }` to select isolated state. Optional `mode: 'read-only'` opens existing compatible state without bootstrap or migrations; absent state returns `state_not_found`, incompatible history requires an explicit read-write open, and write methods reject with `state_read_only`. Read-only SQLite may access/create WAL shared-memory sidecars. The project CLI consumes state; direct state/service commands do not exist yet.
+Pass `{ schemaVersion: 1, stateDirectory: '/isolated/state', busyTimeoutMs: 100 }` to select isolated state. Optional `mode: 'read-only'` opens existing compatible state without bootstrap or migrations; absent state returns `state_not_found`, incompatible history requires an explicit read-write open, and write methods reject with `state_read_only`. Read-only SQLite may access/create WAL shared-memory sidecars. Project and service CLI commands consume state; there is no unrestricted state mutation command.
 
 ## Directory and lifetime
 
@@ -65,6 +65,8 @@ Job idempotency is scoped by `(requester, projectId, operation, idempotencyKey)`
 Attempt numbers are sequential per job. Preparation retries return current stored effect observations without claiming execution. A terminal result permits another explicitly prepared attempt; an unknown effect or unresolved attempt never silently permits another worker.
 
 Resources outlive terminal results. The `(kind, key)` uniqueness constraint spans projects, but a shared allocator must still normalize keys and perform provider checks. A database port reservation does not reserve a socket. Only trusted application code that has freshly verified provider shutdown/removal should record release; an attempt ID or caller-supplied evidence is not enough to authorize cleanup.
+
+Migration 4 adds service queue entries. Service submission atomically saves configured job, first attempt, pending launch effect and queue entry; capacity claiming and runtime observations remain bounded transactions. A separate private `coordinator.sqlite` lock file provides lifetime leadership without holding the job database open in a write transaction. Its release on process exit does not prove worker shutdown. See [the service contract](service.md).
 
 ## Claims and external effects
 

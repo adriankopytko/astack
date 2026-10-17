@@ -6,7 +6,7 @@ One orchestrator selects work and decides what happens next. Astack prepares own
 
 ## Status
 
-The development scaffold is ready: a compiled CLI/library, strict TypeScript, typed Oxlint rules, Oxfmt, dependency checks, isolated tests, and Linux/macOS CI. The CLI provides help, version, package information, `--skill` guidance, project registration/listing, context/doctor diagnostics, owned worktree lifecycle commands, and trusted configuration inspection. Agent delegation and the service are the next implementation slices.
+The development scaffold is ready: a compiled CLI/library, strict TypeScript, typed Oxlint rules, Oxfmt, dependency checks, isolated tests, and Linux/macOS CI. The CLI provides help, version, package information, `--skill` guidance, project registration/listing, context/doctor diagnostics, owned worktree lifecycle commands, and trusted configuration inspection. The local service foundation is implemented; real agent delegation is the next integration work.
 
 The library now provides versioned read results and explicit project/checkout context resolution through an injected reader. See [operation contracts](docs/operation-contracts.md) for the executable APIs and the separate durable v1 design.
 
@@ -16,13 +16,15 @@ Managed-file operations can create or upgrade owned generated assets, preserve d
 
 `inspectGitRepository(request, inspector, signal?)` now reads canonical repository/checkout identity, full refs and commit targets, worktree registration, remote endpoint summaries, and tracked/untracked status through an injected Git adapter and process runner. It performs no registration or ownership claim. See [Git inspection](docs/git-inspection.md) for supported selectors, execution controls, and consistency limits. Context and registration consume this API through the CLI.
 
-`openSqliteState(request)` opens private local state with numbered transactional migrations. Library operations persist project identity projections, idempotent job intent, attempts and pending effects, short claims, terminal results, and resource records. The store supplies the original context reader; the returned registry serves project operations. Optional read-only mode supports diagnostics without bootstrap or migration. See [SQLite state](docs/sqlite-state.md) for API contracts, isolated directories, contention, and uncertain-commit handling. Saving intent does not launch an agent or validate a worker report; service dispatch remains planned. Configured acceptance adds an approved policy snapshot without launching a worker.
+`openSqliteState(request)` opens private local state with numbered transactional migrations. Library operations persist project identity projections, idempotent job intent, attempts and pending effects, short claims, terminal results, and resource records. The store supplies the original context reader; the returned registry serves project operations. Optional read-only mode supports diagnostics without bootstrap or migration. See [SQLite state](docs/sqlite-state.md) for API contracts, isolated directories, contention, and uncertain-commit handling. Saving intent does not launch an agent or validate a worker report; the generic service dispatcher is implemented separately from runtime adapters. Configured acceptance adds an approved policy snapshot without launching a worker.
 
 `project register [path]`, `project list`, and `context` (alias `doctor`) connect Git inspection to explicit local registration. Select a project, checkout, saved attempt, or path from any directory; without selectors, inspect the nearest repository. Read-only diagnostics do not initialize missing state or grant execution authority. See [project registration and context](docs/projects.md) for selectors, stale-location checks, and provider/configuration readiness.
 
 `worktree prepare`, `inspect`, `remove`, and `reconcile` now manage isolated owned checkouts at explicit commit SHAs. Ownership is persisted before Git writes; routine cleanup preserves dirty/untracked/ignored files and task branches. Interrupted effects remain pending until operation-bound host quiescence confirmation and fresh evidence permit reconciliation. See [owned worktrees](docs/worktrees.md) for contracts, supported Git configuration, and recovery limits.
 
-`config inspect` (alias `config check`) resolves approved project/role settings, explains their sources, compares repository proposals, and reports missing prerequisites. Library operations accept jobs with immutable policy/skill snapshots and recheck configuration before future dispatch. Host permissions are separate from portable settings. See [trusted configuration](docs/configuration.md). No hooks or agents execute during inspection.
+`config inspect` (alias `config check`) resolves approved project/role settings, explains their sources, compares repository proposals, and reports missing prerequisites. Library operations accept jobs with immutable policy/skill snapshots and recheck configuration before dispatch. Host permissions are separate from portable settings. See [trusted configuration](docs/configuration.md). No hooks or agents execute during inspection.
+
+`service run`, `status`, `wake`, `submit`, and offline `inspect` provide a durable local queue over a private Unix socket. The coordinator owns a kernel-backed lock, enforces global/role/checkout capacity, and reconciles uncertain launches before new dispatch. The installed CLI has no real runtime adapters yet; submissions can report `runtime_unavailable` without launching agents. See [local service](docs/service.md).
 
 Local planning material is intentionally ignored. Durable contributor requirements belong in this README, [AGENTS.md](AGENTS.md), and tracked architecture decisions.
 
@@ -36,7 +38,7 @@ Local planning material is intentionally ignored. Durable contributor requiremen
 - Shared port and service-name allocation across managed projects.
 - Idempotent project initialization, project-owned setup/verification hooks, and focused skills.
 
-Next, add the local service and runtime integration. Broader task scheduling, automatic fix loops, additional providers, remote execution, and public hosting follow concrete usage.
+Next, add Herdr and Codex runtime integration, then implementation/review workflows. Broader task scheduling, automatic fix loops, additional providers, remote execution, and public hosting follow concrete usage.
 
 ## Development stack
 
@@ -50,7 +52,7 @@ Next, add the local service and runtime integration. Broader task scheduling, au
 | Module boundaries     | dependency-cruiser over resolved dependencies                    |
 | Verification          | Node's test runner and isolated fixtures                         |
 | Storage               | SQLite through `node:sqlite`                                     |
-| HTTP transport        | Hono on Node when the service transport is implemented           |
+| Local transport       | Private Unix socket; Hono reserved for a future HTTP consumer    |
 
 Start with one package and explicit module boundaries. Library operations remain callable without CLI or HTTP request objects. Hono supplies transport; project selection, scheduling, ownership, and recovery remain application logic.
 
@@ -66,7 +68,8 @@ src/
   application/   project, worktree, job and handoff operations
   adapters/      Git, GitHub CLI, Herdr and SQLite implementations
   cli/           command parsing, rendering and dependency wiring
-  service/       scheduling, lifecycle, transport and dependency wiring
+  service/       local transport
+  host/          explicit local service composition root
 tests/
   integration/   disposable repository/process/state scenarios
   fixtures/      controlled programs, repositories and hooks
@@ -105,7 +108,7 @@ pnpm check
 | `pnpm test`                         | Build and run isolated library, CLI, and boundary tests                   |
 | `pnpm check`                        | Run formatting, lint, types, boundaries, build and tests                  |
 
-The package remains private. `pnpm pack --pack-destination .cache` can inspect its distribution allowlist; it does not publish. SQLite migrations ship as compiled adapter modules; Hono wiring will be added with the service transport. Dependency installation explicitly allows esbuild's setup script for tsx; scripts fail on stale dependencies instead of silently reinstalling them.
+The package remains private. `pnpm pack --pack-destination .cache` can inspect its distribution allowlist; it does not publish. SQLite migrations ship as compiled adapter modules; The local service uses Unix sockets; a future HTTP consumer can use Hono. Dependency installation explicitly allows esbuild's setup script for tsx; scripts fail on stale dependencies instead of silently reinstalling them.
 
 Default checks use temporary repositories, databases, and child processes. They must not operate on user projects, live agent sessions, or GitHub tracking. Live-provider checks require explicit opt-in. Linux and macOS are the initial portability targets.
 

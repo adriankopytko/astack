@@ -28,6 +28,7 @@ export function sqliteCode(error: unknown): number | null {
 }
 
 const messages: Partial<Record<OperationErrorCode, string>> = {
+  service_already_running: 'Another coordinator owns this local state directory.',
   worktree_conflict:
     'Worktree ownership or lifecycle state conflicts; inspect the current record before continuing.',
   project_registration_conflict:

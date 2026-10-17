@@ -45,6 +45,11 @@ export const operationErrorSchema = z.strictObject({
     'configuration_unsafe',
     'configuration_unavailable',
     'configuration_blocked',
+    'service_already_running',
+    'service_unavailable',
+    'service_endpoint_unsafe',
+    'service_protocol_error',
+    'service_stopping',
   ]),
   message: z.string().min(1),
 });

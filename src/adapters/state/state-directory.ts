@@ -24,6 +24,8 @@ const databaseNames = [
   'state.sqlite-wal',
   'state.sqlite-shm',
   'state.sqlite-journal',
+  'coordinator.sqlite',
+  'coordinator.sqlite-journal',
 ];
 
 async function exists(path: string): Promise<boolean> {

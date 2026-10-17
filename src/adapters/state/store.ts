@@ -62,6 +62,46 @@ function fingerprint(job: StateJob): string {
   );
 }
 
+export function acceptJobTransaction(
+  db: StateDatabase,
+  job: StateJob,
+): { value: StateJob; disposition: 'created' | 'existing' } {
+  const row = db
+    .statement(
+      'SELECT data, intent_hash FROM jobs WHERE requester=? AND project_id=? AND operation=? AND idempotency_key=?',
+    )
+    .get(job.requester, job.projectId, job.operation, job.idempotencyKey);
+  const existing = db.data(stateJobSchema, row);
+
+  if (existing) {
+    if (row?.intent_hash !== fingerprint(existing)) {
+      stateFailure('state_invalid_data');
+    }
+
+    if (fingerprint(existing) !== fingerprint(job)) {
+      stateFailure('state_conflict');
+    }
+
+    return { value: existing, disposition: 'existing' };
+  }
+
+  db.statement(
+    'INSERT INTO jobs(id, project_id, repository_id, checkout_id, requester, operation, idempotency_key, intent_hash, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  ).run(
+    job.id,
+    job.projectId,
+    job.repositoryId,
+    job.checkoutId,
+    job.requester,
+    job.operation,
+    job.idempotencyKey,
+    fingerprint(job),
+    canonicalJson(job),
+  );
+
+  return { value: job, disposition: 'created' };
+}
+
 export function createStateStore(db: StateDatabase, clock: () => number): StateStore {
   const now = () => {
     const value = clock();
@@ -173,42 +213,7 @@ export function createStateStore(db: StateDatabase, clock: () => number): StateS
       });
     },
     acceptJob({ job }) {
-      return db.write(() => {
-        const row = db
-          .statement(
-            'SELECT data, intent_hash FROM jobs WHERE requester=? AND project_id=? AND operation=? AND idempotency_key=?',
-          )
-          .get(job.requester, job.projectId, job.operation, job.idempotencyKey);
-        const existing = db.data(stateJobSchema, row);
-
-        if (existing) {
-          if (row?.intent_hash !== fingerprint(existing)) {
-            stateFailure('state_invalid_data');
-          }
-
-          if (fingerprint(existing) !== fingerprint(job)) {
-            stateFailure('state_conflict');
-          }
-
-          return { value: existing, disposition: 'existing' };
-        }
-
-        db.statement(
-          'INSERT INTO jobs(id, project_id, repository_id, checkout_id, requester, operation, idempotency_key, intent_hash, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        ).run(
-          job.id,
-          job.projectId,
-          job.repositoryId,
-          job.checkoutId,
-          job.requester,
-          job.operation,
-          job.idempotencyKey,
-          fingerprint(job),
-          canonicalJson(job),
-        );
-
-        return { value: job, disposition: 'created' };
-      });
+      return db.write(() => acceptJobTransaction(db, job));
     },
     prepareAttempt({ attempt, effects }) {
       return db.write(() => {

@@ -4,6 +4,7 @@ import { getApplicationInfo } from '../application/get-application-info.js';
 import { wireProjectCommands } from './projects.js';
 import { wireWorktreeCommands } from './worktrees.js';
 import { wireConfigurationCommands } from './configuration.js';
+import { wireServiceCommands } from './service.js';
 
 /** Construct commands without parsing arguments or performing startup effects. */
 export function createProgram(version: string): Command {
@@ -56,6 +57,7 @@ export function createProgram(version: string): Command {
   wireProjectCommands(program);
   wireWorktreeCommands(program);
   wireConfigurationCommands(program);
+  wireServiceCommands(program);
 
   return program;
 }

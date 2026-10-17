@@ -19,6 +19,30 @@ interface Scenario {
 
 const scenarios: Scenario[] = [
   {
+    name: 'allow only the explicit CLI service composition entry',
+    files: {
+      'src/cli/service.ts': "export { value } from '../host/local-service.js';",
+      'src/host/local-service.ts': "export { value } from '../service/transport.js';",
+      'src/service/transport.ts': 'export const value = 1;',
+    },
+  },
+  {
+    name: 'reject general CLI imports of host wiring',
+    files: {
+      'src/cli/other.ts': "export { value } from '../host/local-service.js';",
+      'src/host/local-service.ts': 'export const value = 1;',
+    },
+    violation: 'cli-host-wiring-only',
+  },
+  {
+    name: 'reject service imports of CLI policy',
+    files: {
+      'src/service/transport.ts': "export { value } from '../cli/other.js';",
+      'src/cli/other.ts': 'export const value = 1;',
+    },
+    violation: 'service-dependency-direction',
+  },
+  {
     name: 'reject production imports of test helpers',
     files: {
       'src/core/value.ts': "export { value } from '../../tests/helper.js';",

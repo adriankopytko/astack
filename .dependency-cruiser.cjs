@@ -15,14 +15,27 @@ module.exports = {
       ['ports', ['ports', 'contracts', 'core']],
       ['application', ['application', 'core', 'contracts', 'ports']],
       ['adapters', ['adapters', 'core', 'contracts', 'ports']],
-      ['cli', ['cli', 'application', 'core', 'contracts', 'ports', 'adapters']],
+      ['cli', ['cli', 'application', 'core', 'contracts', 'ports', 'adapters', 'host']],
       ['service', ['service', 'application', 'core', 'contracts', 'ports', 'adapters']],
+      ['host', ['host', 'service', 'application', 'core', 'contracts', 'ports', 'adapters']],
     ].map(([layer, allowed]) => ({
       name: `${layer}-dependency-direction`,
       severity: /** @type {const} */ ('error'),
       from: { path: `^src/${layer}/` },
       to: { path: '^src/', pathNot: `^src/(${/** @type {string[]} */ (allowed).join('|')})/` },
     })),
+    {
+      name: 'cli-host-wiring-only',
+      severity: 'error',
+      from: { path: '^src/cli/', pathNot: '^src/cli/service\\.ts$' },
+      to: { path: '^src/host/' },
+    },
+    {
+      name: 'cli-host-entry-only',
+      severity: 'error',
+      from: { path: '^src/cli/' },
+      to: { path: '^src/host/', pathNot: '^src/host/local-service\\.ts$' },
+    },
     {
       name: 'ports-core-types-only',
       severity: 'error',

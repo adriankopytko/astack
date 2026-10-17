@@ -1,4 +1,32 @@
 export { getApplicationInfo } from './application/get-application-info.js';
+export { startLocalService } from './host/local-service.js';
+export { requestLocalService } from './adapters/local/service-client.js';
+export { acquireCoordinatorOwnership } from './adapters/state/coordinator-ownership.js';
+export {
+  createServiceCoordinator,
+  submitServiceJob,
+  inspectServiceJob,
+  type ServiceDependencies,
+} from './application/service.js';
+export type { ServiceStore, ServiceWorkerRuntime, CoordinatorOwnership } from './ports/service.js';
+export {
+  serviceLimitsSchema,
+  serviceSubmitRequestSchema,
+  serviceEntrySchema,
+  serviceJobSchema,
+  serviceStatusSchema,
+  serviceRpcRequestSchema,
+  serviceRpcResponseSchema,
+  workerObservationSchema,
+  type ServiceSubmitRequest,
+  type ServiceEntry,
+  type ServiceJob,
+  type ServiceLimits,
+  type ServiceStatus,
+  type ServiceRpcRequest,
+  type ServiceRpcResponse,
+  type WorkerObservation,
+} from './contracts/service.js';
 export { ConfigurationReadError } from './core/configuration-error.js';
 export {
   resolveConfiguration,

@@ -159,4 +159,25 @@ CREATE TABLE managed_worktrees (
 ) STRICT;
 `,
   },
+  {
+    version: 4,
+    sql: `
+CREATE TABLE service_entries (
+  job_id TEXT PRIMARY KEY REFERENCES jobs(id),
+  queued_at INTEGER NOT NULL CHECK(queued_at >= 0),
+  attempt_id TEXT NOT NULL UNIQUE REFERENCES attempts(id),
+  effect_id TEXT NOT NULL UNIQUE REFERENCES effects(id),
+  role TEXT NOT NULL,
+  state TEXT NOT NULL CHECK(state IN ('queued', 'dispatching', 'started', 'awaiting_result', 'blocked', 'unknown')),
+  data TEXT NOT NULL CHECK(json_valid(data))
+    CHECK(json_extract(data, '$.jobId') IS job_id)
+    CHECK(json_extract(data, '$.attemptId') IS attempt_id)
+    CHECK(json_extract(data, '$.effectId') IS effect_id)
+    CHECK(json_extract(data, '$.role') IS role)
+    CHECK(json_extract(data, '$.state') IS state)
+) STRICT;
+CREATE INDEX service_by_state ON service_entries(state, queued_at, job_id);
+CREATE INDEX service_queue_order ON service_entries(queued_at, job_id);
+`,
+  },
 ] as const;

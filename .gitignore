@@ -12,6 +12,10 @@ state.sqlite
 state.sqlite-wal
 state.sqlite-shm
 state.sqlite-journal
+coordinator.sqlite
+coordinator.sqlite-journal
+service.sock
+service-endpoint.json
 
 # Dependencies and package-manager caches
 node_modules/

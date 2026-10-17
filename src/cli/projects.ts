@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { constants } from 'node:fs';
-import { access, stat } from 'node:fs/promises';
-import { delimiter, isAbsolute, join, resolve } from 'node:path';
+import { resolve } from 'node:path';
+import { gitExecutable } from '../core/host-git.js';
+export { gitExecutable } from '../core/host-git.js';
 import { Command, InvalidArgumentError } from 'commander';
 import { registerProject } from '../application/register-project.js';
 import { selectProjectContext } from '../application/select-project-context.js';
@@ -30,32 +30,6 @@ interface SelectionOptions {
   run?: string;
   path?: string;
   json?: boolean;
-}
-
-export async function gitExecutable(explicit?: string): Promise<string | null> {
-  if (explicit !== undefined) {
-    return isAbsolute(explicit) ? explicit : null;
-  }
-
-  for (const directory of (process.env.PATH ?? '/usr/bin:/bin').split(delimiter)) {
-    if (!isAbsolute(directory)) {
-      continue;
-    }
-
-    const candidate = join(directory, 'git');
-
-    try {
-      await access(candidate, constants.X_OK);
-
-      if ((await stat(candidate)).isFile()) {
-        return candidate;
-      }
-    } catch {
-      continue;
-    }
-  }
-
-  return null;
 }
 
 function render(

@@ -120,7 +120,7 @@ The existing job JSON gains an optional `configuration` field; no SQL migration 
 
 `checkConfigurationDispatch({ schemaVersion: 1, job: savedJob }, dependencies, signal?)` is the library preflight for a trusted, freshly read saved job. It re-resolves using its saved request and explicit checkout, then compares the complete snapshot. Legacy jobs without a snapshot block. Changed policy/revision/settings/skill pins require new acceptance. Current disabled execution, missing executables/environment, edited skill bytes, changed proposals and stale checkout identities also block, even if the accepted snapshot itself is unchanged.
 
-Refresh at actual dispatch: host policy and revocation, mandatory hooks/timeouts, command/runtime/environment allowlists, executable availability, environment presence, pinned skill bytes, and registered checkout identity. A future dispatcher must separately verify attempt/branch/SHA assignment, ownership, provider/runtime readiness and host resource policy. It must consume the same trusted command definition whose policy digest it checked, construct a controlled environment and recheck immediately before effects. A ready result is an observation, not a durable capability, lease or authorization token.
+Refresh at actual dispatch: host policy and revocation, mandatory hooks/timeouts, command/runtime/environment allowlists, executable availability, environment presence, pinned skill bytes, and registered checkout identity. The dispatcher must separately verify attempt/branch/SHA assignment, ownership, provider/runtime readiness and host resource policy. It must consume the same trusted command definition whose policy digest it checked, construct a controlled environment and recheck immediately before effects. A ready result is an observation, not a durable capability, lease or authorization token.
 
 ## Effects, retries, failures and cancellation
 
@@ -130,4 +130,4 @@ Requests validate before reads. Cancellation before persistence rejects without 
 
 Stable errors are `configuration_invalid`, `configuration_unsafe`, `configuration_unavailable`, and `configuration_blocked`, plus existing request/context/state errors. Missing prerequisites are a completed resolution with `status: blocked`, diagnostics and, when possible, a non-authoritative snapshot. Missing state is a state error. No partial settings are accepted after invalid input.
 
-Service dispatch, runtime adapters, credential injection, hook execution, project initialization, cross-project user profile loading and automatic approval remain later work.
+The [generic local service](service.md) consumes these contracts. Real runtime adapters, credential injection, hook execution, project initialization, cross-project user profile loading and automatic approval remain later work.

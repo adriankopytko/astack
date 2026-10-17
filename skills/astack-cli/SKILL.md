@@ -1,6 +1,6 @@
 ---
 name: astack-cli
-description: Use the astack CLI to register projects, manage owned worktrees, inspect context and approved configuration, or discover installed orchestration capabilities before delegation.
+description: Use the astack CLI to register projects, manage owned worktrees, inspect approved configuration and the local service queue, or discover installed orchestration capabilities before delegation.
 ---
 
 # Using astack
@@ -23,6 +23,10 @@ From the astack source repository use `pnpm dev` instead of `astack`; after buil
 | `astack context [selectors] [--json]`                                                             | Inspect target identity, selection source, Git state, and readiness                         |
 | `astack doctor [selectors] [--json]`                                                              | Alias for `context`                                                                         |
 | `astack config inspect --project <id> [--role <name>] [--json]`                                   | Resolve approved configuration, provenance, and prerequisites; alias `config check`         |
+| `astack service run [--capacity <count>] [--role-capacity <count>]`                               | Foreground local coordinator; no real worker runtimes installed                             |
+| `astack service status / wake [--json]`                                                           | Live coordinator evidence / request a reconciliation pass                                   |
+| `astack service submit <required options> [--json]`                                               | Persist configured intent, attempt and pending effect atomically                            |
+| `astack service inspect <job-id> [--json]`                                                        | Read saved job evidence, also when service is offline                                       |
 | `astack worktree prepare --project <id> --key <key> --branch <branch> --base <full-sha> [--json]` | Prepare or verify an owned isolated checkout                                                |
 | `astack worktree inspect <id> [--json]`                                                           | Observe ownership, phase, and Git evidence                                                  |
 | `astack worktree remove <id> [--json]`                                                            | Remove a verified clean owned checkout; preserve its branch                                 |
@@ -70,10 +74,22 @@ Portable `.astack/project.json` is a proposal. The trusted host/operator maintai
 
 Settings resolve defaults → user → approved project → local → request. Objects merge by fields; arrays replace completely. Host-only permissions, timeout limits and mandatory hooks apply after merging. A changed proposal blocks until reviewed; it never grants new permissions. Missing executables, approved environment names or exact protected skill bytes require the reported host action. Never put credential values in JSON, command arguments, skill contents or reports.
 
-Library configured job acceptance saves immutable policy/provenance and skill pins. Its dispatch gate refreshes policy and prerequisites and blocks changed policy or legacy jobs without snapshots. Service dispatch, hook execution and actual agent launch remain unavailable. Do not bypass a block by removing a required hook, editing permission controls, or accepting a new job without host authorization.
+Library configured job acceptance saves immutable policy/provenance and skill pins. Its dispatch gate refreshes policy and prerequisites and blocks changed policy or legacy jobs without snapshots. Generic service dispatch is available through injected runtimes. Hook execution and actual agent launch remain unavailable in the installed CLI. Do not bypass a block by removing a required hook, editing permission controls, or accepting a new job without host authorization.
+
+## Local service and durable queue
+
+Run `astack service run [--capacity <count>] [--role-capacity <count>]` in the foreground with explicit host state. Use `service status --json` for live readiness/counts and `service inspect <job-id> --json` for saved job/attempt/effect evidence, including offline. `service wake` requests reconciliation after a meaningful external change; it does not clear unknown claims or grant permissions.
+
+`service submit --project <id> [--checkout <id>] --role <name> --key <stable-key> --branch <branch> --commit <full-sha> --task '<description>' --json` persists generic delegation intent. Prepare/select the intended registered checkout explicitly. Submission creates no worktree. A receipt is durable intent, not agent start. Retry a lost acknowledgment with the same key; changed assignment/task/policy under that key conflicts. Never submit replacement work with a new key merely because the client disconnected.
+
+The installed CLI has no Codex/Herdr worker adapters yet. Configured executables are not runtime registrations. A `runtime_unavailable` block is expected until integration; do not launch a substitute worker to bypass it.
+
+One coordinator owns each private state directory through a kernel-backed lock. Other instances reject. SIGINT/SIGTERM drain foreground work and release the coordinator; they do not prove existing workers stopped. On restart, claimed launches are inspected without replaying them. Unknown launches retain capacity despite claim expiry. Only trusted runtime evidence can establish launch absence or quiescence. `awaiting_result` means a known worker stopped, not that the task succeeded.
+
+Transport is a private Unix socket with same-host-user authority, not a TCP service or restricted worker-report endpoint. Use a short private state path if socket length is rejected. Preserve edited/unowned endpoint files and obtain host inspection; do not remove sockets, steal locks or force cleanup as an automatic repair. Runtime events, submissions, startup and explicit wake drive reconciliation; there is no recurring GitHub polling loop.
 
 ## Planned capabilities
 
-The stage remains `foundation`. Initialization, agent delegation, service dispatch/recovery, GitHub workflows, and automatic review are not implemented commands. Report missing capabilities rather than inventing commands or treating unknown commands as accepted work.
+The stage remains `foundation`. Initialization, real agent delegation, workflow-specific handoffs/reports, GitHub workflows, and automatic review are not implemented commands. Report missing capabilities rather than inventing commands or treating unknown commands as accepted work.
 
 As those operations arrive, use commit-specific results and explicit automation policy. A pushed PR or idle agent alone is not proof of completion or authorization for another action.
