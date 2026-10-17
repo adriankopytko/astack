@@ -6,7 +6,7 @@ One orchestrator selects work and decides what happens next. Astack prepares own
 
 ## Status
 
-The development scaffold is ready: a compiled CLI/library, strict TypeScript, typed Oxlint rules, Oxfmt, dependency checks, isolated tests, and Linux/macOS CI. The CLI provides help, version, package information, `--skill` guidance, project registration/listing, context/doctor diagnostics, owned worktree lifecycle commands, and trusted configuration inspection. The local service foundation and explicit Herdr project/worker layout integration are implemented; an opt-in Herdr-owned interactive Codex runtime is implemented. Workflow-specific implementation/review delegation remains next.
+The development scaffold is ready: a compiled CLI/library, strict TypeScript, typed Oxlint rules, Oxfmt, dependency checks, isolated tests, and Linux/macOS CI. The CLI provides help, version, package information, `--skill` guidance, project registration/listing, context/doctor diagnostics, owned worktree lifecycle commands, and trusted configuration inspection. The local service foundation and explicit Herdr project/worker layout integration are implemented; an opt-in Herdr-owned interactive Codex runtime is implemented. Explicit implementation handoff to an owned checkout is implemented; review and accepted report handling remain next.
 
 The library now provides versioned read results and explicit project/checkout context resolution through an injected reader. See [operation contracts](docs/operation-contracts.md) for the executable APIs and the separate durable v1 design.
 
@@ -24,11 +24,13 @@ Managed-file operations can create or upgrade owned generated assets, preserve d
 
 `config inspect` (alias `config check`) resolves approved project/role settings, explains their sources, compares repository proposals, and reports missing prerequisites. Library operations accept jobs with immutable policy/skill snapshots and recheck configuration before dispatch. Host permissions are separate from portable settings. See [trusted configuration](docs/configuration.md). No hooks or agents execute during inspection.
 
-`service run`, `status`, `wake`, `submit`, and offline `inspect` provide a durable local queue over a private Unix socket. The coordinator owns a kernel-backed lock, enforces global/role/checkout capacity, and reconciles uncertain launches before new dispatch. The CLI can opt into `codex-herdr` with `service run --codex-herdr`; without it no runtime is installed. Launch starts an interactive session, while task prompt delivery belongs to the later workflows. See [local service](docs/service.md).
+`service run`, `status`, `wake`, `submit`, and offline `inspect` provide a durable local queue over a private Unix socket. The coordinator owns a kernel-backed lock, enforces global/role/checkout capacity, and reconciles uncertain launches before new dispatch. The CLI can opt into `codex-herdr` with `service run --codex-herdr`; without it no runtime is installed. Generic jobs start an interactive session; the implementation workflow additionally delivers the accepted task through a durable input key. See [local service](docs/service.md).
 
 `herdr configure`, `ensure`, `inspect`, and worker layout/attribution commands now bind each enabled project to an explicit shared or named Herdr session. Primary spaces persist, worker workspaces open existing owned checkouts in their project group, and pending/changed layouts remain inspectable. No agent launches or resource closes are performed. See [Herdr integration](docs/herdr.md) for protocol 22 support and identity/recovery limits.
 
 `runtime capabilities`, `inspect`, `reconcile`, `input` and `interrupt` expose interactive Codex control. Herdr owns execution; Astack persists intent before launch/input and verifies saved pane/native-session identity. Unknown writes never replay automatically, and UI idle/done never counts as task completion. See [the runtime contract](docs/runtime.md) for host opt-in, approved arguments, server trust and recovery limits.
+
+`implement submit --project <id> --checkout <owned-checkout-id> --key <key> --branch <branch> --commit <sha> --task <text>` accepts an explicit implementation job. The worker receives its saved assignment, repository instruction references, task/criteria and final JSON proposal contract. `implement inspect <job-id>` reads durable delivery and blocker evidence. Reconnect never repeats acknowledged/uncertain input. See [implementation delegation](docs/implementation.md); accepted success, reports, review and publication remain separate work.
 
 Local planning material is intentionally ignored. Durable contributor requirements belong in this README, [AGENTS.md](AGENTS.md), and tracked architecture decisions.
 
@@ -42,7 +44,7 @@ Local planning material is intentionally ignored. Durable contributor requiremen
 - Shared port and service-name allocation across managed projects.
 - Idempotent project initialization, project-owned setup/verification hooks, and focused skills.
 
-Next, add implementation and review workflows using the existing runtime controls. Broader task scheduling, automatic fix loops, additional providers, remote execution, and public hosting follow concrete usage.
+Next, add review delegation and accepted report handling using the existing runtime and implementation handoff primitives. Broader task scheduling, automatic fix loops, additional providers, remote execution, and public hosting follow concrete usage.
 
 ## Development stack
 

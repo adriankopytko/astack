@@ -50,6 +50,8 @@ export const operationErrorSchema = z.strictObject({
     'service_endpoint_unsafe',
     'service_protocol_error',
     'service_stopping',
+    'implementation_context_invalid',
+    'implementation_assignment_changed',
     'runtime_conflict',
     'runtime_unavailable',
     'runtime_capability_missing',

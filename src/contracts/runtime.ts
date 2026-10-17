@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { workerInputTextSchema } from './worker-input.js';
 import { stateIdSchema } from './state.js';
 import { herdrSpaceSchema, herdrAgentSchema } from './herdr.js';
 import { createOperationResultSchema } from './operation-result.js';
@@ -22,23 +23,7 @@ export const runtimeRequestSchema = z.strictObject({
 });
 export const runtimeInputRequestSchema = runtimeRequestSchema.extend({
   key: stateIdSchema,
-  text: z
-    .string()
-    .min(1)
-    .max(16_384)
-    .refine((value) => {
-      for (let index = 0; index < value.length; index++) {
-        const code = value.charCodeAt(index);
-
-        if (code !== 9 && code !== 10 && (code < 32 || code === 127)) {
-          return false;
-        }
-      }
-
-      return (
-        Buffer.from(value, 'utf8').toString('utf8') === value && Buffer.byteLength(value) <= 16_384
-      );
-    }),
+  text: workerInputTextSchema,
 });
 export const runtimeInterruptRequestSchema = runtimeRequestSchema.extend({ key: stateIdSchema });
 export const runtimeSessionSchema = z

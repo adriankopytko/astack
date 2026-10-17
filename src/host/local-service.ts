@@ -1,9 +1,7 @@
+import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import {
-  serviceRunRequestSchema,
-  serviceRpcRequestSchema,
-  type ServiceRpcResponse,
-} from '../contracts/service.js';
+import { serviceRpcRequestSchema, type ServiceRpcResponse } from '../contracts/service-rpc.js';
+import { serviceRunRequestSchema } from '../contracts/service.js';
 import { rejected, completed, type OperationResult } from '../contracts/operation-result.js';
 import { parseOperationRequest } from '../core/parse-operation-request.js';
 import { gitExecutable, hostExecutable } from '../core/host-git.js';
@@ -24,6 +22,13 @@ import {
   inspectServiceJob,
   type ServiceDependencies,
 } from '../application/service.js';
+import {
+  submitImplementation,
+  inspectImplementation,
+  type ImplementationDependencies,
+} from '../application/implementation.js';
+import { createNodeWorktreeFiles } from '../adapters/filesystem/worktree-files.js';
+import { nodeImplementationContextReader } from '../adapters/filesystem/implementation-context.js';
 import { composeCodexHerdrRuntime } from './codex-runtime.js';
 import { listenLocalService } from '../service/local-transport.js';
 import type { CoordinatorOwnership, ServiceWorkerRuntime } from '../ports/service.js';
@@ -82,6 +87,12 @@ export async function startLocalService(
       ),
       now: Date.now,
       nextId: (kind) => `${kind}-${randomUUID()}`,
+    };
+    const implementationDependencies: ImplementationDependencies = {
+      ...dependencies,
+      worktrees: opened.worktrees,
+      files: createNodeWorktreeFiles(join(opened.stateDirectory, 'worktrees')),
+      instructions: nodeImplementationContextReader,
     };
     const runtimes = [...(options.runtimes ?? [])];
 
@@ -154,6 +165,22 @@ export async function startLocalService(
             return coordinator.status();
           case 'inspect':
             return inspectServiceJob({ schemaVersion: 1, jobId: request.jobId }, opened.service);
+          case 'implement_inspect':
+            return inspectImplementation(
+              { schemaVersion: 1, jobId: request.jobId },
+              implementationDependencies,
+            );
+          case 'implement_submit': {
+            const { operation: _operation, ...submission } = request;
+            const result = await submitImplementation(submission, implementationDependencies);
+
+            if (result.outcome === 'persisted') {
+              coordinator.wake();
+            }
+
+            return result;
+          }
+
           case 'submit': {
             const { operation: _operation, ...submission } = request;
             const result = await submitServiceJob(submission, dependencies);

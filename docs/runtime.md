@@ -6,7 +6,7 @@
 
 **Herdr owns execution.** Its server starts canonical `codex` in an existing verified worker pane and owns the terminal/process lifecycle. Astack owns durable intent and control policy, not a second Codex subprocess, app server, PID supervisor or terminal writer. `--no-daemon` keeps this integration on the interactive process path. Astack never attaches a second process controller, resumes another native session, starts headless execution, closes the worker workspace, or kills the Herdr server.
 
-This is session infrastructure. Starting a session does not send the saved task description. Implementation/review prompt construction, skill delivery, handoff validation, reports, task cancellation and cleanup are subsequent workflow work. There is no new result/report authority for workers.
+This is session infrastructure. Starting a generic session does not send the saved task description; the separate implementation workflow now consumes durable input to deliver its accepted task. Implementation prompt delivery now has its own contract. Review prompt construction, skill delivery, accepted report validation, task cancellation and cleanup remain subsequent work. There is no new result/report authority for workers.
 
 ## Host opt-in and prerequisites
 
@@ -93,3 +93,7 @@ Liveness and domain results remain separate. Idle, done, blocked, successful pro
 Controlled fixtures cover concurrent duplicate starts, intent before launch, crash before launch, launch-before-handle loss with reopened-state recovery, wrong pane assignment, replacement native session/terminal/cwd/endpoint, input deduplication and uncertain delivery, approval/busy controls, interrupt requests, revoked policy/unsupported flags, coordinator dispatch/reconnect and neutral-cwd packaged command behavior. No default check starts a real user agent or mutates a live Herdr session. Live-provider verification is a separate explicit opt-in.
 
 Primary references: [Herdr CLI](https://herdr.dev/docs/cli-reference/), [Herdr socket API](https://herdr.dev/docs/socket-api/), and [OpenAI CLI reference](https://developers.openai.com/codex/cli/reference/). Installed `herdr agent start/prompt/send-keys --help`, `herdr api schema --json` and `codex --help` are the compatibility evidence for the current adapter.
+
+## Implementation consumer
+
+[Explicit implementation handoff](implementation.md) now decorates this runtime with deterministic keyed initial input and saved blocker/delivery evidence. Runtime resource handles use immutable runtime/launch/space identity, while native session evidence remains in the separate session binding. Existing compatible saved handles are retained across reconnect rather than rewritten as native identity becomes available.

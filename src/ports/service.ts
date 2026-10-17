@@ -9,6 +9,7 @@ import type {
 
 export interface ServiceStore {
   submit(input: { job: StateJob; entry: ServiceEntry }): StateWriteResult<ServiceJob>;
+  find(input: { projectId: string; role: string; key: string }): OperationResult<ServiceJob | null>;
   read(jobId: string): OperationResult<ServiceJob | null>;
   list(after?: string): OperationResult<{ items: ServiceJob[]; nextCursor: string | null }>;
   claim(input: {
@@ -25,6 +26,9 @@ export interface ServiceStore {
 /** Injected trusted adapter. Never infer launch absence from a missing process or expired claim. */
 export interface ServiceWorkerRuntime {
   id: string;
+  workflows?: readonly string[];
+  /** Read-only workflow prerequisites, checked before capacity claim or provider launch. */
+  preflight?(job: ServiceJob, signal: AbortSignal): Promise<OperationResult<{ ready: true }>>;
   start(job: ServiceJob, signal: AbortSignal): Promise<WorkerObservation>;
   inspect(job: ServiceJob, signal: AbortSignal): Promise<WorkerObservation>;
   subscribe?(wake: () => void): () => void;

@@ -161,6 +161,16 @@ export function createSqliteServiceStore(db: StateDatabase): ServiceStore {
         return { value: required(job.id), disposition: 'created' };
       });
     },
+    find: ({ projectId, role, key }) =>
+      db.read(() => {
+        const row = db
+          .statement(
+            'SELECT id FROM jobs WHERE requester=? AND project_id=? AND operation=? AND idempotency_key=?',
+          )
+          .get('local-host', projectId, `delegate:${role}`, key);
+
+        return row ? required(String(row.id)) : null;
+      }),
     read: (id) => db.read(() => read(id)),
     list(after) {
       return db.read(() => {

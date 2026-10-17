@@ -152,3 +152,7 @@ The state/service/handoff issues must exercise duplicate commands, interrupted e
 ## Interactive runtime operations
 
 [The Codex/Herdr runtime contract](runtime.md) documents versioned launch, inspect, reconcile, input and interrupt operations consumed by the service and CLI. Herdr owns interactive execution; Astack preserves stable launch/action identity, refreshed policy and explicit saved attribution. Liveness and terminal-input acknowledgement remain separate from domain completion and verified quiescence.
+
+## Explicit implementation workflow
+
+[Implementation delegation](implementation.md) documents strict task submission, owned-checkout/context checks, deterministic initial delivery, receipt-based reconnect, saved status and the untrusted worker report format. `submitImplementation`, `inspectImplementation` and `createImplementationRuntime` consume the earlier primitives without adding report acceptance or publication authority.

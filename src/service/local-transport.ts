@@ -1,7 +1,7 @@
 import { createServer, type Socket } from 'node:net';
 import { chmod, lstat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { ServiceRpcResponse } from '../contracts/service.js';
+import type { ServiceRpcResponse } from '../contracts/service-rpc.js';
 import { rejected } from '../contracts/operation-result.js';
 import {
   serviceRoot,

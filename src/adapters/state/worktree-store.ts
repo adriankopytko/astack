@@ -65,6 +65,14 @@ export function createSqliteWorktreeStore(db: StateDatabase, now: () => number):
   };
 
   return {
+    forCheckout: (id) =>
+      db.read(() =>
+        db.get(
+          worktreeRecordSchema,
+          "SELECT data FROM managed_worktrees WHERE json_extract(data, '$.intent.checkoutId')=?",
+          id,
+        ),
+      ),
     read: (id) => db.read(() => read(id)),
     find: (projectId, key) => db.read(() => find(projectId, key)),
     reserve(intent, operationId) {

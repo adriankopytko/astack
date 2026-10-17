@@ -1,6 +1,6 @@
 ---
 name: astack-cli
-description: Use the astack CLI to register projects, manage owned worktrees, inspect approved configuration and the local service queue, reconcile explicit Herdr layouts, control verified interactive Codex workers, or discover installed orchestration capabilities before delegation.
+description: Use the astack CLI to register projects, manage owned worktrees, inspect approved configuration and the local service queue, reconcile explicit Herdr layouts, control verified interactive Codex workers, delegate selected implementation tasks, or discover installed orchestration capabilities before delegation.
 ---
 
 # Using astack
@@ -40,6 +40,8 @@ From the astack source repository use `pnpm dev` instead of `astack`; after buil
 | `astack runtime reconcile --attempt <id> [--json]`                                                | Bind a matching pending launch without another provider write                               |
 | `astack runtime input --attempt <id> --key <key> [--json]`                                        | Submit bounded stdin text once under refreshed policy                                       |
 | `astack runtime interrupt --attempt <id> --key <key> [--json]`                                    | Request Escape once; not task cancellation or shutdown                                      |
+| `astack implement submit <required options> [--json]`                                             | Accept an explicit implementation task for a ready owned checkout                           |
+| `astack implement inspect <job-id> [--json]`                                                      | Read saved implementation delivery/blocker evidence without accepting a result              |
 
 Global `--state-directory <path>` selects isolated host state. `--git-executable <absolute-path>` selects trusted Git; otherwise the CLI searches absolute host PATH entries. Git inspection requires Git 2.45 or later.
 
@@ -111,7 +113,7 @@ After an uncertain write, inspect its space/operation IDs. `herdr reconcile <id>
 
 ## Interactive Codex controls
 
-`runtime capabilities` prints supported controls without contacting state/providers. `runtime inspect --attempt <id> [--json]` reads saved intent and fresh identity. `runtime reconcile --attempt <id>` can bind a fully matching pending launch without repeating it. Launch happens through the capacity-owning service; starting a session does not send the task description.
+`runtime capabilities` prints supported controls without contacting state/providers. `runtime inspect --attempt <id> [--json]` reads saved intent and fresh identity. `runtime reconcile --attempt <id>` can bind a fully matching pending launch without repeating it. Launch happens through the capacity-owning service. Generic sessions receive no task prompt; the implementation workflow now supplies deterministic initial input.
 
 Herdr owns execution. The host-approved command executable must match the selected canonical Codex path resolved by that server. Native arguments must include each flag once: `--sandbox read-only|workspace-write`, `--ask-for-approval on-request|never`, `--no-daemon`, `--no-alt-screen`. The runtime appends the verified checkout with `--cd`. Other flags, hooks, requested environment/skills and control timeouts below five seconds report missing capabilities. Never drop required configuration to make a blocked launch pass. No headless, model routing, resume or bypass execution is supported.
 
@@ -119,10 +121,26 @@ Herdr owns execution. The host-approved command executable must match the select
 
 Each new control refreshes accepted policy and verifies saved project/checkout ownership, branch, endpoint, workspace/pane/terminal, foreground cwd, expected name/kind and native session. Missing/changed evidence blocks; no fallback or replacement agent is launched. One trusted controller per worker is a host precondition: Herdr cannot atomically compare native identity with a write or prove server executable resolution.
 
-Repeated keys return the saved receipt/current observation; changed text/kind conflicts. A pending launch is never launched again. A pending input/interrupt blocks subsequent controls because UI state cannot prove delivery. Reconcile does not clear unknown delivery or absent launches; do not edit state, change keys, or start another worker to bypass uncertainty. Abort/timeout/service exit do not prove Herdr or Codex stopped. Idle/done and Escape acknowledge neither an accepted task result nor free capacity; workflow reports/cancellation remain later work.
+Repeated keys return the saved receipt/current observation; changed text/kind conflicts. A pending launch is never launched again. A pending input/interrupt blocks subsequent controls because UI state cannot prove delivery. Reconcile does not clear unknown delivery or absent launches; do not edit state, change keys, or start another worker to bypass uncertainty. Abort/timeout/service exit do not prove Herdr or Codex stopped. Idle/done and Escape acknowledge neither an accepted task result nor free capacity; accepted workflow reports/cancellation remain later work.
+
+## Explicit implementation delegation
+
+Prepare/select a ready owned checkout first using the worktree primitives. Run the approved service/runtime and use `implement submit --project <id> --checkout <owned-checkout-id> --key <stable-key> --branch <branch> --commit <full-initial-sha> --task '<selected task>' [--criterion '<criterion>'] [--json]`. Criteria are repeatable. The role is fixed to implementer. A primary/unowned checkout is rejected. No implicit worktree, issue selection, setup, publication, PR or review is performed.
+
+Acceptance saves task/criteria, instruction references, approved policy, job/attempt and pending effect before launch. Repeating the same normalized submission returns its original identity and saved state, including after worker edits or policy revocation; it grants no new execution authority. Changed intent under that key conflicts. A disconnected client must retry the same key, not create another worker. Scope project/checkout explicitly from any cwd.
+
+Default instruction references are `AGENTS.md` and `AGENTS.override.md` under the assigned checkout. Repeat `--instruction <relative-Markdown-path>` to replace the defaults with an explicit list; include defaults yourself when adding more paths. Reads capture digests/absence without copying file contents or executing instructions. Symlinks, traversal, hard links, invalid UTF-8 and oversized files block. The worker must read applicable repository/directory instructions itself. Task/repository text does not grant host permission.
+
+A read-only workflow preflight blocks changed ownership/branch/SHA/cleanliness/instructions before capacity claim or launch. Required configuration must remain approved. A runtime without declared implementation support reports `workflow_unavailable`; failed context preflight reports `workflow_blocked`. Fix the reported prerequisite deliberately and use `service wake` for a fresh pass. Do not remove required hooks/skills or substitute another checkout to bypass blockers.
+
+Initial delivery includes saved IDs, checkout/root, branch/base SHA, task/criteria, instruction references and final JSON proposal contract. It uses `implementation:initial:v1` scoped to the attempt. Restart may deliver the first prompt only when receipt absence and fresh context are established. Acknowledged/pending input is never resent; changed bytes under its key conflict. Do not use the reserved key for manual runtime input. Generic `service submit` remains session-only; use `implement submit` for implementation handoff.
+
+`implement inspect <job-id> --json` reads the last durable coordinator evidence, including offline. It distinguishes queued, starting, started, needs_decision, blocked, failed, unknown and awaiting_result. Inspection does not query live providers; wake the service after meaningful external changes. CLI exit 1 can describe an already accepted job's blocker/uncertainty, so preserve its identity and inspect instead of treating it as absent.
+
+The worker returns a final JSON proposal with schema version, job/attempt/project/checkout, branch/base/current HEAD, `completed | needs_decision | failed`, summary and blockers. No report file needs to be committed. Report ingestion/authentication/freshness validation is not implemented; `acceptedOutcome` stays null. Idle/done, prompt acknowledgement or a worker's completed proposal never establishes accepted success, safe cleanup or released capacity. Handle approval/questions intentionally; never infer that interruption stopped all writers.
 
 ## Planned capabilities
 
-The stage remains `foundation`. Initialization, workflow-specific implementation/review delegation and handoffs/reports, GitHub workflows, and automatic review are not implemented commands. Report missing capabilities rather than inventing commands or treating unknown commands as accepted work.
+The stage remains `foundation`. Initialization, review delegation, accepted reports and handoffs, GitHub workflows, and automatic review are not implemented commands. Report missing capabilities rather than inventing commands or treating unknown commands as accepted work.
 
 As those operations arrive, use commit-specific results and explicit automation policy. A pushed PR or idle agent alone is not proof of completion or authorization for another action.

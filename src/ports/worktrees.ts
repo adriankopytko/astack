@@ -9,6 +9,7 @@ import type {
 import type { CheckoutLocation } from '../contracts/projects.js';
 
 export interface WorktreeStore {
+  forCheckout(checkoutId: string): OperationResult<WorktreeRecord | null>;
   read(id: string): OperationResult<WorktreeRecord | null>;
   find(projectId: string, key: string): OperationResult<WorktreeRecord | null>;
   reserve(intent: WorktreeIntent, operationId: string): StateWriteResult<WorktreeRecord>;

@@ -254,6 +254,16 @@ export function createServiceCoordinator(input: {
         return;
       }
 
+      const task = job.job.intent.task;
+      const workflow =
+        task && typeof task === 'object' && !Array.isArray(task) ? task.workflow : null;
+
+      if (typeof workflow === 'string' && !runtime(job)?.workflows?.includes(workflow)) {
+        written(dependencies.queue.block(job.job.id, 'workflow_unavailable'));
+
+        return;
+      }
+
       const selected = await selectProjectContext(
         { schemaVersion: 1, projectId: job.job.projectId, checkoutId: job.job.checkoutId },
         dependencies,
@@ -272,6 +282,29 @@ export function createServiceCoordinator(input: {
         written(dependencies.queue.block(job.job.id, 'assignment_changed'));
 
         return;
+      }
+
+      const provider = runtime(job);
+
+      if (provider?.preflight) {
+        let ready = false;
+
+        try {
+          const result = await provider.preflight(job, controller.signal);
+          ready = result.outcome === 'completed' && result.value.ready === true;
+        } catch {
+          ready = false;
+        }
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        if (!ready) {
+          written(dependencies.queue.block(job.job.id, 'workflow_blocked'));
+
+          return;
+        }
       }
 
       const claimed = written(

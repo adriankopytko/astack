@@ -1,6 +1,6 @@
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
-import { serviceRpcResponseSchema, type ServiceRpcResponse } from '../../contracts/service.js';
+import { serviceRpcResponseSchema, type ServiceRpcResponse } from '../../contracts/service-rpc.js';
 import { rejected } from '../../contracts/operation-result.js';
 import { endpointEvidence, serviceRoot, serviceSocketName } from '../../core/service-endpoint.js';
 

@@ -3,7 +3,7 @@ import { Command, InvalidArgumentError } from 'commander';
 import { startLocalService } from '../host/local-service.js';
 import { requestLocalService } from '../adapters/local/service-client.js';
 import { openSqliteState } from '../adapters/state/open-sqlite-state.js';
-import type { ServiceRpcResponse } from '../contracts/service.js';
+import type { ServiceRpcResponse } from '../contracts/service-rpc.js';
 import { inspectServiceJob } from '../application/service.js';
 
 function integer(value: string): number {
@@ -28,6 +28,8 @@ function render(result: ServiceRpcResponse, json?: boolean): void {
       process.stdout.write(
         `Service: ${value.phase}\nSession: ${value.sessionId}\nRuntimes: ${value.runtimes.join(', ') || 'none installed'}\nJobs: ${JSON.stringify(value.counts)}\n`,
       );
+    } else if ('implementation' in value) {
+      process.stdout.write(`Job: ${value.job.job.id}\nState: ${value.implementation.state}\n`);
     } else {
       process.stdout.write(
         `Job: ${value.job.id}\nAttempt: ${value.attempt.id}\nState: ${value.entry.state}\nReason: ${value.entry.reason ?? 'none'}\n`,

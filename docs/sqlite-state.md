@@ -119,3 +119,7 @@ See [Node 24 SQLite](https://nodejs.org/download/release/v24.20.0/docs/api/sqlit
 ## Interactive runtime records
 
 Migration 6 adds one runtime session per saved service attempt, unique launch/effect/space bindings, and keyed digest-only action history with a unique pending action per attempt. Session/resource intent is atomic before launch; actions reserve before input/interrupt. Uncertain acknowledgements preserve pending intent. See [the runtime contract](runtime.md) and ADR 0008 for provider identity, server trust and recovery limits.
+
+## Implementation acceptance
+
+Implementation jobs reuse existing job/configuration/attempt/effect records and runtime action receipts; no migration is added. Versioned task packets contain selected context, owned-checkout identity, instruction path/digest references and result contract version. The service store provides a read-only scoped idempotency lookup, and the worktree store provides a checkout lookup for the consuming ownership gate. See [implementation delegation](implementation.md).

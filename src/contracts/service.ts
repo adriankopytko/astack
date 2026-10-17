@@ -7,9 +7,8 @@ import {
   stateEffectSchema,
   stateClaimSchema,
   stateIdSchema,
-  createStateWriteResultSchema,
 } from './state.js';
-import { createOperationResultSchema, operationErrorSchema } from './operation-result.js';
+import { operationErrorSchema } from './operation-result.js';
 
 const metadata = stateEffectSchema.shape.intent.shape.payload;
 export const serviceLimitsSchema = z.strictObject({
@@ -49,6 +48,8 @@ export const serviceEntrySchema = z
       .enum([
         'configuration_blocked',
         'runtime_unavailable',
+        'workflow_unavailable',
+        'workflow_blocked',
         'assignment_changed',
         'provider_uncertain',
         'provider_refused',
@@ -121,17 +122,6 @@ export const serviceReadRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   jobId: stateIdSchema,
 });
-export const serviceRpcRequestSchema = z.discriminatedUnion('operation', [
-  z.strictObject({ schemaVersion: z.literal(1), operation: z.literal('status') }),
-  z.strictObject({ schemaVersion: z.literal(1), operation: z.literal('wake') }),
-  serviceSubmitRequestSchema.extend({ operation: z.literal('submit') }),
-  serviceReadRequestSchema.extend({ operation: z.literal('inspect') }),
-]);
-export const serviceRpcResponseSchema = z.union([
-  createOperationResultSchema(serviceStatusSchema),
-  createOperationResultSchema(serviceJobSchema.nullable()),
-  createStateWriteResultSchema(serviceJobSchema),
-]);
 export const serviceRunRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   stateDirectory: z.string().optional(),
@@ -144,6 +134,4 @@ export type ServiceEntry = z.infer<typeof serviceEntrySchema>;
 export type ServiceJob = z.infer<typeof serviceJobSchema>;
 export type ServiceLimits = z.infer<typeof serviceLimitsSchema>;
 export type ServiceStatus = z.infer<typeof serviceStatusSchema>;
-export type ServiceRpcRequest = z.infer<typeof serviceRpcRequestSchema>;
-export type ServiceRpcResponse = z.infer<typeof serviceRpcResponseSchema>;
 export type ServiceFailure = z.infer<typeof operationErrorSchema>;

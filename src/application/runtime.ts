@@ -17,6 +17,7 @@ import type { StateWriteResult } from '../contracts/state.js';
 import type { ServiceJob, WorkerObservation } from '../contracts/service.js';
 import type { RuntimeStore, InteractiveWorkerProvider } from '../ports/runtime.js';
 import type { ServiceStore, ServiceWorkerRuntime } from '../ports/service.js';
+import { workerInputDigest } from '../core/worker-input.js';
 import { parseOperationRequest } from '../core/parse-operation-request.js';
 import { configurationDigest } from '../core/configuration.js';
 import { checkConfigurationDispatch } from './configuration.js';
@@ -432,7 +433,7 @@ async function control(
   return perform(schema, input, signal, async (request) => {
     const { attemptId, key } = request;
     const text = 'text' in request && typeof request.text === 'string' ? request.text : '';
-    const digest = createHash('sha256').update(JSON.stringify({ kind, text })).digest('hex');
+    const digest = workerInputDigest(kind, text);
     const existing = read(deps.runtime.action(attemptId, key));
     const session = read(deps.runtime.read(attemptId));
 
@@ -566,14 +567,23 @@ export function createCodexHerdrRuntime(deps: RuntimeDependencies): ServiceWorke
     }
 
     const value = result.value;
-    const handle = value.session
+    const identity = value.session
       ? {
           runtime: value.session.runtime,
           launchId: value.session.launchId,
           spaceId: value.session.space.id,
-          agent: value.session.agent,
         }
       : null;
+    // Resource handles are immutable. Native agent identity is reconciled separately in the session record.
+    const previous = saved.entry.observation?.handle;
+    const handle =
+      identity &&
+      previous &&
+      previous.runtime === identity.runtime &&
+      previous.launchId === identity.launchId &&
+      previous.spaceId === identity.spaceId
+        ? previous
+        : identity;
     const evidence = {
       reason: value.reason,
       agentStatus: value.agentStatus,

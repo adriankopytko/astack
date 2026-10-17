@@ -49,16 +49,12 @@ export {
   serviceEntrySchema,
   serviceJobSchema,
   serviceStatusSchema,
-  serviceRpcRequestSchema,
-  serviceRpcResponseSchema,
   workerObservationSchema,
   type ServiceSubmitRequest,
   type ServiceEntry,
   type ServiceJob,
   type ServiceLimits,
   type ServiceStatus,
-  type ServiceRpcRequest,
-  type ServiceRpcResponse,
   type WorkerObservation,
 } from './contracts/service.js';
 export { ConfigurationReadError } from './core/configuration-error.js';
@@ -317,3 +313,23 @@ export {
   createCodexHerdrRuntime,
 } from './application/runtime.js';
 export type { RuntimeDependencies } from './application/runtime.js';
+
+export {
+  serviceRpcRequestSchema,
+  serviceRpcResponseSchema,
+  type ServiceRpcRequest,
+  type ServiceRpcResponse,
+} from './contracts/service-rpc.js';
+export * from './contracts/implementation.js';
+export {
+  submitImplementation,
+  inspectImplementation,
+  createImplementationRuntime,
+} from './application/implementation.js';
+export type { ImplementationDependencies } from './application/implementation.js';
+export type {
+  ImplementationContextReader,
+  ImplementationWorkerInput,
+} from './ports/implementation.js';
+export { nodeImplementationContextReader } from './adapters/filesystem/implementation-context.js';
+export { createCodexImplementationInput } from './application/codex-implementation-input.js';

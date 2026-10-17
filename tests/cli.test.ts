@@ -48,12 +48,22 @@ await test('human-readable package information remains concise', () => {
 });
 
 await test('unknown commands fail instead of silently accepting work', () => {
-  const result = spawnSync(process.execPath, [entrypoint, 'implement'], { encoding: 'utf8' });
+  for (const args of [['unavailable-command'], ['implement', 'invented']]) {
+    const result = spawnSync(process.execPath, [entrypoint, ...args], { encoding: 'utf8' });
 
-  assert.notEqual(result.status, 0);
-  assert.equal(result.stdout, '');
-  assert.match(result.stderr, /error:/);
-  assert.match(result.stderr, /implement/);
+    assert.notEqual(result.status, 0);
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /error:/);
+    assert.ok(result.stderr.includes(args.at(-1) ?? ''));
+  }
+
+  const incomplete = spawnSync(process.execPath, [entrypoint, 'implement', 'submit'], {
+    encoding: 'utf8',
+  });
+
+  assert.notEqual(incomplete.status, 0);
+  assert.equal(incomplete.stdout, '');
+  assert.match(incomplete.stderr, /required option/);
 });
 
 await test('skill output matches the bundled guide from outside the checkout', async () => {

@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { createCodexHerdrRuntime } from '../application/runtime.js';
+import { createImplementationRuntime } from '../application/implementation.js';
+import { createCodexImplementationInput } from '../application/codex-implementation-input.js';
+import { nodeImplementationContextReader } from '../adapters/filesystem/implementation-context.js';
+import type { RuntimeDependencies } from '../application/runtime.js';
 import { createHerdrCliProvider } from '../adapters/herdr/cli-provider.js';
 import { nodeHerdrEndpointReader } from '../adapters/filesystem/herdr-endpoint.js';
 import { createNodeWorktreeFiles } from '../adapters/filesystem/worktree-files.js';
@@ -21,7 +25,7 @@ export function composeCodexHerdrRuntime(input: {
     endpoint: nodeHerdrEndpointReader,
   });
 
-  return createCodexHerdrRuntime({
+  const dependencies: RuntimeDependencies = {
     ...input.dependencies,
     state: input.opened.store,
     herdr: input.opened.herdr,
@@ -31,5 +35,16 @@ export function composeCodexHerdrRuntime(input: {
     canonicalCodexExecutable: input.codexExecutable,
     files: createNodeWorktreeFiles(join(input.opened.stateDirectory, 'worktrees')),
     newId: () => randomUUID(),
+  };
+
+  return createImplementationRuntime({
+    runtime: createCodexHerdrRuntime(dependencies),
+    dependencies: {
+      ...input.dependencies,
+      worktrees: input.opened.worktrees,
+      files: dependencies.files,
+      instructions: nodeImplementationContextReader,
+    },
+    workerInput: createCodexImplementationInput(dependencies),
   });
 }
