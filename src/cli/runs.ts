@@ -1,4 +1,8 @@
-import { resolve } from 'node:path';
+import { collectRunReport } from '../application/report-collection.js';
+import { createCodexReportReader } from '../adapters/codex/report-reader.js';
+import { reconcileLocalRun } from '../host/reconcile-run.js';
+import { resolve, join } from 'node:path';
+import { homedir } from 'node:os';
 import { constants } from 'node:fs';
 import { lstat, open } from 'node:fs/promises';
 import { Command, InvalidArgumentError } from 'commander';
@@ -26,7 +30,7 @@ function render(result: ServiceRpcResponse, json?: boolean) {
   } else if ('cleanup' in result.value) {
     const value = result.value;
     process.stdout.write(
-      `Job: ${value.job.job.id}\nAttempt: ${value.job.attempt.id}\nState: ${value.status}\nWorker: ${value.job.entry.state}\nReport: ${value.control.reportId ?? 'none'}\nBlocker: ${value.job.entry.readiness?.message ?? value.job.entry.reason ?? 'none'}\nCleanup: retained\n`,
+      `Job: ${value.job.job.id}\nAttempt: ${value.job.attempt.id}\nState: ${value.status}\nWorker: ${value.job.entry.state}\nReport: ${value.control.reportId ?? 'none'}\nBlocker: ${value.job.entry.readiness?.message ?? value.job.entry.reason ?? 'none'}\nCleanup: ${value.cleanup.state} (${value.cleanup.retainedResourceCount} holds)\n`,
     );
   } else if ('events' in result.value) {
     for (const event of result.value.events) {
@@ -170,6 +174,120 @@ export function wireRunCommands(program: Command) {
         }
       });
     });
+  run
+    .command('collect-report <job-id>')
+    .description(
+      'Collect the final structured report from an explicitly selected local Codex JSONL session and validate it with the coordinator',
+    )
+    .requiredOption('--key <key>')
+    .requiredOption(
+      '--session-file <path>',
+      'Host-selected Codex session file; never automatically search transcripts',
+    )
+    .option('--json')
+    .action(
+      async (jobId: string, options: { key: string; sessionFile: string; json?: boolean }) => {
+        await execute(options.json, async (state) => {
+          const selected = state.runs.inspect(jobId);
+
+          if (selected.outcome === 'rejected') {
+            return selected;
+          }
+
+          if (!selected.value) {
+            return rejected('run_not_found', 'Run not found.');
+          }
+
+          const session = state.runtime.read(selected.value.job.attempt.id);
+
+          if (session.outcome === 'rejected') {
+            return session;
+          }
+
+          if (!session.value) {
+            return rejected('runtime_unavailable', 'No saved Codex runtime session exists.');
+          }
+
+          const result = await collectRunReport(
+            { schemaVersion: 1, jobId, key: options.key },
+            {
+              runs: state.runs,
+              reports: createCodexReportReader({
+                file: resolve(process.cwd(), options.sessionFile),
+                session: session.value,
+              }),
+            },
+          );
+
+          return result.outcome === 'rejected'
+            ? result
+            : requestLocalService(state.stateDirectory, {
+                ...result.value,
+                operation: 'run_report',
+              });
+        });
+      },
+    );
+  run
+    .command('reconcile <job-id>')
+    .description(
+      'With the coordinator stopped, verify owned Herdr workspace absence and record host-confirmed shutdown; release only bound worker holds',
+    )
+    .requiredOption('--key <key>')
+    .requiredOption('--attempt <id>')
+    .requiredOption('--launch <id>')
+    .requiredOption('--revision <number>', 'Exact saved run control revision', number)
+    .requiredOption('--worker-stopped', 'Attest the worker and all descendants have stopped')
+    .requiredOption(
+      '--services-stopped',
+      'Attest all services started by this attempt have stopped',
+    )
+    .requiredOption('--writers-stopped', 'Attest all original effect writers have stopped')
+    .option('--herdr-executable <path>')
+    .option('--json')
+    .action(
+      async (
+        jobId: string,
+        options: {
+          key: string;
+          attempt: string;
+          launch: string;
+          revision: number;
+          workerStopped: boolean;
+          servicesStopped: boolean;
+          writersStopped: boolean;
+          herdrExecutable?: string;
+          json?: boolean;
+        },
+      ) => {
+        const host = program.opts<{ stateDirectory?: string }>();
+        render(
+          await reconcileLocalRun(
+            {
+              schemaVersion: 1,
+              jobId,
+              key: options.key,
+              attemptId: options.attempt,
+              launchId: options.launch,
+              expectedRevision: options.revision,
+              workerStopped: options.workerStopped,
+              servicesStopped: options.servicesStopped,
+              writersStopped: options.writersStopped,
+            },
+            {
+              stateDirectory:
+                host.stateDirectory === undefined
+                  ? join(homedir(), '.local', 'state', 'astack')
+                  : resolve(process.cwd(), host.stateDirectory),
+              ...(options.herdrExecutable === undefined
+                ? {}
+                : { herdrExecutable: options.herdrExecutable }),
+            },
+          ),
+          options.json,
+        );
+      },
+    );
   run
     .command('respond <job-id>')
     .description('Save a decision response without sending worker input')

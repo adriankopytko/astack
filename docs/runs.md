@@ -2,7 +2,7 @@
 
 ## Implemented scope
 
-A run is the saved service job and execution attempt, its accepted reports, decision responses, continuation attempts, cancellation intents and resource evidence. `run inspect` works offline. `run events` reads or waits for durable local changes without querying GitHub, inspecting an idle pane or injecting a prompt. Mutation commands use the owning local service.
+A run is the saved service job and execution attempt, its accepted reports, decision responses, continuation attempts, cancellation intents and resource evidence. `run inspect` works offline. `run events` reads or waits for durable local changes without querying GitHub, inspecting an idle pane or injecting a prompt. Report and decision mutations use the owning local service. Explicit shutdown reconciliation runs offline under coordinator ownership.
 
 These operations consume implementation/review assignments. They do not discover tasks, ingest arbitrary terminal transcripts, authenticate remote worker submissions, automatically wake an orchestrator, create replacement workers, publish changes, or clean up work. The private Unix socket has same-host-user authority. `run report` is an explicit orchestrator/host acceptance operation for a supplied proposal, not a restricted worker-report endpoint.
 
@@ -14,6 +14,16 @@ astack run inspect <job-id> --json
 
 # Validate and accept a versioned worker JSON proposal selected by the orchestrator.
 astack run report <job-id> --key report-1 --file ./worker-result.json --json
+
+# Alternatively select the exact local Codex session file; collect and validate its final report.
+astack run collect-report <job-id> --key report-1 \
+  --session-file /absolute/path/to/rollout.jsonl --json
+
+# After independently verifying shutdown and closing only the owned worker workspace,
+# stop the coordinator, then reconcile its exact saved launch/revision.
+astack run reconcile <job-id> --key shutdown-1 --attempt <attempt-id> \
+  --launch <launch-id> --revision <control-revision> \
+  --worker-stopped --services-stopped --writers-stopped --json
 
 # A needs_decision report supplies its report ID as the decision identity.
 astack run respond <job-id> --key answer-1 --decision <report-id> \
@@ -31,7 +41,7 @@ astack run cursor ack orchestrator --project project-a \
 astack run cursor inspect orchestrator --project project-a --json
 ```
 
-All commands honor global `--state-directory`; no target is inferred from an ambient pane. Inspection, cursor reads and event reads/waits open existing state read-only, without bootstrapping or migrating it. Report, response, resume, cancellation and cursor acknowledgement require the local service. No live runtime is needed to inspect/accept already delivered reports. Native input/interrupt requires the explicitly enabled approved runtime; its absence blocks controls.
+All commands honor global `--state-directory`; no target is inferred from an ambient pane. Inspection, cursor reads and event reads/waits open existing state read-only, without bootstrapping or migrating it. Report acceptance (including collected proposals), response, resume, cancellation and cursor acknowledgement require the local service. Reconciliation requires it stopped. No live runtime is needed to inspect/accept already delivered reports. Native input/interrupt requires the explicitly enabled approved runtime; its absence blocks controls.
 
 `--file` accepts either the worker's original report object or `{ "proposal": <report>, "artifacts": [...] }`. CLI reads are bounded at 48,000 bytes and reject symbolic links, nonregular files and detected mutation. Requests/results use strict versioned schemas. Human output distinguishes run state, worker state and retained cleanup; JSON retains the complete evidence. Exit 1 can describe a saved blocked/unknown/failed/needs_decision run, not an absent request.
 
@@ -48,6 +58,16 @@ Acceptance atomically stores the report, control revision, terminal result where
 This validates structure, assignment and observed evidence. It does not cryptographically authenticate report authorship, prove the business behavior or independently rerun claimed tests. The same-host orchestrator selects and accepts the proposal. Never accept arbitrary terminal text or treat a reported check as independently verified merely because its JSON parses.
 
 Keys are scoped to job and operation. An identical report retry returns saved acceptance without inspecting a now-modified checkout or revoked policy. Different input under that key conflicts. A new report after terminal completion/cancellation is rejected. Concurrent cancellation or continuation changes the revision and prevents stale acceptance. An unresolved resume input blocks new report acceptance. Existing generic terminal state results also prevent dispatch, without fabricating a validated workflow report.
+
+## Explicit structured report collection
+
+`collectRunReport` consumes an injected `RunReportReader` and returns a strict `RunReportRequest`; it never accepts completion or releases resources. The CLI's `run collect-report` uses the optional Codex adapter and sends that proposal through normal coordinator acceptance. `run report --file` remains available for other providers and manual proposals.
+
+Select one exact local Codex session JSONL file explicitly. No global session search or terminal capture occurs. The adapter checks the bound ready job/attempt/effect/checkout, exact session cwd, session start at/after job acceptance, native session ID if captured, and one user message containing the exact reconstructed assignment. It reads only typed `response_item` assistant messages with `phase=final_answer`; a later user message without a new final response, duplicate assignment, malformed JSON or invalid report shape rejects collection. A formatting correction can be requested explicitly from the same worker. There is no silent conversion of a string snapshot into an object.
+
+Files are bounded at 16 MiB, JSONL records at one MiB and final proposals at 48,000 bytes. Reads reject symbolic/hard links, nonregular files, detected mutation, incomplete final lines and invalid UTF-8. Only the proposal reaches acceptance; unrelated log contents are neither printed nor stored. Use a host-trusted path and coordinate writers; this is same-user attribution, not cryptographic authorship. A provider log format change fails closed and may need an adapter update.
+
+New review assignments persist prompt version 2, whose example embeds the actual `acceptanceSnapshot` object. Legacy tasks without a prompt version retain version 1 rendering and input digests across restart. Collection and acceptance always reconstruct the saved version.
 
 ## Decisions and continuation
 
@@ -67,7 +87,13 @@ A never-claimed job or a worker already proved not started/quiescent becomes can
 
 Interrupt acknowledgement is not shutdown proof. A later verified quiescent/not_started observation settles cancel_requested to cancelled. A request arriving after a terminal report preserves the accepted outcome. Effects authorized immediately before cancellation can still finish: provider APIs have no atomic compare-and-write transaction with SQLite. Such writes stay bound to their original attempt and remain inspectable; they never authorize a replacement. There is no force-kill, branch deletion, worktree removal or automatic capacity release by age.
 
-Cleanup stays `retained` throughout. Run inspection includes a resource count and at most 100 resource summaries plus the checkout ID; it does not infer safe deletion from an empty list. Cancellation does not manufacture a terminal generic state result for an uncertain launch. Worktree cleanup can remain blocked pending separate lifecycle/quiescence handling. User changes and task branches remain intact.
+Cleanup remains `retained` until explicit lifecycle reconciliation. Inspection includes the historical `resourceCount`, current `retainedResourceCount`, at most 100 resource summaries, checkout ID and any reconciliation record. An empty summary alone never establishes safe deletion.
+
+`run reconcile` is an offline trusted host operation: stop the coordinator and all original effect writers first, independently verify worker/descendant and service shutdown, and close only the attempt's owned worker workspace. The CLI acquires the coordinator lock before opening/migrating writable state. A running coordinator blocks the command. Supply the exact attempt, launch and control revision, a stable key and all three truthful attestations. The library's `reconcileRun` caller must provide equivalent exclusion.
+
+Fresh inspection of the same saved Herdr server must show the owned workspace, terminal and named agent absent. This observation cannot prove descendant or service shutdown; the recorded source is explicitly `host-attestation`. Missing/changed provider identity, a live workspace/agent, pending runtime actions, unresolved continuations, missing resource bindings or unknown retained resources preserve every hold. Do not infer the attestations from age, idle/done, Escape, missing layout or one missing PID.
+
+One transaction records evidence, releases only the exact bound worker, interactive-runtime, Herdr-space and Herdr-agent resources, advances revision, marks the service observation quiescent and emits `lifecycle_reconciled`. Accepted completion/failure is preserved. Verified cancellation records a cancelled result and resolves its attempt without claiming success. Identical requests are idempotent offline; different requests conflict. After restart the entry remains quiescent and the next queued job can use capacity. `cleanup.state=reconciled` means those lifecycle holds were settled; checkout removal is still the separate ownership/cleanliness-checked `worktree remove` operation. Task branches and unrelated resources are preserved.
 
 ## Events and consumer cursors
 

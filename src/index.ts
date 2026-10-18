@@ -369,3 +369,16 @@ export type {
 export { nodeRunArtifactReader } from './adapters/filesystem/run-artifacts.js';
 export { nodeRunEventWaiter } from './adapters/local/run-waiter.js';
 export { createCodexRunControl } from './application/codex-run-control.js';
+
+export { collectRunReport } from './application/report-collection.js';
+export { createCodexReportReader } from './adapters/codex/report-reader.js';
+export { reconcileRun } from './application/run-reconciliation.js';
+export { createCodexRunShutdownVerifier } from './application/codex-run-shutdown.js';
+export { reconcileLocalRun } from './host/reconcile-run.js';
+export {
+  runReconcileRequestSchema,
+  runReconciliationSchema,
+  type RunReconcileRequest,
+  type RunReconciliation,
+} from './contracts/run-reconciliation.js';
+export type { RunReportReader, RunShutdownVerifier } from './ports/runs.js';

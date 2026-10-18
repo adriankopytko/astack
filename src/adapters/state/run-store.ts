@@ -1,3 +1,7 @@
+import { persistedRunReconciliationSchema } from './run-reconciliation-codec.js';
+import { runReconciliationSchema } from '../../contracts/run-reconciliation.js';
+import { serviceEntrySchema } from '../../contracts/service.js';
+import { stateResourceIntentSchema } from '../../contracts/state.js';
 import { implementationProgressSchema } from '../../contracts/implementation-task.js';
 import { createHash } from 'node:crypto';
 import {
@@ -48,6 +52,14 @@ export function createSqliteRunStore(db: StateDatabase, now: () => number): RunS
           jobId,
           key,
         );
+  }
+
+  function reconciliation(jobId: string) {
+    return db.get(
+      persistedRunReconciliationSchema,
+      'SELECT data FROM run_reconciliations WHERE job_id=?',
+      jobId,
+    );
   }
 
   function view(jobId: string): RunView {
@@ -104,9 +116,17 @@ export function createSqliteRunStore(db: StateDatabase, now: () => number): RunS
       resumes,
       cancellation: cancellation(jobId),
       cleanup: {
-        state: 'retained',
+        state: reconciliation(jobId) ? 'reconciled' : 'retained',
+        reconciliation: reconciliation(jobId),
         checkoutId: selected.job.checkoutId,
         resourceCount,
+        retainedResourceCount: Number(
+          db
+            .statement(
+              'SELECT COUNT(*) AS count FROM resources WHERE attempt_id=? AND released_at IS NULL',
+            )
+            .get(selected.attempt.id)?.count ?? 0,
+        ),
         resources: resourceRows.map((row) => ({
           id: row.id,
           kind: row.kind,
@@ -151,6 +171,161 @@ export function createSqliteRunStore(db: StateDatabase, now: () => number): RunS
   }
 
   return {
+    reconciliation: (id) => db.read(() => reconciliation(id)),
+    reconcile(input) {
+      return db.write(() => {
+        const candidate = runReconciliationSchema.parse(input);
+        const request = candidate.request;
+        const selected = job(request.jobId);
+        const existing = reconciliation(request.jobId);
+
+        if (existing) {
+          if (canonicalJson(existing.request) !== canonicalJson(request)) {
+            stateFailure('state_conflict');
+          }
+
+          return { value: view(request.jobId), disposition: 'existing' };
+        }
+
+        const control = runControl(db, request.jobId);
+
+        if (
+          selected.attempt.id !== request.attemptId ||
+          control.revision !== request.expectedRevision ||
+          !['completed', 'failed', 'cancel_requested', 'cancelled'].includes(control.phase) ||
+          !selected.entry.claim ||
+          selected.effect.state !== 'confirmed'
+        ) {
+          stateFailure('state_conflict');
+        }
+
+        const pendingAction = db
+          .statement("SELECT 1 FROM runtime_actions WHERE attempt_id=? AND state='pending'")
+          .get(request.attemptId);
+        const unsettledResume = db
+          .statement(
+            "SELECT 1 FROM run_resumes WHERE job_id=? AND state IN ('authorized','pending','unknown')",
+          )
+          .get(request.jobId);
+
+        if (pendingAction || unsettledResume) {
+          stateFailure('state_reconciliation_required');
+        }
+
+        const runtimeHandle = candidate.workerHandle;
+
+        if (canonicalJson(selected.entry.observation?.handle) !== canonicalJson(runtimeHandle)) {
+          stateFailure('state_conflict');
+        }
+
+        const expected = new Map(
+          candidate.resourceBindings.map((binding) => [binding.id, binding]),
+        );
+        const rows = db
+          .statement('SELECT data,released_at FROM resources WHERE attempt_id=? ORDER BY id')
+          .all(request.attemptId);
+        const releasedResourceIds: string[] = [];
+        const matched = new Set<string>();
+
+        for (const row of rows) {
+          const resource =
+            db.data(stateResourceIntentSchema, row) ?? stateFailure('state_invalid_data');
+          const binding = expected.get(resource.id);
+
+          if (binding) {
+            if (
+              resource.kind !== binding.kind ||
+              resource.key !== binding.key ||
+              canonicalJson(resource.handle) !== canonicalJson(binding.handle)
+            ) {
+              stateFailure('state_conflict');
+            }
+
+            matched.add(resource.id);
+          }
+
+          if (row.released_at === null) {
+            if (!binding) {
+              stateFailure('state_reconciliation_required');
+            }
+
+            releasedResourceIds.push(resource.id);
+          }
+        }
+
+        if (matched.size !== expected.size) {
+          stateFailure('state_reconciliation_required');
+        }
+
+        const record = runReconciliationSchema.parse({ ...candidate, releasedResourceIds });
+        const evidence = {
+          source: record.source,
+          launchId: request.launchId,
+          reconciliationKey: request.key,
+          providerEvidence: record.providerEvidence,
+          workerStopped: true,
+          servicesStopped: true,
+          writersStopped: true,
+        };
+        const entry = serviceEntrySchema.parse({
+          ...selected.entry,
+          state: 'awaiting_result',
+          reason: null,
+          observation: { state: 'quiescent', handle: runtimeHandle, evidence },
+        });
+        db.statement('UPDATE service_entries SET state=?,data=? WHERE job_id=?').run(
+          entry.state,
+          canonicalJson(entry),
+          request.jobId,
+        );
+
+        for (const id of releasedResourceIds) {
+          db.statement(
+            'UPDATE resources SET released_at=?,release_evidence=? WHERE id=? AND attempt_id=? AND released_at IS NULL',
+          ).run(record.verifiedAt, canonicalJson(evidence), id, request.attemptId);
+        }
+
+        db.statement('INSERT INTO run_reconciliations(job_id,data) VALUES (?,?)').run(
+          request.jobId,
+          canonicalJson(record),
+        );
+
+        if (
+          ['cancel_requested', 'cancelled'].includes(control.phase) &&
+          !db.statement('SELECT id FROM results WHERE attempt_id=?').get(request.attemptId)
+        ) {
+          const result = stateResultSchema.parse({
+            id: identifier('result', { jobId: request.jobId, reconciliationKey: request.key }),
+            attemptId: request.attemptId,
+            outcome: 'cancelled',
+            createdAt: record.verifiedAt,
+            evidence,
+          });
+          db.statement('INSERT INTO results(id,attempt_id,data) VALUES (?,?,?)').run(
+            result.id,
+            request.attemptId,
+            canonicalJson(result),
+          );
+          db.statement('UPDATE attempts SET resolved_at=? WHERE id=?').run(
+            record.verifiedAt,
+            request.attemptId,
+          );
+        }
+
+        saveRunControl(db, request.jobId, {
+          ...control,
+          phase: control.phase === 'cancel_requested' ? 'cancelled' : control.phase,
+          revision: control.revision + 1,
+        });
+        appendRunEvent(db, selected, 'lifecycle_reconciled', record.verifiedAt, {
+          source: record.source,
+          launchId: request.launchId,
+          releasedResourceIds,
+        });
+
+        return { value: view(request.jobId), disposition: 'created' };
+      });
+    },
     inspect: (id) =>
       db.read(() => {
         const result = queue.read(id);

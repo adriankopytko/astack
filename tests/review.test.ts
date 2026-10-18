@@ -1,3 +1,5 @@
+import { renderReviewPrompt } from '../src/core/review-prompt.js';
+import { reviewTaskSchema } from '../src/contracts/review-task.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { join } from 'node:path';
@@ -146,6 +148,19 @@ await test(
       const state = dependencies(context, request);
       const job = accepted(await submitReview(request, state.deps));
 
+      assert.equal(job.assignment.promptVersion, 2);
+
+      const { promptVersion: _version, ...legacy } = job.assignment;
+      const oldPrompt = renderReviewPrompt(job.job, reviewTaskSchema.parse(legacy));
+      const explicitOldPrompt = renderReviewPrompt(job.job, { ...legacy, promptVersion: 1 });
+      const newPrompt = renderReviewPrompt(job.job, job.assignment);
+      const example = (prompt: string) =>
+        JSON.parse(prompt.split('\n').at(-2) ?? '') as { acceptanceSnapshot: unknown };
+
+      assert.equal(oldPrompt, explicitOldPrompt);
+      assert.equal(example(oldPrompt).acceptanceSnapshot, '<copy the acceptance snapshot above>');
+      assert.deepEqual(example(newPrompt).acceptanceSnapshot, job.assignment.initialSnapshot);
+      assert.notEqual(newPrompt, oldPrompt);
       assert.equal(job.assignment.authorization, 'manual-request');
       assert.equal(job.assignment.initialSnapshot.sourceRepository, 'contributor/fork');
       assert.equal(job.job.entry.role, 'reviewer');

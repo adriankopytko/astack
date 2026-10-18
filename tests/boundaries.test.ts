@@ -19,6 +19,30 @@ interface Scenario {
 
 const scenarios: Scenario[] = [
   {
+    name: 'allow the explicit offline run reconciliation host entry',
+    files: {
+      'src/cli/runs.ts': "export { value } from '../host/reconcile-run.js';",
+      'src/host/reconcile-run.ts': 'export const value = 1;',
+    },
+  },
+  {
+    name: 'reject other host imports from run CLI',
+    files: {
+      'src/cli/runs.ts': "export { value } from '../host/local-service.js';",
+      'src/host/local-service.ts': 'export const value = 1;',
+    },
+    violation: 'run-cli-host-entry-only',
+  },
+  {
+    name: 'reject offline reconciliation host imports from service CLI',
+    files: {
+      'src/cli/service.ts': "export { value } from '../host/reconcile-run.js';",
+      'src/host/reconcile-run.ts': 'export const value = 1;',
+    },
+    violation: 'service-cli-host-entry-only',
+  },
+
+  {
     name: 'allow only the explicit CLI service composition entry',
     files: {
       'src/cli/service.ts': "export { value } from '../host/local-service.js';",

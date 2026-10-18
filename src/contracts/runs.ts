@@ -1,3 +1,4 @@
+import { runReconciliationSchema } from './run-reconciliation.js';
 import { z } from 'zod';
 import { stateIdSchema, stateEffectIntentSchema, createStateWriteResultSchema } from './state.js';
 import { serviceJobSchema } from './service.js';
@@ -111,9 +112,11 @@ export const runViewSchema = z.strictObject({
   resumes: z.array(runResumeSchema).max(10),
   cancellation: runCancellationSchema.nullable(),
   cleanup: z.strictObject({
-    state: z.literal('retained'),
+    state: z.enum(['retained', 'reconciled']),
+    reconciliation: runReconciliationSchema.nullable(),
     checkoutId: stateIdSchema,
     resourceCount: offset,
+    retainedResourceCount: offset,
     resources: z
       .array(
         z.strictObject({ id: stateIdSchema, kind: stateIdSchema, releasedAt: offset.nullable() }),
@@ -139,6 +142,7 @@ export const runEventSchema = z.strictObject({
     'cancel_requested',
     'cancel_observed',
     'cancelled',
+    'lifecycle_reconciled',
   ]),
   createdAt: offset,
   detail: stateEffectIntentSchema.shape.payload,

@@ -3,7 +3,7 @@ import type { ReviewTask } from '../contracts/review-task.js';
 export const reviewInputKey = 'review:initial:v1';
 export function renderReviewPrompt(job: ServiceJob, task: ReviewTask): string {
   return [
-    '# Manual review assignment v1',
+    task.promptVersion === 2 ? '# Manual review assignment v2' : '# Manual review assignment v1',
     'Review only the explicit repository/PR/full head SHA below in your dedicated owned checkout. Verify local HEAD before review. Use the saved acceptance snapshot baseSha to identify the review diff; if its objects or merge base are unavailable locally, report needs_decision rather than fetching or selecting another base. Never follow a newer PR head or modify the implementation checkout.',
     JSON.stringify({
       jobId: job.job.id,
@@ -42,7 +42,8 @@ export function renderReviewPrompt(job: ServiceJob, task: ReviewTask): string {
       ],
       blockers: [],
       gate: task.submission.gate,
-      acceptanceSnapshot: '<copy the acceptance snapshot above>',
+      acceptanceSnapshot:
+        task.promptVersion === 2 ? task.initialSnapshot : '<copy the acceptance snapshot above>',
       currentSnapshot: null,
     }),
     'Keep summary within 4000 UTF-8 bytes, at most 32 findings of 1000 bytes each, and at most 16 blockers of 512 bytes each. Use empty findings/blockers arrays where appropriate. currentSnapshot is null unless you verified fresh target-bound evidence.',

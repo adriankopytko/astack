@@ -281,4 +281,13 @@ CREATE TABLE runtime_input_retries (
 ) STRICT;
 `,
   },
+  {
+    version: 10,
+    sql: `
+CREATE TABLE run_reconciliations (
+  job_id TEXT PRIMARY KEY REFERENCES service_entries(job_id),
+  data TEXT NOT NULL CHECK(json_valid(data)) CHECK(json_extract(data, '$.request.jobId') IS job_id)
+) STRICT;
+`,
+  },
 ] as const;

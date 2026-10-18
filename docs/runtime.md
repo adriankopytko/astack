@@ -6,7 +6,7 @@
 
 **Herdr owns execution.** Its server starts canonical `codex` in an existing verified worker pane and owns the terminal/process lifecycle. Astack owns durable intent and control policy, not a second Codex subprocess, app server, PID supervisor or terminal writer. `--no-daemon` keeps this integration on the interactive process path. Astack never attaches a second process controller, resumes another native session, starts headless execution, closes the worker workspace, or kills the Herdr server.
 
-Starting a generic session does not send the saved task description. The implementation and manual review workflows deliver explicit assignments through durable keyed input. Run operations accept host-supplied reports and expose explicit continuation/cancellation. Pinned skill delivery, provisioning, automatic report collection and cleanup remain later work.
+Starting a generic session does not send the saved task description. The implementation and manual review workflows deliver explicit assignments through durable keyed input. Run operations accept host-supplied reports and expose explicit continuation/cancellation. Explicit structured Codex report collection and host-attested shutdown reconciliation are available through [run operations](runs.md). Pinned skill delivery, provisioning and automatic shutdown/cleanup remain later work.
 
 ## Host opt-in and prerequisites
 

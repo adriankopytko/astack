@@ -27,13 +27,25 @@ module.exports = {
     {
       name: 'cli-host-wiring-only',
       severity: 'error',
-      from: { path: '^src/cli/', pathNot: '^src/cli/service\\.ts$' },
+      from: { path: '^src/cli/', pathNot: '^src/cli/(service|runs)\\.ts$' },
       to: { path: '^src/host/' },
     },
     {
       name: 'cli-host-entry-only',
       severity: 'error',
       from: { path: '^src/cli/' },
+      to: { path: '^src/host/', pathNot: '^src/host/(local-service|reconcile-run)\\.ts$' },
+    },
+    {
+      name: 'run-cli-host-entry-only',
+      severity: 'error',
+      from: { path: '^src/cli/runs\\.ts$' },
+      to: { path: '^src/host/', pathNot: '^src/host/reconcile-run\\.ts$' },
+    },
+    {
+      name: 'service-cli-host-entry-only',
+      severity: 'error',
+      from: { path: '^src/cli/service\\.ts$' },
       to: { path: '^src/host/', pathNot: '^src/host/local-service\\.ts$' },
     },
     {

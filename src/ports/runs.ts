@@ -1,3 +1,4 @@
+import type { RunReconcileRequest, RunReconciliation } from '../contracts/run-reconciliation.js';
 import type { OperationResult } from '../contracts/operation-result.js';
 import type { StateWriteResult } from '../contracts/state.js';
 import type {
@@ -17,6 +18,8 @@ import type {
   ArtifactReference,
 } from '../contracts/runs.js';
 export interface RunStore {
+  reconciliation(jobId: string): OperationResult<RunReconciliation | null>;
+  reconcile(input: RunReconciliation): StateWriteResult<RunView>;
   inspect(jobId: string): OperationResult<RunView | null>;
   report(jobId: string, key: string): OperationResult<AcceptedRunReport | null>;
   acceptReport(input: {
@@ -61,4 +64,20 @@ export interface RunWorkerControl {
 }
 export interface RunEventWaiter {
   pause(ms: number, signal?: AbortSignal): Promise<void>;
+}
+
+/** Reads a provider's typed final response for one explicit owned assignment. Output is still untrusted. */
+export interface RunReportReader {
+  read(
+    input: { run: RunView; prompt: string },
+    signal?: AbortSignal,
+  ): Promise<OperationResult<unknown>>;
+}
+
+/** Host must stop coordinator writers before checking; absence is supplemented by explicit shutdown attestation. */
+export interface RunShutdownVerifier {
+  verify(
+    input: { run: RunView; request: RunReconcileRequest },
+    signal?: AbortSignal,
+  ): Promise<OperationResult<RunReconciliation>>;
 }

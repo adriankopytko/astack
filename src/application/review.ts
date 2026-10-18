@@ -207,6 +207,7 @@ export async function submitReview(
       instructions,
       initialSnapshot: snapshot,
       resultContractVersion: 1,
+      promptVersion: 2,
     });
     const approvedDigest = await policy(task, deps, signal);
     const accepted = await submitServiceJob(
