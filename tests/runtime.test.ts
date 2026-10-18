@@ -71,17 +71,19 @@ await test(
 );
 
 await test(
-  'launch-before-handle crash reconnects from saved identity after reopening state without relaunch',
+  'workers without native IDs bind, recover and accept keyed controls while preserving uncertain input',
   options,
   async () => {
     await fixture(async ({ prepare, deps, modes, calls, context }) => {
       const job = await prepare();
       const request = { schemaVersion: 1, attemptId: job.attempt.id };
-      modes.launch = 'after';
-      const pending = value(await launchRuntime(request, deps));
+      modes.launch = 'missing-native';
+      const ready = value(await launchRuntime(request, deps));
 
-      assert.equal(pending.reason, 'launch_pending');
-      assert.equal(pending.session?.phase, 'pending');
+      assert.equal(ready.state, 'running');
+      assert.equal(ready.session?.phase, 'ready');
+      assert.ok(ready.session);
+      assert.equal(ready.session.agent?.nativeSessionId, null);
 
       const { openSqliteState } = await import('../src/index.js');
       const opened = await openSqliteState({ schemaVersion: 1, stateDirectory: context.state });
@@ -93,23 +95,152 @@ await test(
       }
 
       try {
-        const reconnected = value(
-          await reconcileRuntime(request, {
-            ...deps,
-            runtime: opened.runtime,
-            herdr: opened.herdr,
-          }),
+        const reconnected = { ...deps, runtime: opened.runtime, herdr: opened.herdr };
+
+        assert.equal(value(await reconcileRuntime(request, reconnected)).state, 'running');
+        assert.equal(
+          value(await launchRuntime(request, reconnected)).session?.launchId,
+          ready.session.launchId,
         );
 
-        assert.equal(reconnected.state, 'running');
-        assert.equal(reconnected.session?.launchId, pending.session?.launchId);
-        assert.equal(calls.length, 1);
+        const input = { ...request, key: 'without-native', text: 'fixture assignment' };
+
+        assert.equal(value(await inputRuntime(input, reconnected)).reason, 'action_acknowledged');
+        assert.equal(value(await inputRuntime(input, reconnected)).reason, 'action_acknowledged');
+        assert.equal(
+          value(await interruptRuntime({ ...request, key: 'interrupt' }, reconnected)).reason,
+          'action_acknowledged',
+        );
+        assert.equal(calls.filter((call) => call.operation === 'input').length, 1);
+        assert.equal(calls.filter((call) => call.operation === 'interrupt').length, 1);
+        assert.equal(calls.filter((call) => call.operation === 'launch').length, 1);
+
+        const occupant = context.fake.snapshot(ready.session.space.target).agents[0];
+
+        assert.ok(occupant);
+
+        occupant.nativeSessionId = 'later-optional-metadata';
+
+        assert.equal(value(await inspectRuntime(request, reconnected)).state, 'running');
+
+        occupant.nativeSessionId = null;
+        modes.input = 'after';
+        const uncertain = { ...input, key: 'uncertain-input' };
+
+        assert.equal(value(await inputRuntime(uncertain, reconnected)).reason, 'action_pending');
+        assert.equal(value(await inputRuntime(uncertain, reconnected)).reason, 'action_pending');
+        assert.equal(
+          value(await inputRuntime({ ...uncertain, key: 'replacement' }, reconnected)).reason,
+          'action_pending',
+        );
+        assert.equal(calls.filter((call) => call.operation === 'input').length, 2);
+        assert.equal(calls.filter((call) => call.operation === 'launch').length, 1);
       } finally {
         opened.store.close();
       }
     });
   },
 );
+
+await test(
+  'missing or replaced worker name, kind and terminal block controls even without native IDs',
+  options,
+  async () => {
+    await fixture(async ({ prepare, deps, modes, calls, context }) => {
+      const job = await prepare();
+      const request = { schemaVersion: 1, attemptId: job.attempt.id };
+      modes.launch = 'missing-native';
+      const session = value(await launchRuntime(request, deps)).session;
+
+      assert.ok(session);
+
+      const snapshot = context.fake.snapshot(session.space.target);
+      const occupant = snapshot.agents[0];
+
+      assert.ok(occupant);
+
+      const saved = structuredClone(occupant);
+
+      for (const change of [
+        { name: null },
+        { name: 'replacement-worker' },
+        { kind: 'other-agent' },
+        { terminalId: 'replacement-terminal' },
+      ]) {
+        Object.assign(occupant, saved, change);
+
+        assert.equal(value(await inspectRuntime(request, deps)).state, 'unknown');
+        assert.equal(
+          value(await inputRuntime({ ...request, key: 'unsafe-input', text: 'fixture' }, deps))
+            .reason,
+          'identity_changed',
+        );
+        assert.equal(
+          value(await interruptRuntime({ ...request, key: 'unsafe-interrupt' }, deps)).reason,
+          'identity_changed',
+        );
+      }
+
+      snapshot.agents.length = 0;
+
+      assert.equal(value(await launchRuntime(request, deps)).state, 'unknown');
+      assert.equal(calls.length, 1);
+    });
+  },
+);
+
+for (const hasNativeId of [true, false]) {
+  await test(
+    `launch-before-handle crash reconnects without relaunch (native ID: ${hasNativeId})`,
+    options,
+    async () => {
+      await fixture(async ({ prepare, deps, modes, calls, context }) => {
+        const job = await prepare();
+        const request = { schemaVersion: 1, attemptId: job.attempt.id };
+        modes.launch = 'after';
+        const pending = value(await launchRuntime(request, deps));
+
+        assert.equal(pending.reason, 'launch_pending');
+        assert.equal(pending.session?.phase, 'pending');
+
+        if (!hasNativeId) {
+          assert.ok(pending.session);
+
+          const occupant = context.fake.snapshot(pending.session.space.target).agents[0];
+
+          assert.ok(occupant);
+
+          occupant.nativeSessionId = null;
+        }
+
+        const { openSqliteState } = await import('../src/index.js');
+        const opened = await openSqliteState({ schemaVersion: 1, stateDirectory: context.state });
+
+        assert.equal(opened.outcome, 'opened');
+
+        if (opened.outcome !== 'opened') {
+          assert.fail('Missing reopened state');
+        }
+
+        try {
+          const reconnected = value(
+            await reconcileRuntime(request, {
+              ...deps,
+              runtime: opened.runtime,
+              herdr: opened.herdr,
+            }),
+          );
+
+          assert.equal(reconnected.state, 'running');
+          assert.equal(reconnected.session?.launchId, pending.session?.launchId);
+          assert.equal(calls.length, 1);
+        } finally {
+          opened.store.close();
+        }
+      });
+    },
+  );
+}
 
 await test(
   'crash before external launch stays pending even after claims age; absence never authorizes a replacement',
@@ -275,6 +406,14 @@ await test(
       assert.equal(value(await inspectRuntime(request, deps)).state, 'unknown');
       assert.equal(
         value(await inputRuntime({ ...request, key: 'changed', text: 'fixture' }, deps)).reason,
+        'identity_changed',
+      );
+
+      occupant.nativeSessionId = null;
+
+      assert.equal(value(await inspectRuntime(request, deps)).state, 'unknown');
+      assert.equal(
+        value(await interruptRuntime({ ...request, key: 'missing-native' }, deps)).reason,
         'identity_changed',
       );
 
@@ -476,141 +615,170 @@ function execution(body: unknown): ProcessResult {
   };
 }
 
-await test(
-  'Herdr control adapter uses guarded pane targets, literal prompt argv and Escape only',
-  options,
-  async () => {
-    await fixture(async ({ prepare, deps }) => {
-      const job = await prepare();
-      const launched = value(
-        await launchRuntime({ schemaVersion: 1, attemptId: job.attempt.id }, deps),
-      ).session;
+for (const sessionEvidence of ['id', 'null', 'omitted'] as const) {
+  await test(
+    `Herdr control adapter uses verified agent names with ${sessionEvidence} native evidence`,
+    options,
+    async () => {
+      await fixture(async ({ prepare, deps }) => {
+        const job = await prepare();
+        const launched = value(
+          await launchRuntime({ schemaVersion: 1, attemptId: job.attempt.id }, deps),
+        ).session;
 
-      assert.ok(launched?.agent && launched.space.handle);
+        assert.ok(launched?.agent && launched.space.handle);
 
-      const space = { ...launched.space, agent: launched.agent };
+        const space = { ...launched.space, agent: launched.agent };
 
-      assert.ok(space.handle);
+        assert.ok(space.handle);
 
-      const requests: ProcessRequest[] = [];
-      let native = launched.agent.nativeSessionId;
-      let starting = false;
-      let agentStatus: 'idle' | 'working' | 'blocked' = 'idle';
-      const provider = createHerdrCliProvider({
-        executable: '/fixture/herdr',
-        endpoint: {
-          async read() {
-            const { protocol: _protocol, ...server } = space.server;
+        const requests: ProcessRequest[] = [];
+        let native = sessionEvidence === 'id' ? launched.agent.nativeSessionId : null;
+        space.agent = { ...launched.agent, nativeSessionId: native };
+        let agentName: string | null = space.expectedAgentName;
+        let terminalId = space.handle.terminalId;
+        let starting = false;
+        let agentStatus: 'idle' | 'working' | 'blocked' = 'idle';
+        const provider = createHerdrCliProvider({
+          executable: '/fixture/herdr',
+          endpoint: {
+            async read() {
+              const { protocol: _protocol, ...server } = space.server;
 
-            return server;
+              return server;
+            },
           },
-        },
-        runner: {
-          async run(request) {
-            requests.push(processRequestSchema.parse(request));
+          runner: {
+            async run(request) {
+              requests.push(processRequestSchema.parse(request));
 
-            if (request.args[0] === 'api') {
-              const handle = space.handle;
+              if (request.args[0] === 'api') {
+                const handle = space.handle;
 
-              assert.ok(handle);
+                assert.ok(handle);
 
-              const pane = {
-                workspace_id: handle.workspaceId,
-                tab_id: handle.tabId,
-                pane_id: handle.paneId,
-                terminal_id: handle.terminalId,
-                cwd: space.root,
-                foreground_cwd: space.root,
-              };
+                const pane = {
+                  workspace_id: handle.workspaceId,
+                  tab_id: handle.tabId,
+                  pane_id: handle.paneId,
+                  terminal_id: handle.terminalId,
+                  cwd: space.root,
+                  foreground_cwd: space.root,
+                };
+
+                return execution({
+                  result: {
+                    type: 'session_snapshot',
+                    snapshot: {
+                      protocol: 22,
+                      workspaces: [{ workspace_id: handle.workspaceId, label: 'worker' }],
+                      tabs: [{ workspace_id: handle.workspaceId, tab_id: handle.tabId }],
+                      panes: [pane],
+                      agents: starting
+                        ? []
+                        : [
+                            {
+                              ...pane,
+                              name: agentName,
+                              terminal_id: terminalId,
+                              agent: 'codex',
+                              agent_status: agentStatus,
+                              agent_session:
+                                sessionEvidence === 'omitted'
+                                  ? undefined
+                                  : native === null
+                                    ? null
+                                    : { kind: 'id', value: native },
+                            },
+                          ],
+                    },
+                  },
+                });
+              }
 
               return execution({
                 result: {
-                  type: 'session_snapshot',
-                  snapshot: {
-                    protocol: 22,
-                    workspaces: [{ workspace_id: handle.workspaceId, label: 'worker' }],
-                    tabs: [{ workspace_id: handle.workspaceId, tab_id: handle.tabId }],
-                    panes: [pane],
-                    agents: starting
-                      ? []
-                      : [
-                          {
-                            ...pane,
-                            name: space.expectedAgentName,
-                            agent: 'codex',
-                            agent_status: agentStatus,
-                            agent_session: { kind: 'id', value: native },
-                          },
-                        ],
-                  },
+                  type:
+                    request.args[1] === 'start'
+                      ? 'agent_started'
+                      : request.args[1] === 'prompt'
+                        ? 'agent_prompted'
+                        : 'ok',
                 },
               });
-            }
-
-            return execution({
-              result: {
-                type:
-                  request.args[1] === 'start'
-                    ? 'agent_started'
-                    : request.args[1] === 'prompt'
-                      ? 'agent_prompted'
-                      : 'ok',
-              },
-            });
+            },
           },
-        },
+        });
+        const text = 'literal; $(not-a-command)\nsecond line';
+
+        assert.equal((await provider.input(space, text)).outcome, 'completed');
+        assert.deepEqual(requests[1]?.args, ['agent', 'prompt', space.expectedAgentName, text]);
+        assert.equal((await provider.interrupt(space)).outcome, 'completed');
+        assert.deepEqual(requests[3]?.args, ['agent', 'send-keys', space.expectedAgentName, 'esc']);
+
+        if (sessionEvidence === 'id') {
+          native = 'replacement';
+        } else {
+          agentName = 'replacement-worker';
+        }
+
+        assert.equal((await provider.input(space, text)).outcome, 'rejected');
+        assert.equal(requests.length, 5);
+
+        native = space.agent.nativeSessionId;
+        agentName = space.expectedAgentName;
+        agentStatus = 'blocked';
+
+        assert.equal((await provider.interrupt(space)).outcome, 'rejected');
+        assert.equal(requests.length, 6);
+
+        agentStatus = 'working';
+
+        assert.equal((await provider.input(space, text)).outcome, 'rejected');
+        assert.equal(requests.length, 7);
+
+        starting = true;
+
+        assert.equal(
+          (
+            await provider.launch({
+              space: { ...space, agent: null },
+              args: nativeArgs,
+              timeoutMs: 30_000,
+            })
+          ).outcome,
+          'completed',
+        );
+        assert.deepEqual(requests[8]?.args, [
+          'agent',
+          'start',
+          space.expectedAgentName,
+          '--kind',
+          'codex',
+          '--pane',
+          space.handle.paneId,
+          '--timeout',
+          '29000',
+          '--',
+          ...nativeArgs,
+          '--cd',
+          space.root,
+        ]);
+        assert.equal(requests[8]?.timeoutMs, 30_000);
+
+        starting = false;
+        agentStatus = 'idle';
+        agentName = null;
+
+        assert.equal((await provider.input(space, text)).outcome, 'rejected');
+
+        agentName = space.expectedAgentName;
+        terminalId = 'replacement-terminal';
+
+        assert.equal((await provider.input(space, text)).outcome, 'rejected');
+        assert.equal((await provider.interrupt(space)).outcome, 'rejected');
+        assert.equal(requests.filter((request) => request.args[0] === 'agent').length, 3);
       });
-      const text = 'literal; $(not-a-command)\nsecond line';
-
-      assert.equal((await provider.input(space, text)).outcome, 'completed');
-      assert.deepEqual(requests[1]?.args, ['agent', 'prompt', space.handle.paneId, '--', text]);
-      assert.equal((await provider.interrupt(space)).outcome, 'completed');
-      assert.deepEqual(requests[3]?.args, ['agent', 'send-keys', space.handle.paneId, 'esc']);
-
-      native = 'replacement';
-
-      assert.equal((await provider.input(space, text)).outcome, 'rejected');
-      assert.equal(requests.length, 5);
-
-      native = launched.agent.nativeSessionId;
-      agentStatus = 'blocked';
-
-      assert.equal((await provider.interrupt(space)).outcome, 'rejected');
-      assert.equal(requests.length, 6);
-
-      agentStatus = 'working';
-
-      assert.equal((await provider.input(space, text)).outcome, 'rejected');
-      assert.equal(requests.length, 7);
-
-      starting = true;
-
-      assert.equal(
-        (
-          await provider.launch({
-            space: { ...space, agent: null },
-            args: nativeArgs,
-            timeoutMs: 30_000,
-          })
-        ).outcome,
-        'completed',
-      );
-      assert.deepEqual(requests[8]?.args, [
-        'agent',
-        'start',
-        space.expectedAgentName,
-        '--kind',
-        'codex',
-        '--pane',
-        space.handle.paneId,
-        '--timeout',
-        '29000',
-        '--',
-        ...nativeArgs,
-        '--cd',
-        space.root,
-      ]);
-      assert.equal(requests[8]?.timeoutMs, 30_000);
-    });
-  },
-);
+    },
+  );
+}

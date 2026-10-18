@@ -1,3 +1,18 @@
+import {
+  inspectRun,
+  acceptRunReport,
+  respondToRun,
+  resumeRun,
+  cancelRun,
+  readRunEvents,
+  readRunCursor,
+  checkpointRunEvents,
+  type RunDependencies,
+} from '../application/runs.js';
+import { nodeRunArtifactReader } from '../adapters/filesystem/run-artifacts.js';
+import { nodeRunEventWaiter } from '../adapters/local/run-waiter.js';
+import type { ImplementationWorkerInput } from '../ports/implementation.js';
+import type { RunWorkerControl } from '../ports/runs.js';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { serviceRpcRequestSchema, type ServiceRpcResponse } from '../contracts/service-rpc.js';
@@ -43,6 +58,8 @@ export async function startLocalService(
     runtimes?: readonly ServiceWorkerRuntime[];
     reviewTargets?: ReviewTargetReader;
     githubExecutable?: string;
+    runWorkerInput?: ImplementationWorkerInput;
+    runWorkerControl?: RunWorkerControl;
     codexHerdr?: { herdrExecutable?: string; codexExecutable?: string };
   } = {},
 ) {
@@ -139,6 +156,33 @@ export async function startLocalService(
                 ),
             }),
     };
+    let workerInput: ImplementationWorkerInput = options.runWorkerInput ?? {
+      receipt({ attemptId, key }) {
+        const result = opened.runtime.action(attemptId, key);
+
+        if (result.outcome === 'rejected' || result.value === null) {
+          return result;
+        }
+
+        const action = result.value;
+
+        return action.kind === 'input'
+          ? completed({ key: action.key, digest: action.digest, state: action.state })
+          : rejected('runtime_conflict', 'Input key identifies a different action.');
+      },
+      submit: async () =>
+        rejected(
+          'run_control_unavailable',
+          'Enable the approved runtime before resuming a worker.',
+        ),
+    };
+    let workerControl: RunWorkerControl = options.runWorkerControl ?? {
+      interrupt: async () =>
+        rejected(
+          'run_control_unavailable',
+          'Enable the approved runtime before interrupting a worker.',
+        ),
+    };
     const runtimes = [...(options.runtimes ?? [])];
 
     if (options.codexHerdr) {
@@ -155,16 +199,25 @@ export async function startLocalService(
         );
       }
 
-      runtimes.push(
-        composeCodexHerdrRuntime({
-          opened,
-          dependencies,
-          reviewDependencies,
-          herdrExecutable: herdr,
-          codexExecutable: codex,
-        }),
-      );
+      const codexRuntime = composeCodexHerdrRuntime({
+        opened,
+        dependencies,
+        reviewDependencies,
+        herdrExecutable: herdr,
+        codexExecutable: codex,
+      });
+      runtimes.push(codexRuntime.runtime);
+      workerInput = options.runWorkerInput ?? codexRuntime.workerInput;
+      workerControl = options.runWorkerControl ?? codexRuntime.workerControl;
     }
+
+    const runDependencies: RunDependencies = {
+      ...reviewDependencies,
+      runs: opened.runs,
+      artifacts: nodeRunArtifactReader,
+      workerInput,
+      workerControl,
+    };
 
     let fatal = false;
     let closing: Promise<OperationResult<{ closed: true }>> | null = null;
@@ -186,7 +239,7 @@ export async function startLocalService(
     const transport = await listenLocalService({
       stateDirectory: opened.stateDirectory,
       sessionId,
-      async handle(input): Promise<ServiceRpcResponse> {
+      async handle(input, signal): Promise<ServiceRpcResponse> {
         const parsed = parseOperationRequest(serviceRpcRequestSchema, input);
 
         if (!parsed.valid) {
@@ -203,6 +256,54 @@ export async function startLocalService(
         const request = parsed.value;
 
         switch (request.operation) {
+          case 'run_inspect':
+            return inspectRun({ schemaVersion: 1, jobId: request.jobId }, runDependencies, signal);
+          case 'run_events': {
+            const { operation: _operation, ...value } = request;
+
+            return readRunEvents(
+              value,
+              { runs: opened.runs, now: () => performance.now(), waiter: nodeRunEventWaiter },
+              signal,
+            );
+          }
+
+          case 'run_cursor': {
+            const { operation: _operation, ...value } = request;
+
+            return readRunCursor(value, runDependencies);
+          }
+
+          case 'run_checkpoint': {
+            const { operation: _operation, ...value } = request;
+
+            return checkpointRunEvents(value, runDependencies);
+          }
+
+          case 'run_report': {
+            const { operation: _operation, ...value } = request;
+
+            return acceptRunReport(value, runDependencies, signal);
+          }
+
+          case 'run_respond': {
+            const { operation: _operation, ...value } = request;
+
+            return respondToRun(value, runDependencies, signal);
+          }
+
+          case 'run_resume': {
+            const { operation: _operation, ...value } = request;
+
+            return resumeRun(value, runDependencies, signal);
+          }
+
+          case 'run_cancel': {
+            const { operation: _operation, ...value } = request;
+
+            return cancelRun(value, runDependencies, signal);
+          }
+
           case 'status':
             return coordinator.status();
           case 'wake':

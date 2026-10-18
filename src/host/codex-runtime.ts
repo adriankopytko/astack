@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { createCodexHerdrRuntime } from '../application/runtime.js';
 import { createReviewRuntime, type ReviewDependencies } from '../application/review.js';
 import { createImplementationRuntime } from '../application/implementation.js';
+import { createCodexRunControl } from '../application/codex-run-control.js';
 import { createCodexImplementationInput } from '../application/codex-implementation-input.js';
 import { nodeImplementationContextReader } from '../adapters/filesystem/implementation-context.js';
 import type { RuntimeDependencies } from '../application/runtime.js';
@@ -50,9 +51,15 @@ export function composeCodexHerdrRuntime(input: {
     workerInput: createCodexImplementationInput(dependencies),
   });
 
-  return createReviewRuntime({
+  const runtime = createReviewRuntime({
     runtime: implementation,
     dependencies: input.reviewDependencies,
     workerInput: createCodexImplementationInput(dependencies),
   });
+
+  return {
+    runtime,
+    workerInput: createCodexImplementationInput(dependencies),
+    workerControl: createCodexRunControl(dependencies),
+  };
 }

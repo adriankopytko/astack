@@ -193,6 +193,18 @@ export function createServiceCoordinator(input: {
   }
 
   async function observe(job: ServiceJob, start: boolean): Promise<void> {
+    const saved = dependencies.queue.read(job.job.id);
+
+    if (saved.outcome !== 'completed' || !saved.value) {
+      throw new Error('Dispatch assignment unavailable');
+    }
+
+    job = saved.value;
+
+    if (start && job.entry.control && job.entry.control.phase !== 'active') {
+      return;
+    }
+
     const provider = runtime(job);
     let observation: WorkerObservation;
 
@@ -233,7 +245,11 @@ export function createServiceCoordinator(input: {
 
     phase = 'running';
     await visit(async (job) => {
-      if (job.entry.claim !== null || !['queued', 'blocked'].includes(job.entry.state)) {
+      if (
+        (job.entry.control && job.entry.control.phase !== 'active') ||
+        job.entry.claim !== null ||
+        !['queued', 'blocked'].includes(job.entry.state)
+      ) {
         return;
       }
 

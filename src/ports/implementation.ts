@@ -12,7 +12,7 @@ export interface ImplementationContextReader {
     signal?: AbortSignal,
   ): Promise<OperationResult<InstructionReference[]>>;
 }
-/** The provider MUST persist keys/digests before input, never replay pending writes, and bind the saved attempt. */
+/** The provider MUST persist keys/digests before input, never replay pending or acknowledged writes, and bind the saved attempt. */
 export interface ImplementationWorkerInput {
   receipt(input: {
     attemptId: string;

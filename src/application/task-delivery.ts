@@ -193,6 +193,13 @@ export function createTaskDeliveryRuntime<T extends DeliveryTask>(input: {
         return evidence(base, progress('blocked', 'not_submitted', 'assignment_changed'));
       }
 
+      if (current.entry.control && current.entry.control.phase !== 'active') {
+        return evidence(
+          base,
+          progress('blocked', 'not_submitted', `run_${current.entry.control.phase}`),
+        );
+      }
+
       const config = read(
         await checkConfigurationDispatch({ schemaVersion: 1, job: job.job }, deps, signal),
       );
@@ -396,6 +403,35 @@ export function taskDeliveryProgress(
 
   if (job.entry.claim && job.entry.state !== 'blocked' && evidence.success) {
     state = evidence.data;
+  }
+
+  const control = job.entry.control;
+
+  if (control?.phase === 'needs_decision') {
+    return {
+      ...state,
+      state: job.entry.state === 'unknown' ? 'unknown' : 'needs_decision',
+      reason: 'decision_required',
+    };
+  }
+
+  if (control?.phase === 'cancel_requested') {
+    return {
+      ...state,
+      state: job.entry.state === 'unknown' ? 'unknown' : 'blocked',
+      reason: 'cancel_requested',
+    };
+  }
+
+  if (control && ['completed', 'failed', 'cancelled'].includes(control.phase)) {
+    const outcome = control.phase as 'completed' | 'failed' | 'cancelled';
+
+    return {
+      ...state,
+      state: job.entry.state === 'unknown' ? 'unknown' : outcome,
+      reason: job.entry.state === 'unknown' ? state.reason : null,
+      acceptedOutcome: outcome,
+    };
   }
 
   return state;

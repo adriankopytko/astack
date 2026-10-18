@@ -249,4 +249,36 @@ CREATE INDEX review_target_lookup ON jobs(project_id, repository_id,
   json_extract(data, '$.intent.task.submission.target.sha')) WHERE operation='delegate:reviewer';
 `,
   },
+  {
+    version: 8,
+    sql: `
+CREATE TABLE run_controls (job_id TEXT PRIMARY KEY REFERENCES service_entries(job_id), data TEXT NOT NULL CHECK(json_valid(data))) STRICT;
+CREATE TABLE run_reports (job_id TEXT NOT NULL REFERENCES service_entries(job_id), report_key TEXT NOT NULL, id TEXT NOT NULL UNIQUE, data TEXT NOT NULL CHECK(json_valid(data)), PRIMARY KEY(job_id, report_key)) STRICT;
+CREATE TABLE run_responses (job_id TEXT NOT NULL REFERENCES service_entries(job_id), response_key TEXT NOT NULL, id TEXT NOT NULL UNIQUE, data TEXT NOT NULL CHECK(json_valid(data)), PRIMARY KEY(job_id, response_key)) STRICT;
+CREATE TABLE run_resumes (job_id TEXT NOT NULL REFERENCES service_entries(job_id), resume_key TEXT NOT NULL, response_id TEXT NOT NULL UNIQUE REFERENCES run_responses(id), state TEXT NOT NULL, data TEXT NOT NULL CHECK(json_valid(data)), PRIMARY KEY(job_id, resume_key)) STRICT;
+CREATE UNIQUE INDEX one_unsettled_resume ON run_resumes(job_id) WHERE state IN ('authorized','pending','unknown');
+CREATE TABLE run_cancellations (job_id TEXT NOT NULL REFERENCES service_entries(job_id), cancel_key TEXT NOT NULL, data TEXT NOT NULL CHECK(json_valid(data)), PRIMARY KEY(job_id,cancel_key)) STRICT;
+CREATE TABLE run_events (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL REFERENCES projects(id), job_id TEXT NOT NULL REFERENCES service_entries(job_id), attempt_id TEXT NOT NULL REFERENCES attempts(id), data TEXT NOT NULL CHECK(json_valid(data))) STRICT;
+CREATE INDEX run_events_job ON run_events(job_id,id);
+CREATE INDEX run_events_project ON run_events(project_id,id);
+CREATE TABLE run_cursors (consumer TEXT NOT NULL, scope TEXT NOT NULL, data TEXT NOT NULL CHECK(json_valid(data)), PRIMARY KEY(consumer,scope)) STRICT;
+INSERT INTO run_events(project_id,job_id,attempt_id,data)
+SELECT jobs.project_id, jobs.id, service_entries.attempt_id, json_object('projectId',jobs.project_id,'jobId',jobs.id,'attemptId',service_entries.attempt_id,'kind','baseline','createdAt',json_extract(jobs.data,'$.createdAt'),'detail',json_object('state',service_entries.state)) FROM jobs JOIN service_entries ON jobs.id=service_entries.job_id ORDER BY service_entries.queued_at,jobs.id;
+`,
+  },
+  {
+    version: 9,
+    sql: `
+CREATE TABLE runtime_input_retries (
+  attempt_id TEXT NOT NULL REFERENCES runtime_sessions(attempt_id),
+  action_key TEXT NOT NULL,
+  generation INTEGER NOT NULL CHECK(generation >= 0),
+  data TEXT NOT NULL CHECK(json_valid(data))
+    CHECK(json_extract(data, '$.attemptId') IS attempt_id)
+    CHECK(json_extract(data, '$.key') IS action_key)
+    CHECK(json_extract(data, '$.generation') IS generation),
+  PRIMARY KEY(attempt_id, action_key, generation)
+) STRICT;
+`,
+  },
 ] as const;

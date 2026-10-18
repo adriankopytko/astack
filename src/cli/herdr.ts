@@ -20,6 +20,7 @@ import {
   reconcileRuntime,
   inputRuntime,
   interruptRuntime,
+  authorizeRuntimeInputRetry,
   type RuntimeDependencies,
 } from '../application/runtime.js';
 import type { StateWriteResult } from '../contracts/state.js';
@@ -36,6 +37,9 @@ import {
 import { nodeProcessRunner } from '../core/node-process-runner.js';
 import { gitExecutable, hostExecutable } from '../core/host-git.js';
 import { rejected } from '../contracts/operation-result.js';
+import { acquireCoordinatorOwnership } from '../adapters/state/coordinator-ownership.js';
+import { StateError } from '../adapters/state/errors.js';
+import type { CoordinatorOwnership } from '../ports/service.js';
 
 type CommandResult = HerdrResult | StateWriteResult<HerdrSettings> | OperationResult<RuntimeStatus>;
 
@@ -79,12 +83,35 @@ export function wireHerdrCommands(program: Command): void {
     json: boolean | undefined,
     action: (deps: RuntimeDependencies) => Promise<CommandResult>,
     codexExecutable?: string,
+    exclusive = false,
   ) {
     const host = program.opts<{
       stateDirectory?: string;
       gitExecutable?: string;
       herdrExecutable?: string;
     }>();
+    let ownership: CoordinatorOwnership | undefined;
+
+    if (exclusive) {
+      try {
+        ownership = await acquireCoordinatorOwnership(
+          host.stateDirectory === undefined
+            ? join(homedir(), '.local', 'state', 'astack')
+            : resolve(process.cwd(), host.stateDirectory),
+        );
+      } catch (error) {
+        render(
+          rejected(
+            error instanceof StateError ? error.code : 'state_unavailable',
+            'Retry authorization needs safe private state and exclusive coordinator ownership; stop all original input writers first.',
+          ),
+          json,
+        );
+
+        return;
+      }
+    }
+
     const opened = await openSqliteState({
       schemaVersion: 1,
       mode: writable ? 'read-write' : 'read-only',
@@ -94,6 +121,7 @@ export function wireHerdrCommands(program: Command): void {
     });
 
     if (opened.outcome !== 'opened') {
+      ownership?.release();
       render(opened, json);
 
       return;
@@ -137,6 +165,8 @@ export function wireHerdrCommands(program: Command): void {
       };
       render(await action(deps), json);
     } finally {
+      ownership?.release();
+
       if (opened.store.close().outcome === 'rejected') {
         process.stderr.write('State cleanup failed; inspect saved intent before retrying.\n');
         process.exitCode = 1;
@@ -153,6 +183,58 @@ export function wireHerdrCommands(program: Command): void {
     .action(() => {
       process.stdout.write(`${JSON.stringify(runtimeCapabilities)}\n`);
     });
+
+  runtime
+    .command('authorize-input-retry')
+    .description(
+      'Host attestation of proven non-delivery; archive exact pending input and authorize a future retry, without sending it',
+    )
+    .requiredOption('--attempt <id>', 'Saved attempt')
+    .requiredOption('--key <key>', 'Exact pending input key')
+    .requiredOption('--digest <sha256>', 'Exact pending input digest')
+    .requiredOption('--generation <number>', 'Exact pending action generation')
+    .requiredOption(
+      '--not-submitted',
+      'Attest independent proof that this input never reached its worker',
+    )
+    .requiredOption(
+      '--writer-stopped',
+      'Attest original callers and their descendants stopped with no late write possible',
+    )
+    .option('--codex-executable <absolute-path>', 'Approved canonical Codex executable')
+    .option('--json', 'Print saved authorization evidence')
+    .action(
+      async (options: {
+        attempt: string;
+        key: string;
+        digest: string;
+        generation: string;
+        notSubmitted: boolean;
+        writerStopped: boolean;
+        codexExecutable?: string;
+        json?: boolean;
+      }) => {
+        await execute(
+          true,
+          options.json,
+          (deps) =>
+            authorizeRuntimeInputRetry(
+              {
+                schemaVersion: 1,
+                attemptId: options.attempt,
+                key: options.key,
+                digest: options.digest,
+                generation: /^\d+$/.test(options.generation) ? Number(options.generation) : -1,
+                notSubmitted: options.notSubmitted,
+                writerStopped: options.writerStopped,
+              },
+              deps,
+            ),
+          options.codexExecutable,
+          true,
+        );
+      },
+    );
 
   for (const operation of ['inspect', 'reconcile', 'input', 'interrupt'] as const) {
     const command = runtime

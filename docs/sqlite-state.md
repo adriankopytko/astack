@@ -125,3 +125,9 @@ Migration 6 adds one runtime session per saved service attempt, unique launch/ef
 Implementation jobs reuse existing job/configuration/attempt/effect records and runtime action receipts; no migration is added. Versioned task packets contain selected context, owned-checkout identity, instruction path/digest references and result contract version. The service store provides a read-only scoped idempotency lookup, and the worktree store provides a checkout lookup for the consuming ownership gate. See [implementation delegation](implementation.md).
 
 Migration 7 adds transactional manual-review request aliases and a target lookup index. Aliases preserve each normalized request key while same-target requests reuse one unresolved review. See [manual review](review.md). Existing migrations remain unchanged.
+
+Migration 8 adds run control, report/response/continuation/cancellation records, monotonic events and scoped consumer cursors. Queue/run changes append events in their write transaction; existing service entries get baseline observations without provider effects. Existing generic terminal results block new dispatch and remain distinguishable from validated report records. See [run operations](runs.md).
+
+## Runtime input retry journal (migration 9)
+
+`runtime_input_retries` preserves explicit host-attested authorization keyed by attempt/input key/generation, including digest, launch binding and timestamp. Authorization and removal of the exact active pending input are one transaction. Recreated same-key actions use the next generation and must retain the original input digest/kind. Older action JSON defaults to generation zero. Full-action comparisons reject delayed acknowledgements. The journal neither proves non-delivery nor authorizes a provider write itself; see [runtime recovery](runtime.md#explicit-recovery-after-proven-input-refusal).

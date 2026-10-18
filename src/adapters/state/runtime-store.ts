@@ -1,6 +1,7 @@
 import {
   runtimeSessionSchema,
   runtimeActionSchema,
+  runtimeInputRetrySchema,
   type RuntimeSession,
 } from '../../contracts/runtime.js';
 import { serviceEntrySchema } from '../../contracts/service.js';
@@ -26,6 +27,14 @@ export function createSqliteRuntimeStore(db: StateDatabase, now: () => number): 
       runtimeActionSchema,
       "SELECT data FROM runtime_actions WHERE attempt_id=? AND state='pending'",
       id,
+    );
+  const inputRetry = (id: string, key: string, generation: number) =>
+    db.get(
+      runtimeInputRetrySchema,
+      'SELECT data FROM runtime_input_retries WHERE attempt_id=? AND action_key=? AND generation=?',
+      id,
+      key,
+      generation,
     );
   function checked(previous: RuntimeSession) {
     const current = read(previous.attemptId);
@@ -64,6 +73,7 @@ export function createSqliteRuntimeStore(db: StateDatabase, now: () => number): 
     read: (id) => db.read(() => read(id)),
     action: (id, key) => db.read(() => action(id, key)),
     pending: (id) => db.read(() => pending(id)),
+    inputRetry: (id, key, generation) => db.read(() => inputRetry(id, key, generation)),
     reserve(input) {
       return db.write(() => {
         const value = runtimeSessionSchema.parse(input);
@@ -140,15 +150,34 @@ export function createSqliteRuntimeStore(db: StateDatabase, now: () => number): 
       return db.write(() => {
         checked(session);
         active(session);
-        const value = runtimeActionSchema.parse(input);
+        let value = runtimeActionSchema.parse(input);
         const existing = action(value.attemptId, value.key);
 
         if (existing) {
-          if (!same({ ...existing, state: value.state }, value)) {
+          if (!same({ ...existing, state: value.state, generation: value.generation }, value)) {
             stateFailure('runtime_conflict');
           }
 
           return { value: existing, disposition: 'existing' };
+        }
+
+        const previous = db.get(
+          runtimeInputRetrySchema,
+          'SELECT data FROM runtime_input_retries WHERE attempt_id=? AND action_key=? ORDER BY generation DESC LIMIT 1',
+          value.attemptId,
+          value.key,
+        );
+
+        if (previous) {
+          if (
+            value.kind !== 'input' ||
+            value.digest !== previous.digest ||
+            previous.launchId !== session.launchId
+          ) {
+            stateFailure('runtime_conflict');
+          }
+
+          value = runtimeActionSchema.parse({ ...value, generation: previous.generation + 1 });
         }
 
         if (
@@ -181,6 +210,62 @@ export function createSqliteRuntimeStore(db: StateDatabase, now: () => number): 
         ).run(next.state, canonicalJson(next), next.attemptId, next.key);
 
         return { value: next, disposition: 'updated' };
+      });
+    },
+    authorizeInputRetry(session, previous) {
+      return db.write(() => {
+        checked(session);
+        active(session);
+        const value = runtimeActionSchema.parse(previous);
+        const existing = inputRetry(value.attemptId, value.key, value.generation);
+
+        if (existing) {
+          if (existing.digest !== value.digest || existing.launchId !== session.launchId) {
+            stateFailure('runtime_conflict');
+          }
+
+          return { value: existing, disposition: 'existing' };
+        }
+
+        const current = action(value.attemptId, value.key);
+        const control = db
+          .statement(
+            "SELECT json_extract(data,'$.phase') AS phase FROM run_controls WHERE job_id=?",
+          )
+          .get(session.jobId);
+
+        if (
+          (control && control.phase !== 'active') ||
+          session.phase !== 'ready' ||
+          session.attemptId !== value.attemptId ||
+          value.kind !== 'input' ||
+          value.state !== 'pending' ||
+          !current ||
+          !same(current, value)
+        ) {
+          stateFailure('runtime_conflict');
+        }
+
+        const recovery = runtimeInputRetrySchema.parse({
+          attemptId: value.attemptId,
+          key: value.key,
+          digest: value.digest,
+          generation: value.generation,
+          launchId: session.launchId,
+          source: 'host-attestation',
+          notSubmitted: true,
+          writerStopped: true,
+          authorizedAt: now(),
+        });
+        db.statement(
+          'INSERT INTO runtime_input_retries(attempt_id,action_key,generation,data) VALUES (?,?,?,?)',
+        ).run(value.attemptId, value.key, value.generation, canonicalJson(recovery));
+        db.statement('DELETE FROM runtime_actions WHERE attempt_id=? AND action_key=?').run(
+          value.attemptId,
+          value.key,
+        );
+
+        return { value: recovery, disposition: 'created' };
       });
     },
   };

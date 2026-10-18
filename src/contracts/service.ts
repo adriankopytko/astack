@@ -1,3 +1,4 @@
+import { runControlSchema } from './run-control.js';
 import { z } from 'zod';
 import { configurationRequestSchema } from './configuration.js';
 import { worktreePrepareRequestSchema } from './worktrees.js';
@@ -57,6 +58,7 @@ export const serviceEntrySchema = z
       ])
       .nullable(),
     readiness: operationErrorSchema.nullable().optional(),
+    control: runControlSchema.optional(),
     claim: stateClaimSchema.nullable(),
     observation: workerObservationSchema.nullable(),
   })

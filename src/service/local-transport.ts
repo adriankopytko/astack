@@ -16,7 +16,7 @@ import { exclusiveFile, readRegularFile } from '../core/file-paths.js';
 export async function listenLocalService(input: {
   stateDirectory: string;
   sessionId: string;
-  handle: (request: unknown) => Promise<ServiceRpcResponse>;
+  handle: (request: unknown, signal: AbortSignal) => Promise<ServiceRpcResponse>;
 }) {
   const root = await serviceRoot(input.stateDirectory);
   const path = join(root.path, serviceSocketName);
@@ -39,7 +39,14 @@ export async function listenLocalService(input: {
   let closing = false;
   const connections = new Set<Socket>();
   const requests = new Set<Promise<void>>();
+  const controllers = new Set<AbortController>();
   const server = createServer({ allowHalfOpen: true }, (socket) => {
+    const controller = new AbortController();
+    controllers.add(controller);
+    socket.once('close', () => {
+      controller.abort();
+      controllers.delete(controller);
+    });
     connections.add(socket);
     socket.on('error', () => socket.destroy());
     socket.once('close', () => connections.delete(socket));
@@ -88,7 +95,7 @@ export async function listenLocalService(input: {
             throw new Error('One request per connection');
           }
 
-          result = await input.handle(JSON.parse(text) as unknown);
+          result = await input.handle(JSON.parse(text) as unknown, controller.signal);
         } catch {
           result = rejected(
             'service_protocol_error',
@@ -150,6 +157,11 @@ export async function listenLocalService(input: {
     path,
     async close(): Promise<void> {
       closing = true;
+
+      for (const controller of controllers) {
+        controller.abort();
+      }
+
       const closed = new Promise<void>((resolve) => server.close(() => resolve()));
       await Promise.allSettled(requests);
 

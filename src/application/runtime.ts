@@ -5,6 +5,7 @@ import {
   runtimeRequestSchema,
   runtimeInputRequestSchema,
   runtimeInterruptRequestSchema,
+  runtimeInputRetryRequestSchema,
   runtimeSessionSchema,
   runtimeCapabilities,
   type RuntimeSession,
@@ -102,7 +103,11 @@ function controlSignal(timeoutMs: number, signal?: AbortSignal): AbortSignal {
   return signal ? AbortSignal.any([signal, deadline]) : deadline;
 }
 
-async function jobFor(attemptId: string, deps: RuntimeDependencies): Promise<ServiceJob> {
+async function jobFor(
+  attemptId: string,
+  deps: RuntimeDependencies,
+  allowHalted = false,
+): Promise<ServiceJob> {
   const run = read(await deps.registry.readRun(attemptId));
   const job = run ? read(deps.queue.read(run.jobId)) : null;
   const attempt = read(
@@ -115,7 +120,9 @@ async function jobFor(attemptId: string, deps: RuntimeDependencies): Promise<Ser
     !job.entry.claim ||
     !['dispatching', 'started', 'unknown'].includes(job.entry.state) ||
     attempt?.entity !== 'attempt' ||
-    attempt.resolvedAt !== null
+    (!allowHalted &&
+      (attempt.resolvedAt !== null ||
+        (job.entry.control !== undefined && job.entry.control.phase !== 'active')))
   ) {
     throw new RuntimeFailure(
       rejected(
@@ -250,8 +257,11 @@ async function observed(session: RuntimeSession, deps: RuntimeDependencies, sign
     result.reason ||
     !result.observation?.agent ||
     result.observation.agent.kind !== 'codex' ||
-    !result.observation.agent.nativeSessionId ||
-    (session.agent && !isDeepStrictEqual(result.observation.agent, session.agent))
+    (session.agent &&
+      (result.observation.agent.name !== session.agent.name ||
+        result.observation.agent.kind !== session.agent.kind ||
+        (session.agent.nativeSessionId !== null &&
+          result.observation.agent.nativeSessionId !== session.agent.nativeSessionId)))
   ) {
     return null;
   }
@@ -405,6 +415,7 @@ export async function launchRuntime(
     }
 
     try {
+      await jobFor(attemptId, deps);
       // Persistence precedes the only launch call. Cancellation/timeout after this point leaves unknown intent.
       const launched = await deps.worker.launch(
         { space, ...command },
@@ -419,6 +430,70 @@ export async function launchRuntime(
     } catch {
       return status(session, 'unknown', 'launch_pending');
     }
+  });
+}
+
+/** Host-only authorization after independently proving non-delivery and stopping all original writers. Sends no input. */
+export async function authorizeRuntimeInputRetry(
+  input: unknown,
+  deps: RuntimeDependencies,
+  signal?: AbortSignal,
+) {
+  return perform(runtimeInputRetryRequestSchema, input, signal, async (request) => {
+    const session = read(deps.runtime.read(request.attemptId));
+    const existing = read(
+      deps.runtime.inputRetry(request.attemptId, request.key, request.generation),
+    );
+
+    if (existing) {
+      if (existing.digest !== request.digest || existing.launchId !== session?.launchId) {
+        return rejected('runtime_conflict', 'Retry authorization does not match the saved action.');
+      }
+
+      return completed({
+        ...read(
+          await inspectRuntime({ schemaVersion: 1, attemptId: request.attemptId }, deps, signal),
+        ),
+        inputRetry: existing,
+      });
+    }
+
+    const action = read(deps.runtime.action(request.attemptId, request.key));
+
+    if (
+      !session ||
+      session.phase !== 'ready' ||
+      !action ||
+      action.kind !== 'input' ||
+      action.state !== 'pending' ||
+      action.digest !== request.digest ||
+      action.generation !== request.generation
+    ) {
+      return rejected('runtime_conflict', 'Select the exact pending input generation and digest.');
+    }
+
+    await approved(await jobFor(request.attemptId, deps), deps, signal);
+    const observation = await observed(session, deps, signal);
+
+    if (!observation?.agent) {
+      return status(session, 'unknown', 'identity_changed');
+    }
+
+    if (observation.agentStatus !== 'idle' && observation.agentStatus !== 'done') {
+      return status(session, 'blocked', 'agent_busy', observation.agentStatus);
+    }
+
+    if (signal?.aborted) {
+      return rejected('cancelled', 'Retry authorization was cancelled before persistence.');
+    }
+
+    await jobFor(request.attemptId, deps);
+    const recovery = write(deps.runtime.authorizeInputRetry(session, action));
+
+    return completed({
+      ...read(status(session, 'running', 'input_retry_authorized', observation.agentStatus)),
+      inputRetry: recovery,
+    });
   });
 }
 
@@ -461,7 +536,7 @@ async function control(
       return status(session, 'blocked', 'launch_pending');
     }
 
-    const job = await jobFor(attemptId, deps);
+    const job = await jobFor(attemptId, deps, kind === 'interrupt');
     const command = await approved(job, deps, signal);
     const observation = await observed(session, deps, signal);
 
@@ -496,21 +571,18 @@ async function control(
       return rejected('cancelled', 'Runtime control was cancelled before acceptance.');
     }
 
-    const action: RuntimeAction = { attemptId, key, kind, digest, state: 'pending' };
+    await jobFor(attemptId, deps, kind === 'interrupt');
+
+    const action: RuntimeAction = { attemptId, key, kind, digest, state: 'pending', generation: 0 };
     const reserved = deps.runtime.reserveAction(session, action);
-    write(reserved);
+    const acceptedAction = write(reserved);
 
     if (reserved.outcome !== 'persisted' || reserved.disposition !== 'created') {
-      return status(
-        session,
-        'unknown',
-        'action_pending',
-        observation.agentStatus,
-        reserved.outcome === 'persisted' ? reserved.value : action,
-      );
+      return status(session, 'unknown', 'action_pending', observation.agentStatus, acceptedAction);
     }
 
     try {
+      await jobFor(attemptId, deps, kind === 'interrupt');
       const bound = { ...session.space, agent: session.agent };
       const response =
         kind === 'input'
@@ -518,10 +590,10 @@ async function control(
           : await deps.worker.interrupt(bound, controlSignal(command.timeoutMs, signal));
 
       if (response.outcome === 'rejected') {
-        return status(session, 'unknown', 'action_pending', null, action);
+        return status(session, 'unknown', 'action_pending', null, acceptedAction);
       }
 
-      const saved = write(deps.runtime.acknowledge(action));
+      const saved = write(deps.runtime.acknowledge(acceptedAction));
 
       const fresh = read(await inspectRuntime({ schemaVersion: 1, attemptId }, deps, signal));
 
@@ -533,7 +605,7 @@ async function control(
         saved,
       );
     } catch {
-      return status(session, 'unknown', 'action_pending', null, action);
+      return status(session, 'unknown', 'action_pending', null, acceptedAction);
     }
   });
 }

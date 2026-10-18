@@ -15,7 +15,7 @@ function render(result: ServiceRpcResponse, json?: boolean) {
   } else if ('implementation' in result.value) {
     const { job, implementation } = result.value;
     process.stdout.write(
-      `Job: ${job.job.id}\nAttempt: ${job.attempt.id}\nProject: ${job.job.projectId}\nCheckout: ${job.job.checkoutId}\nState: ${implementation.state}\nDelivery: ${implementation.delivery}\nReason: ${implementation.reason ?? 'none'}\nAccepted result: none\n`,
+      `Job: ${job.job.id}\nAttempt: ${job.attempt.id}\nProject: ${job.job.projectId}\nCheckout: ${job.job.checkoutId}\nState: ${implementation.state}\nDelivery: ${implementation.delivery}\nReason: ${implementation.reason ?? 'none'}\nAccepted result: ${implementation.acceptedOutcome ?? 'none'}\n`,
     );
   }
 

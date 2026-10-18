@@ -5,6 +5,7 @@ import { wireProjectCommands } from './projects.js';
 import { wireWorktreeCommands } from './worktrees.js';
 import { wireConfigurationCommands } from './configuration.js';
 import { wireServiceCommands } from './service.js';
+import { wireRunCommands } from './runs.js';
 import { wireReviewCommands } from './review.js';
 import { wireImplementationCommands } from './implementation.js';
 import { wireHerdrCommands } from './herdr.js';
@@ -64,6 +65,7 @@ export function createProgram(version: string): Command {
   wireHerdrCommands(program);
   wireImplementationCommands(program);
   wireReviewCommands(program);
+  wireRunCommands(program);
 
   return program;
 }

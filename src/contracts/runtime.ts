@@ -26,6 +26,16 @@ export const runtimeInputRequestSchema = runtimeRequestSchema.extend({
   text: workerInputTextSchema,
 });
 export const runtimeInterruptRequestSchema = runtimeRequestSchema.extend({ key: stateIdSchema });
+export const runtimeInputRetryRequestSchema = runtimeInterruptRequestSchema.extend({
+  digest: z.string().regex(/^[0-9a-f]{64}$/),
+  generation: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(Number.MAX_SAFE_INTEGER - 1),
+  notSubmitted: z.literal(true),
+  writerStopped: z.literal(true),
+});
 export const runtimeSessionSchema = z
   .strictObject({
     schemaVersion: z.literal(1),
@@ -46,9 +56,7 @@ export const runtimeSessionSchema = z
       value.space.handle !== null &&
       (value.phase === 'pending'
         ? value.agent === null
-        : value.agent?.kind === 'codex' &&
-          value.agent.nativeSessionId !== null &&
-          value.agent.name === value.space.expectedAgentName),
+        : value.agent?.kind === 'codex' && value.agent.name === value.space.expectedAgentName),
   );
 export const runtimeActionSchema = z.strictObject({
   attemptId: stateIdSchema,
@@ -56,6 +64,23 @@ export const runtimeActionSchema = z.strictObject({
   kind: z.enum(['input', 'interrupt']),
   digest: z.string().regex(/^[0-9a-f]{64}$/),
   state: z.enum(['pending', 'acknowledged']),
+  generation: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(Number.MAX_SAFE_INTEGER - 1)
+    .default(0),
+});
+export const runtimeInputRetrySchema = z.strictObject({
+  attemptId: stateIdSchema,
+  key: stateIdSchema,
+  digest: runtimeActionSchema.shape.digest,
+  generation: runtimeActionSchema.shape.generation,
+  launchId: stateIdSchema,
+  source: z.literal('host-attestation'),
+  notSubmitted: z.literal(true),
+  writerStopped: z.literal(true),
+  authorizedAt: z.number().int().nonnegative(),
 });
 export const runtimeStatusSchema = z.strictObject({
   session: runtimeSessionSchema.nullable(),
@@ -73,12 +98,15 @@ export const runtimeStatusSchema = z.strictObject({
       'agent_busy',
       'agent_unknown',
       'action_acknowledged',
+      'input_retry_authorized',
     ])
     .nullable(),
   agentStatus: z.enum(['idle', 'working', 'blocked', 'done', 'unknown']).nullable(),
   action: runtimeActionSchema.nullable(),
+  inputRetry: runtimeInputRetrySchema.optional(),
 });
 export const runtimeResultSchema = createOperationResultSchema(runtimeStatusSchema);
 export type RuntimeSession = z.infer<typeof runtimeSessionSchema>;
 export type RuntimeAction = z.infer<typeof runtimeActionSchema>;
+export type RuntimeInputRetry = z.infer<typeof runtimeInputRetrySchema>;
 export type RuntimeStatus = z.infer<typeof runtimeStatusSchema>;

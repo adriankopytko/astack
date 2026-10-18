@@ -1,6 +1,6 @@
 ---
 name: astack-cli
-description: Use the astack CLI to register projects, manage owned worktrees, inspect approved configuration and the local service queue, reconcile explicit Herdr layouts, control verified interactive Codex workers, delegate selected implementation tasks, or discover installed orchestration capabilities before delegation.
+description: Use the astack CLI to register projects, manage owned worktrees, inspect approved configuration and the local service queue, reconcile explicit Herdr layouts, control verified interactive Codex workers, delegate implementation/review, inspect durable runs/events, explicitly resume/cancel, or discover installed orchestration capabilities before delegation.
 ---
 
 # Using astack
@@ -36,7 +36,7 @@ From the astack source repository use `pnpm dev` instead of `astack`; after buil
 | `astack worktree remove <id> [--json]`                                                            | Remove a verified clean owned checkout; preserve its branch                                 |
 | `astack worktree reconcile <id> --operation <id> --writer-stopped [--json]`                       | Settle interrupted state after trusted host quiescence confirmation                         |
 | `astack runtime capabilities`                                                                     | Supported interactive controls and explicit provider limits                                 |
-| `astack runtime inspect --attempt <id> [--json]`                                                  | Read saved worker/native-session identity and current liveness                              |
+| `astack runtime inspect --attempt <id> [--json]`                                                  | Read saved worker identity and current liveness                                             |
 | `astack runtime reconcile --attempt <id> [--json]`                                                | Bind a matching pending launch without another provider write                               |
 | `astack runtime input --attempt <id> --key <key> [--json]`                                        | Submit bounded stdin text once under refreshed policy                                       |
 | `astack runtime interrupt --attempt <id> --key <key> [--json]`                                    | Request Escape once; not task cancellation or shutdown                                      |
@@ -44,6 +44,10 @@ From the astack source repository use `pnpm dev` instead of `astack`; after buil
 | `astack implement inspect <job-id> [--json]`                                                      | Read saved implementation delivery/blocker evidence without accepting a result              |
 | `astack review submit <required options> [--json]`                                                | Manually accept exact repository/PR/SHA review with dedicated checkout and gates            |
 | `astack review inspect <job-id> [--json]`                                                         | Read saved review target, gate and delivery evidence offline                                |
+| `astack run inspect / report <job-id> [options]`                                                  | Recover saved state / validate a host-supplied proposal                                     |
+| `astack run respond / resume / cancel <job-id> [options]`                                         | Save decisions and explicitly control the same worker                                       |
+| `astack run events [options]`                                                                     | Read/wait on durable local events without acknowledging them                                |
+| `astack run cursor inspect / ack <consumer> [options]`                                            | Read or CAS-acknowledge a scope-specific consumer cursor                                    |
 
 Global `--state-directory <path>` selects isolated host state. `--git-executable <absolute-path>` selects trusted Git; otherwise the CLI searches absolute host PATH entries. Git inspection requires Git 2.45 or later.
 
@@ -54,7 +58,7 @@ Context selectors are `--project <project-id>`, `--checkout <checkout-id>`, `--r
 - From a neutral directory or another project, use an explicit project ID, checkout ID, or path. `project list` supplies saved IDs; listed paths are recorded facts and can be stale.
 - Without selectors, context inspects the nearest Git repository from caller cwd. A collection directory never causes child-project discovery or guessing.
 - An explicit project selects its primary checkout unless an explicit path selects another checkout belonging to that project. An explicit checkout selects that checkout.
-- A saved attempt binds its project/repository/checkout. Other explicit selectors must agree. `--run` uses an existing persisted attempt ID; this CLI cannot create runs yet. Saved assignment commits and observed HEAD are separate facts.
+- A saved attempt binds its project/repository/checkout. Other explicit selectors must agree. `--run` uses an existing persisted attempt ID; implementation/review submission creates durable runs. Saved assignment commits and observed HEAD are separate facts.
 - Explicit targets override ambient cwd. An explicit `--path` is an assertion and must agree with other explicit selectors. Conflicts reject rather than falling back.
 
 Context can inspect an unregistered repository without registering it or creating state. Register only when the user intends to establish a local project identity. Registration creates no project config, skills, worktrees, or execution policy. A linked checkout needs deliberate registration; it then shares project identity while keeping its own checkout ID. Independent clones and duplicate basenames remain separate.
@@ -121,9 +125,9 @@ Herdr owns execution. The host-approved command executable must match the select
 
 `runtime input --attempt <id> --key <stable-key> [--codex-executable <approved-path>] [--json]` reads at most 16 KiB of UTF-8 from stdin; it accepts idle/done sessions and rejects approval dialogs, active/unknown UI and terminal control characters. Input is not echoed or saved; only its digest/key/acknowledgement are persisted. Herdr receives text in process argv, so do not include credentials. `runtime interrupt --attempt <id> --key <stable-key> ...` requests Escape; it does not establish cancellation or stopped descendants. Approval/question UIs require deliberate operator handling.
 
-Each new control refreshes accepted policy and verifies saved project/checkout ownership, branch, endpoint, workspace/pane/terminal, foreground cwd, expected name/kind and native session. Missing/changed evidence blocks; no fallback or replacement agent is launched. One trusted controller per worker is a host precondition: Herdr cannot atomically compare native identity with a write or prove server executable resolution.
+Each new control refreshes accepted policy and verifies saved project/checkout ownership, branch, endpoint, workspace/pane/terminal, foreground cwd and unique attempt name/kind. Input/interrupt target that name. Native session IDs are optional at binding; a captured ID must remain present and unchanged. Metadata first appearing later does not change a binding established without an ID. Missing/changed required evidence blocks; no fallback or replacement agent is launched. One trusted controller per worker and no reuse of reserved names are host preconditions: Herdr cannot atomically compare worker identity with a write or prove server executable resolution.
 
-Repeated keys return the saved receipt/current observation; changed text/kind conflicts. A pending launch is never launched again. A pending input/interrupt blocks subsequent controls because UI state cannot prove delivery. Reconcile does not clear unknown delivery or absent launches; do not edit state, change keys, or start another worker to bypass uncertainty. Abort/timeout/service exit do not prove Herdr or Codex stopped. Idle/done and Escape acknowledge neither an accepted task result nor free capacity; accepted workflow reports/cancellation remain later work.
+Repeated keys return the saved receipt/current observation; changed text/kind conflicts. A pending launch is never launched again. A pending input/interrupt blocks subsequent controls because UI state cannot prove delivery. Reconcile does not clear unknown delivery or absent launches; do not edit state, change keys, or start another worker to bypass uncertainty. Abort/timeout/service exit do not prove Herdr or Codex stopped. Idle/done and Escape acknowledge neither an accepted task result nor free capacity; explicit run operations handle report acceptance and cancellation separately.
 
 ## Explicit implementation delegation
 
@@ -139,11 +143,11 @@ Initial delivery includes saved IDs, checkout/root, branch/base SHA, task/criter
 
 `implement inspect <job-id> --json` reads the last durable coordinator evidence, including offline. It distinguishes queued, starting, started, needs_decision, blocked, failed, unknown and awaiting_result. Inspection does not query live providers; wake the service after meaningful external changes. CLI exit 1 can describe an already accepted job's blocker/uncertainty, so preserve its identity and inspect instead of treating it as absent.
 
-The worker returns a final JSON proposal with schema version, job/attempt/project/checkout, branch/base/current HEAD, `completed | needs_decision | failed`, summary and blockers. No report file needs to be committed. Report ingestion/authentication/freshness validation is not implemented; `acceptedOutcome` stays null. Idle/done, prompt acknowledgement or a worker's completed proposal never establishes accepted success, safe cleanup or released capacity. Handle approval/questions intentionally; never infer that interruption stopped all writers.
+The worker returns a final JSON proposal with schema version, job/attempt/project/checkout, branch/base/current HEAD, `completed | needs_decision | failed`, summary and blockers. No report file needs to be committed. Explicit host report acceptance validates saved assignment and fresh evidence through `run report`; remote worker authentication and automatic transcript harvesting are not implemented. `acceptedOutcome` stays null until a terminal result is accepted. Idle/done, prompt acknowledgement or a worker's completed proposal never establishes accepted success, safe cleanup or released capacity. Handle approval/questions intentionally; never infer that interruption stopped all writers.
 
 ## Planned capabilities
 
-The stage remains `foundation`. Initialization, accepted reports, automatic handoffs, GitHub publication, and automatic review are not implemented commands. Report missing capabilities rather than inventing commands or treating unknown commands as accepted work.
+The stage remains `foundation`. Initialization, automatic handoffs/report harvesting, runtime wake-up, GitHub publication, and automatic review are not implemented commands. Report missing capabilities rather than inventing commands or treating unknown commands as accepted work.
 
 As those operations arrive, use commit-specific results and explicit automation policy. A pushed PR or idle agent alone is not proof of completion or authorization for another action.
 
@@ -155,8 +159,28 @@ Review is manual; submitting the command authorizes that exact request. It never
 
 `--override-gate <reason>` permits early CI review only when the private host policy sets `execution.review.allowGateOverride: true`. Record the pending/failing evidence; never invent success or use an override to bypass identity, ownership, host policy, capacity or resource requirements. `--resource <name>` records an integration resource request and blocks until isolated provisioning is implemented. `--instruction` replaces the default AGENTS Markdown paths.
 
-A new key for the same project/repository/PR/SHA reuses the saved review and original checkout; aliases preserve retry identity. Different gate/resource/instruction/configuration requests conflict. `--repeat` requires a new key and fresh dedicated checkout and explicitly creates a new job/attempt. Reusing an implementation checkout or another review attempt's checkout is rejected. All reviews remain unresolved until report acceptance exists.
+A new key for the same project/repository/PR/SHA reuses the saved review and original checkout; aliases preserve retry identity. Different gate/resource/instruction/configuration requests conflict. `--repeat` requires a new key and fresh dedicated checkout and explicitly creates a new job/attempt. Reusing an implementation checkout or another review attempt's checkout is rejected. Active/needs_decision/cancel_requested reviews remain unresolved; targeting a terminal review with a new key requires explicit repeat.
 
 Use `astack review inspect <job-id> [--json]` for saved target, initial gate evidence and delivery/blocker status, even offline. Detailed preflight blockers appear in `job.entry.readiness`; fresh post-delivery checks appear in `job.entry.observation.evidence.reviewGate`. `astack service wake` requests a targeted reconciliation pass after checks change; no cron, scanner or check watch is installed. Never resend pending/acknowledged input or start a replacement for an uncertain worker.
 
-Workers return the versioned review JSON proposal with exact IDs/target, findings, blockers, gate policy and check snapshots. A proposal, UI done and delivered input are not accepted completion. Report authentication, cancellation, fixes, GitHub publication, merging and automatic initiation remain planned.
+Workers return the versioned review JSON proposal with exact IDs/target, findings, blockers, gate policy and check snapshots. A proposal, UI done and delivered input are not accepted completion. Remote report authentication, fixes, GitHub publication, merging and automatic initiation remain planned. Explicit run operations handle host report acceptance and cancellation.
+
+## Durable run outcomes and controls
+
+Use `astack run inspect <job-id> [--json]` to recover assignment, current report/control, worker status, latest responses/continuations and retained cleanup offline. Task outcome and worker liveness are separate; a completed result with a running/unknown worker still retains capacity. Never infer cleanup permission from an accepted report, cancellation request, idle pane or empty resource summary.
+
+`astack run report <job-id> --key <stable-key> --file <JSON-path> [--json]` explicitly asks the same-host orchestrator to validate and accept a selected worker proposal. The file is the original versioned report or `{proposal, artifacts}` with bounded relative path/digest/size references. Supply exact saved IDs and commit evidence. A parsed report is not proof of origin or business correctness; never feed arbitrary terminal text into acceptance. The operation checks acknowledged prompt bytes, owned checkout/branch/full SHA, clean completed work, review target/base/gate provenance and artifact bytes. Accepted report retries with the same key return saved evidence; changed input conflicts. Reports never release resources automatically.
+
+For a needs_decision report, use `run respond <job-id> --key <key> --decision <report-id> --text <response>` to save a response without sending input. Then explicitly use `run resume <job-id> --key <key> --response <response-id>`. Resume creates a durable continuation of the same verified worker, with fresh configuration/ownership/review gates and keyed input. It never starts a replacement agent or changes execution policy. Pending/unknown input is not replayable; do not invent a new key to bypass uncertainty. An acknowledged continuation allows a later report, not accepted task completion. Approval/question UI handling remains deliberate operator work.
+
+`run cancel <job-id> --key <key> [--interrupt]` saves intent before optional keyed Escape to a verified owned worker. It blocks future claims and launch/input. Never-claimed/proved-stopped jobs become cancelled; running/unknown jobs remain cancel_requested until trusted shutdown evidence. Escape acknowledgement is not shutdown. Use a separate explicit key to request interrupt later after an intent-only request. Existing terminal outcomes remain preserved. Worktrees, branches, user changes and uncertain resources remain retained.
+
+`run events [--project <id>] [--job <id>] [--after <event-id> | --consumer <id>] [--limit <1–100>] [--wait <0–20000>] [--json]` reads/waits on local SQLite events. It neither polls GitHub nor injects worker prompts, and works independently of the service/pane. Process the page before explicitly acknowledging its `nextCursor` with `run cursor ack <consumer> --expected <old-offset> --after <nextCursor>` using exactly the same project/job scope. `run cursor inspect <consumer>` reads a saved offset. Reading and disconnects never advance cursors; replay is expected, exactly-once processing is not promised. Stale CAS updates, rewinds and future offsets reject.
+
+Run mutations use the live owning service; read commands work offline against existing migrated state. Keep credentials out of reports, response text and artifacts. Event records contain IDs/state/references, never arbitrary transcripts or response text. Automatic report collection, orchestrator wake-up, cleanup and remedial actions remain planned.
+
+## Host-authorized input recovery
+
+`runtime authorize-input-retry --attempt <id> --key <input-key> --digest <sha256> --generation <number> --not-submitted --writer-stopped [--codex-executable <approved-path>] [--json]` is an explicit trusted host attestation after independent proof of non-delivery. Stop the coordinator and all original input controllers/descendants first; the CLI takes the coordinator lock. Never supply these flags from a timeout, idle screen, PID absence, parser reproduction alone, or worker proposal. The flags do not verify their own truth.
+
+The operation checks the active assignment, current accepted policy and owned ready worker. It atomically archives the exact pending input generation and authorizes future retry of the same key/digest without sending input. Restart/wake the coordinator for workflow delivery, or explicitly supply the same runtime input. New actions have a newer generation; repeat authorization of an older generation cannot clear a newer send, and old acknowledgements cannot settle it. No new worker, capacity release, shutdown or cleanup is authorized. Other uncertain actions stay blocked.

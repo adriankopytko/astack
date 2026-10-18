@@ -6,7 +6,7 @@ One orchestrator selects work and decides what happens next. Astack prepares own
 
 ## Status
 
-The development scaffold is ready: a compiled CLI/library, strict TypeScript, typed Oxlint rules, Oxfmt, dependency checks, isolated tests, and Linux/macOS CI. The CLI provides help, version, package information, `--skill` guidance, project registration/listing, context/doctor diagnostics, owned worktree lifecycle commands, and trusted configuration inspection. The local service foundation and explicit Herdr project/worker layout integration are implemented; an opt-in Herdr-owned interactive Codex runtime is implemented. Explicit implementation and manual PR/SHA review handoff to dedicated owned checkouts are implemented; accepted report handling remains next.
+The development scaffold is ready: a compiled CLI/library, strict TypeScript, typed Oxlint rules, Oxfmt, dependency checks, isolated tests, and Linux/macOS CI. The CLI provides help, version, package information, `--skill` guidance, project registration/listing, context/doctor diagnostics, owned worktree lifecycle commands, and trusted configuration inspection. The local service foundation and explicit Herdr project/worker layout integration are implemented; an opt-in Herdr-owned interactive Codex runtime is implemented. Worker controls verify unique attempt names and owned layouts; native session IDs are supplementary when available at binding. Explicit implementation and manual PR/SHA review handoff to dedicated owned checkouts are implemented; durable run reports, events, explicit resume and cancellation are implemented.
 
 The library now provides versioned read results and explicit project/checkout context resolution through an injected reader. See [operation contracts](docs/operation-contracts.md) for the executable APIs and the separate durable v1 design.
 
@@ -34,6 +34,8 @@ Managed-file operations can create or upgrade owned generated assets, preserve d
 
 `review submit --project <id> --checkout <owned-checkout-id> --key <key> --branch <branch> --commit <full-pr-head-sha> --repo <owner/repo> --pr <number>` manually requests SHA-bound review. Targeted GitHub CLI reads gate dispatch; same-target requests reuse durable reviews, while `--repeat` requests a fresh attempt/checkout. `review inspect <job-id>` reads saved evidence offline. CI overrides need host permission and a recorded reason. See [manual review delegation](docs/review.md); automatic review and integration provisioning remain later work.
 
+`run inspect`, `report`, `respond`, `resume`, `cancel`, `events` and `cursor` expose durable results and explicit lifecycle controls. Reports validate assignment/current evidence; local event waiting needs no agent prompt or GitHub scanner. Cancellation blocks future dispatch and optionally interrupts a verified session, preserving work and shutdown uncertainty. See [run operations](docs/runs.md).
+
 Local planning material is intentionally ignored. Durable contributor requirements belong in this README, [AGENTS.md](AGENTS.md), and tracked architecture decisions.
 
 ## First delivery
@@ -46,7 +48,7 @@ Local planning material is intentionally ignored. Durable contributor requiremen
 - Shared port and service-name allocation across managed projects.
 - Idempotent project initialization, project-owned setup/verification hooks, and focused skills.
 
-Next, add accepted report handling and cancellation using the existing runtime and implementation/review handoff primitives. Broader task scheduling, automatic fix loops, additional providers, remote execution, and public hosting follow concrete usage.
+Next, connect remaining project setup and runtime integrations to these run contracts; keep automation and cleanup explicit. Broader task scheduling, automatic fix loops, additional providers, remote execution, and public hosting follow concrete usage.
 
 ## Development stack
 
@@ -143,3 +145,5 @@ See [the SQLite decision](docs/adr/0001-use-node-sqlite.md) for persistence cons
 ## License
 
 [MIT](LICENSE).
+
+Explicit host recovery for proven input refusals is available through `runtime authorize-input-retry`; it requires stopped controllers and independently established non-delivery, preserves an audit record, and sends no input. See [runtime recovery](docs/runtime.md#explicit-recovery-after-proven-input-refusal). `pnpm check:herdr-cli /absolute/path/to/herdr` is an optional installed-CLI parser check using a nonexistent socket; default checks never contact live providers.

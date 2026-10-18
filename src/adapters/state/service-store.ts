@@ -16,14 +16,24 @@ import type { ServiceStore } from '../../ports/service.js';
 import { reviewTaskSchema, reviewSubmitRequestSchema } from '../../contracts/review-task.js';
 import { canonicalJson, type StateDatabase } from './database.js';
 import { acceptJobTransaction } from './store.js';
+import { runControl, saveRunControl, appendRunEvent } from './run-events.js';
 import { stateFailure } from './errors.js';
 
-export function createSqliteServiceStore(db: StateDatabase): ServiceStore {
+export function createSqliteServiceStore(
+  db: StateDatabase,
+  now: () => number = Date.now,
+): ServiceStore {
   function read(id: string): ServiceJob | null {
     const entry = db.get(serviceEntrySchema, 'SELECT data FROM service_entries WHERE job_id=?', id);
 
     if (!entry) {
       return null;
+    }
+
+    const control = runControl(db, id);
+
+    if (control.revision > 0) {
+      entry.control = control;
     }
 
     const job = db.get(stateJobSchema, 'SELECT data FROM jobs WHERE id=?', id);
@@ -130,6 +140,13 @@ export function createSqliteServiceStore(db: StateDatabase): ServiceStore {
 
             if (existing) {
               const saved = required(String(existing.id));
+
+              if (
+                ['completed', 'failed', 'cancelled'].includes(runControl(db, saved.job.id).phase)
+              ) {
+                stateFailure('run_closed');
+              }
+
               const task = reviewTaskSchema.parse(saved.job.intent.task);
 
               if (
@@ -256,7 +273,10 @@ export function createSqliteServiceStore(db: StateDatabase): ServiceStore {
           );
         }
 
-        return { value: required(job.id), disposition: 'created' };
+        const created = required(job.id);
+        appendRunEvent(db, created, 'accepted', now(), { role: entry.role });
+
+        return { value: created, disposition: 'created' };
       });
     },
     find: ({ projectId, role, key }) =>
@@ -329,7 +349,13 @@ export function createSqliteServiceStore(db: StateDatabase): ServiceStore {
       return db.write<ServiceJob | null>(() => {
         const current = required(jobId);
 
-        if (current.entry.claim !== null || !['queued', 'blocked'].includes(current.entry.state)) {
+        if (
+          runControl(db, jobId).phase !== 'active' ||
+          db.statement('SELECT id FROM results WHERE attempt_id=?').get(current.attempt.id) !==
+            undefined ||
+          current.entry.claim !== null ||
+          !['queued', 'blocked'].includes(current.entry.state)
+        ) {
           return { value: null, disposition: 'existing' };
         }
 
@@ -387,6 +413,8 @@ export function createSqliteServiceStore(db: StateDatabase): ServiceStore {
           stateFailure('state_reconciliation_required');
         }
 
+        appendRunEvent(db, current, 'claimed', now, { owner });
+
         return {
           value: update({
             ...current.entry,
@@ -405,6 +433,13 @@ export function createSqliteServiceStore(db: StateDatabase): ServiceStore {
 
         if (current.entry.claim !== null) {
           stateFailure('state_conflict');
+        }
+
+        if (
+          current.entry.reason !== reason ||
+          canonicalJson(current.entry.readiness ?? null) !== canonicalJson(readiness ?? null)
+        ) {
+          appendRunEvent(db, current, 'blocked', now(), { reason, readiness: readiness ?? null });
         }
 
         return {
@@ -487,6 +522,24 @@ export function createSqliteServiceStore(db: StateDatabase): ServiceStore {
             canonicalJson(observation.evidence),
             current.entry.effectId,
           );
+        }
+
+        if (canonicalJson(current.entry.observation) !== canonicalJson(observation)) {
+          appendRunEvent(db, current, 'observed', now, { state: observation.state });
+        }
+
+        const control = runControl(db, jobId);
+
+        if (
+          control.phase === 'cancel_requested' &&
+          ['quiescent', 'not_started'].includes(observation.state)
+        ) {
+          saveRunControl(db, jobId, {
+            ...control,
+            phase: 'cancelled',
+            revision: control.revision + 1,
+          });
+          appendRunEvent(db, current, 'cancelled', now, { proof: observation.state });
         }
 
         if (observation.state === 'quiescent') {

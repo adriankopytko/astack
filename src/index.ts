@@ -297,12 +297,19 @@ export {
   runtimeRequestSchema,
   runtimeInputRequestSchema,
   runtimeInterruptRequestSchema,
+  runtimeInputRetryRequestSchema,
+  runtimeInputRetrySchema,
   runtimeSessionSchema,
   runtimeActionSchema,
   runtimeStatusSchema,
   runtimeResultSchema,
 } from './contracts/runtime.js';
-export type { RuntimeSession, RuntimeAction, RuntimeStatus } from './contracts/runtime.js';
+export type {
+  RuntimeSession,
+  RuntimeAction,
+  RuntimeStatus,
+  RuntimeInputRetry,
+} from './contracts/runtime.js';
 export type { InteractiveWorkerProvider, RuntimeStore } from './ports/runtime.js';
 export {
   launchRuntime,
@@ -310,6 +317,7 @@ export {
   reconcileRuntime,
   inputRuntime,
   interruptRuntime,
+  authorizeRuntimeInputRetry,
   createCodexHerdrRuntime,
 } from './application/runtime.js';
 export type { RuntimeDependencies } from './application/runtime.js';
@@ -339,3 +347,25 @@ export { submitReview, inspectReview, createReviewRuntime } from './application/
 export type { ReviewDependencies } from './application/review.js';
 export type { ReviewTargetReader } from './ports/review.js';
 export { createGhReviewTargetReader } from './adapters/github/review-target.js';
+
+export * from './contracts/runs.js';
+export {
+  inspectRun,
+  acceptRunReport,
+  respondToRun,
+  resumeRun,
+  cancelRun,
+  readRunEvents,
+  readRunCursor,
+  checkpointRunEvents,
+} from './application/runs.js';
+export type { RunDependencies } from './application/runs.js';
+export type {
+  RunStore,
+  RunArtifactReader,
+  RunWorkerControl,
+  RunEventWaiter,
+} from './ports/runs.js';
+export { nodeRunArtifactReader } from './adapters/filesystem/run-artifacts.js';
+export { nodeRunEventWaiter } from './adapters/local/run-waiter.js';
+export { createCodexRunControl } from './application/codex-run-control.js';

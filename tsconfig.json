@@ -20,6 +20,7 @@
     "tests/**/*.ts",
     "tests/**/*.mjs",
     "tools/**/*.mjs",
+    "tools/**/*.ts",
     ".dependency-cruiser.cjs"
   ],
   "exclude": ["node_modules", "dist", ".planning", ".cache", "coverage"]

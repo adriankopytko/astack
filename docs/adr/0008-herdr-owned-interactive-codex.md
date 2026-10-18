@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-10-17
+- Worker identity requirement amended by [ADR 0012](0012-optional-native-worker-session-identity.md).
 
 ## Context
 

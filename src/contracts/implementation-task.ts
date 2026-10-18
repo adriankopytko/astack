@@ -105,10 +105,12 @@ export const implementationProgressSchema = z.strictObject({
     'failed',
     'unknown',
     'awaiting_result',
+    'completed',
+    'cancelled',
   ]),
   delivery: z.enum(['not_submitted', 'pending', 'acknowledged']),
   reason: z.string().min(1).max(128).nullable(),
-  acceptedOutcome: z.null(),
+  acceptedOutcome: z.enum(['completed', 'failed', 'cancelled']).nullable(),
 });
 export type ImplementationSubmitRequest = z.infer<typeof implementationSubmitRequestSchema>;
 export type InstructionReference = z.infer<typeof instructionReferenceSchema>;

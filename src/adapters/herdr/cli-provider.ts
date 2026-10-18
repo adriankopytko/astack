@@ -13,6 +13,7 @@ import { completed, rejected, type OperationResult } from '../../contracts/opera
 import type { HerdrProvider, HerdrEndpointReader } from '../../ports/herdr.js';
 import type { InteractiveWorkerProvider } from '../../ports/runtime.js';
 import type { ProcessRunner } from '../../ports/process-runner.js';
+import { herdrPromptArgs } from './prompt-args.js';
 
 const worktree = z.object({
   checkout_path: z.string(),
@@ -222,6 +223,7 @@ export function createHerdrCliProvider(options: {
 
     if (
       !handle ||
+      !space.expectedAgentName ||
       !isDeepStrictEqual(snapshot.server, space.server) ||
       !pane ||
       pane.workspaceId !== handle.workspaceId ||
@@ -232,7 +234,9 @@ export function createHerdrCliProvider(options: {
       (launch
         ? occupants.length !== 0
         : occupants.length !== 1 ||
-          !space.agent?.nativeSessionId ||
+          !space.agent ||
+          space.agent.name !== space.expectedAgentName ||
+          space.agent.kind !== 'codex' ||
           !occupant ||
           occupant.paneId !== handle.paneId ||
           occupant.terminalId !== handle.terminalId ||
@@ -240,7 +244,8 @@ export function createHerdrCliProvider(options: {
           occupant.tabId !== handle.tabId ||
           occupant.name !== space.expectedAgentName ||
           occupant.kind !== 'codex' ||
-          occupant.nativeSessionId !== space.agent.nativeSessionId ||
+          (space.agent.nativeSessionId !== null &&
+            occupant.nativeSessionId !== space.agent.nativeSessionId) ||
           occupant.cwd !== space.root ||
           occupant.foregroundCwd !== space.root ||
           occupant.status === 'blocked' ||
@@ -310,7 +315,7 @@ export function createHerdrCliProvider(options: {
     async input(space, text, signal) {
       return control(
         space,
-        ['agent', 'prompt', space.handle?.paneId ?? '', '--', text],
+        herdrPromptArgs(space.expectedAgentName ?? '', text),
         'agent_prompted',
         false,
         signal,
@@ -319,7 +324,7 @@ export function createHerdrCliProvider(options: {
     async interrupt(space, signal) {
       return control(
         space,
-        ['agent', 'send-keys', space.handle?.paneId ?? '', 'esc'],
+        ['agent', 'send-keys', space.expectedAgentName ?? '', 'esc'],
         'ok',
         false,
         signal,

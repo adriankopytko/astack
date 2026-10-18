@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fixture as herdrFixture } from './herdr.js';
-import { completed } from '../../src/contracts/operation-result.js';
+import { completed, rejected } from '../../src/contracts/operation-result.js';
 import type { RuntimeDependencies, ServiceJob, HerdrSpace } from '../../src/index.js';
 
 interface FixturePolicy {
@@ -60,7 +60,7 @@ export async function fixture(
         ...space.handle,
         name: space.expectedAgentName,
         kind: 'codex',
-        nativeSessionId: `native-${space.attemptId}`,
+        nativeSessionId: modes.launch === 'missing-native' ? null : `native-${space.attemptId}`,
         cwd: space.root,
         foregroundCwd: space.root,
         status: 'idle' as const,
@@ -99,14 +99,14 @@ export async function fixture(
             throw new Error('fixture-private-launch-error');
           }
 
-          if (modes.launch === 'missing-native') {
-            agent.nativeSessionId = '';
-          }
-
           return completed(null);
         },
         async input(_space, text) {
           calls.push({ operation: 'input', text });
+
+          if (modes.input === 'before') {
+            return rejected('herdr_unavailable', 'Fixture refused before delivery.');
+          }
 
           if (modes.input === 'after') {
             throw new Error('fixture-private-input-error');

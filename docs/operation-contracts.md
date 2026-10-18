@@ -160,3 +160,7 @@ The state/service/handoff issues must exercise duplicate commands, interrupted e
 ## Explicit manual review workflow
 
 [Manual review delegation](review.md) documents project/base repository/PR/full SHA requests, dedicated owned reviewer checkouts, transactional target reuse and request aliases, repeat attempts, CI gates and host-authorized overrides. `submitReview`, `inspectReview` and `createReviewRuntime` share durable input delivery with implementation while preserving separate role/task/report contracts. Automatic initiation, integration provisioning, accepted reports and publication remain later operations.
+
+## Durable run lifecycle
+
+[Run operations](runs.md) implement validated host-supplied reports/artifact references, monotonic event pages and scoped cursors, decision responses, explicit keyed continuation and cancellation. Reading/waiting never acknowledges a consumer. Cancellation intent, actual shutdown, accepted task outcome and cleanup remain separate evidence.

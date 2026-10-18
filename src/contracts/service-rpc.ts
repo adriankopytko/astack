@@ -1,3 +1,18 @@
+import {
+  runReadRequestSchema,
+  runReportRequestSchema,
+  runResponseRequestSchema,
+  runResumeRequestSchema,
+  runCancelRequestSchema,
+  runEventsRequestSchema,
+  runCursorReadRequestSchema,
+  runCursorRequestSchema,
+  runReadResultSchema,
+  runWriteResultSchema,
+  runEventsResultSchema,
+  runCursorResultSchema,
+  runCursorWriteResultSchema,
+} from './runs.js';
 import { z } from 'zod';
 import {
   serviceSubmitRequestSchema,
@@ -29,6 +44,14 @@ export const serviceRpcRequestSchema = z.discriminatedUnion('operation', [
   implementationReadRequestSchema.extend({ operation: z.literal('implement_inspect') }),
   reviewSubmitRequestSchema.extend({ operation: z.literal('review_submit') }),
   reviewReadRequestSchema.extend({ operation: z.literal('review_inspect') }),
+  runReadRequestSchema.extend({ operation: z.literal('run_inspect') }),
+  runReportRequestSchema.extend({ operation: z.literal('run_report') }),
+  runResponseRequestSchema.extend({ operation: z.literal('run_respond') }),
+  runResumeRequestSchema.extend({ operation: z.literal('run_resume') }),
+  runCancelRequestSchema.extend({ operation: z.literal('run_cancel') }),
+  runEventsRequestSchema.extend({ operation: z.literal('run_events') }),
+  runCursorReadRequestSchema.extend({ operation: z.literal('run_cursor') }),
+  runCursorRequestSchema.extend({ operation: z.literal('run_checkpoint') }),
 ]);
 export const serviceRpcResponseSchema = z.union([
   createOperationResultSchema(serviceStatusSchema),
@@ -38,6 +61,11 @@ export const serviceRpcResponseSchema = z.union([
   implementationSubmitResultSchema,
   reviewReadResultSchema,
   reviewSubmitResultSchema,
+  runReadResultSchema,
+  runWriteResultSchema,
+  runEventsResultSchema,
+  runCursorResultSchema,
+  runCursorWriteResultSchema,
 ]);
 export type ServiceRpcRequest = z.infer<typeof serviceRpcRequestSchema>;
 export type ServiceRpcResponse = z.infer<typeof serviceRpcResponseSchema>;

@@ -19,7 +19,7 @@ function render(result: ServiceRpcResponse, json?: boolean) {
     const { job, review, assignment } = result.value;
     const target = assignment.submission.target;
     process.stdout.write(
-      `Job: ${job.job.id}\nAttempt: ${job.attempt.id}\nTarget: ${target.host}/${target.repository}#${target.number} @ ${target.sha}\nCheckout: ${job.job.checkoutId}\nState: ${review.state}\nDelivery: ${review.delivery}\nReason: ${review.reason ?? 'none'}\nAccepted result: none\n`,
+      `Job: ${job.job.id}\nAttempt: ${job.attempt.id}\nTarget: ${target.host}/${target.repository}#${target.number} @ ${target.sha}\nCheckout: ${job.job.checkoutId}\nState: ${review.state}\nDelivery: ${review.delivery}\nReason: ${review.reason ?? 'none'}\nAccepted result: ${review.acceptedOutcome ?? 'none'}\n`,
     );
   }
 

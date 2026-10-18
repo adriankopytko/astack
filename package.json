@@ -29,6 +29,7 @@
     "lint": "oxlint --type-aware --max-warnings 0 src tests tools",
     "lint:fix": "oxfmt --write . && oxlint --type-aware --fix --max-warnings 0 src tests tools && oxfmt --write .",
     "check:boundaries": "depcruise --config .dependency-cruiser.cjs src",
+    "check:herdr-cli": "node --import tsx tools/check-herdr-cli.ts",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "test": "pnpm build && node --import tsx --test tests/*.test.ts",

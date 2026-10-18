@@ -1,7 +1,7 @@
 import type { HerdrSpace } from '../contracts/herdr.js';
 import type { OperationResult } from '../contracts/operation-result.js';
 import type { StateWriteResult } from '../contracts/state.js';
-import type { RuntimeSession, RuntimeAction } from '../contracts/runtime.js';
+import type { RuntimeSession, RuntimeAction, RuntimeInputRetry } from '../contracts/runtime.js';
 
 /** Herdr owns the interactive process. Astack never starts a second process controller. */
 export interface InteractiveWorkerProvider {
@@ -20,4 +20,13 @@ export interface RuntimeStore {
   pending(attemptId: string): OperationResult<RuntimeAction | null>;
   reserveAction(session: RuntimeSession, action: RuntimeAction): StateWriteResult<RuntimeAction>;
   acknowledge(action: RuntimeAction): StateWriteResult<RuntimeAction>;
+  inputRetry(
+    attemptId: string,
+    key: string,
+    generation: number,
+  ): OperationResult<RuntimeInputRetry | null>;
+  authorizeInputRetry(
+    session: RuntimeSession,
+    action: RuntimeAction,
+  ): StateWriteResult<RuntimeInputRetry>;
 }
