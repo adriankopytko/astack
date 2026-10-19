@@ -303,6 +303,8 @@ export function createHerdrCliProvider(options: {
           String(Math.min(input.timeoutMs - 1000, 29_000)),
           '--',
           ...input.args,
+          '-c',
+          'check_for_update_on_startup=false',
           '--cd',
           input.space.root,
         ],

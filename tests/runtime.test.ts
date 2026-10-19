@@ -761,6 +761,8 @@ for (const sessionEvidence of ['id', 'null', 'omitted'] as const) {
           '29000',
           '--',
           ...nativeArgs,
+          '-c',
+          'check_for_update_on_startup=false',
           '--cd',
           space.root,
         ]);
