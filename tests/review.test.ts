@@ -148,7 +148,7 @@ await test(
       const state = dependencies(context, request);
       const job = accepted(await submitReview(request, state.deps));
 
-      assert.equal(job.assignment.promptVersion, 2);
+      assert.equal(job.assignment.promptVersion, 3);
 
       const { promptVersion: _version, ...legacy } = job.assignment;
       const oldPrompt = renderReviewPrompt(job.job, reviewTaskSchema.parse(legacy));

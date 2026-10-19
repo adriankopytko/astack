@@ -3,7 +3,7 @@ import type { ReviewTask } from '../contracts/review-task.js';
 export const reviewInputKey = 'review:initial:v1';
 export function renderReviewPrompt(job: ServiceJob, task: ReviewTask): string {
   return [
-    task.promptVersion === 2 ? '# Manual review assignment v2' : '# Manual review assignment v1',
+    `# Manual review assignment v${task.promptVersion ?? 1}`,
     'Review only the explicit repository/PR/full head SHA below in your dedicated owned checkout. Verify local HEAD before review. Use the saved acceptance snapshot baseSha to identify the review diff; if its objects or merge base are unavailable locally, report needs_decision rather than fetching or selecting another base. Never follow a newer PR head or modify the implementation checkout.',
     JSON.stringify({
       jobId: job.job.id,
@@ -36,16 +36,21 @@ export function renderReviewPrompt(job: ServiceJob, task: ReviewTask): string {
         {
           severity: 'critical | high | medium | low',
           path: '<repository-relative file>',
-          line: '<positive line number>',
+          line: task.promptVersion === 3 ? 1 : '<positive line number>',
           description: '<actionable evidence>',
         },
       ],
       blockers: [],
       gate: task.submission.gate,
       acceptanceSnapshot:
-        task.promptVersion === 2 ? task.initialSnapshot : '<copy the acceptance snapshot above>',
+        (task.promptVersion ?? 1) >= 2
+          ? task.initialSnapshot
+          : '<copy the acceptance snapshot above>',
       currentSnapshot: null,
     }),
-    'Keep summary within 4000 UTF-8 bytes, at most 32 findings of 1000 bytes each, and at most 16 blockers of 512 bytes each. Use empty findings/blockers arrays where appropriate. currentSnapshot is null unless you verified fresh target-bound evidence.',
+    'Keep summary within 4000 UTF-8 bytes, at most 32 findings of 1000 bytes each, and at most 16 blockers of 512 bytes each. Use empty findings/blockers arrays where appropriate. currentSnapshot is null unless you verified fresh target-bound evidence.' +
+      (task.promptVersion === 3
+        ? ' Each finding.line must be the actual positive integer line number as a JSON number, not a quoted string; 1 above is only an example.'
+        : ''),
   ].join('\n');
 }

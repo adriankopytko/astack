@@ -84,7 +84,7 @@ export const reviewTaskSchema = z
     instructions: z.array(instructionReferenceSchema).max(8),
     initialSnapshot: reviewSnapshotSchema,
     resultContractVersion: z.literal(1),
-    promptVersion: z.union([z.literal(1), z.literal(2)]).optional(),
+    promptVersion: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
   })
   .refine(
     (v) =>

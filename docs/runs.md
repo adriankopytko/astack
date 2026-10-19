@@ -67,7 +67,7 @@ Select one exact local Codex session JSONL file explicitly. No global session se
 
 Files are bounded at 16 MiB, JSONL records at one MiB and final proposals at 48,000 bytes. Reads reject symbolic/hard links, nonregular files, detected mutation, incomplete final lines and invalid UTF-8. Only the proposal reaches acceptance; unrelated log contents are neither printed nor stored. Use a host-trusted path and coordinate writers; this is same-user attribution, not cryptographic authorship. A provider log format change fails closed and may need an adapter update.
 
-New review assignments persist prompt version 2, whose example embeds the actual `acceptanceSnapshot` object. Legacy tasks without a prompt version retain version 1 rendering and input digests across restart. Collection and acceptance always reconstruct the saved version.
+New review assignments persist prompt version 3, whose example embeds the actual `acceptanceSnapshot` object and a numeric finding `line`. The prompt explicitly requires the actual positive integer line number as a JSON number, not a quoted string. Saved version 2 tasks retain their original object snapshot and string placeholder; version 1 and tasks without a prompt version retain their original rendering. All saved prompt bytes and input digests remain stable across restart. Collection and acceptance always reconstruct the saved version; report validation does not coerce string line numbers.
 
 ## Decisions and continuation
 
