@@ -36,6 +36,8 @@ Managed-file operations can create or upgrade owned generated assets, preserve d
 
 `run inspect`, `report`, `collect-report`, `respond`, `resume`, `cancel`, `reconcile`, `events` and `cursor` expose durable results and explicit lifecycle controls. Reports validate assignment/current evidence; local event waiting needs no agent prompt or GitHub scanner. Cancellation blocks future dispatch and optionally interrupts a verified session, preserving work and shutdown uncertainty. Explicit Codex report collection selects one structured session file; offline shutdown reconciliation records host evidence and releases only matching worker holds. See [run operations](docs/runs.md).
 
+`createGhProvider` and `publishGithubEffect` provide targeted paginated GitHub reads and journaled PR/comment/review publication as library APIs. Unknown writes require explicit read-only reconciliation; publication is not enabled by service startup or worker reports. See [GitHub operations](docs/github.md). Git pushes and workflow-level handoff/publication commands remain later work.
+
 Local planning material is intentionally ignored. Durable contributor requirements belong in this README, [AGENTS.md](AGENTS.md), and tracked architecture decisions.
 
 ## First delivery

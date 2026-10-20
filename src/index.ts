@@ -382,3 +382,24 @@ export {
   type RunReconciliation,
 } from './contracts/run-reconciliation.js';
 export type { RunReportReader, RunShutdownVerifier } from './ports/runs.js';
+
+export { createGhProvider, type GhProviderOptions } from './adapters/github/provider.js';
+export {
+  publishGithubEffect,
+  type GithubPublicationDependencies,
+} from './application/github-publication.js';
+export type { GithubProvider } from './ports/github.js';
+export {
+  githubRepositorySchema,
+  githubPublicationSchema,
+  githubPullRequestSchema,
+  githubPublicationReceiptSchema,
+  githubEffectRequestSchema,
+  type GithubRepository,
+  type GithubPublication,
+  type GithubPullRequest,
+  type GithubPublicationReceipt,
+  type GithubFailure,
+  type GithubResult,
+  type GithubWriteResult,
+} from './contracts/github.js';

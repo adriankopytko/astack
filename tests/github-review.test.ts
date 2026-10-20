@@ -16,13 +16,15 @@ const target = {
 };
 const pr = {
   number: 12,
-  url: 'https://github.com/example/project/pull/12',
-  headRefOid: target.sha,
-  baseRefOid: target.sha,
-  state: 'OPEN',
-  isDraft: false,
-  headRepository: { name: 'fork' },
-  headRepositoryOwner: { login: 'contributor' },
+  html_url: 'https://github.com/example/project/pull/12',
+  head: { sha: target.sha, ref: 'feature', repo: { full_name: 'contributor/fork' } },
+  base: { sha: target.sha, ref: 'main', repo: { full_name: 'example/project' } },
+  state: 'open',
+  merged_at: null,
+  draft: false,
+  title: 'Fixture',
+  body: null,
+  user: { login: 'contributor' },
 };
 function execution(body: unknown, code = 0): ProcessExecution {
   const output = (text: string) => ({
@@ -41,7 +43,9 @@ function execution(body: unknown, code = 0): ProcessExecution {
     exitCode: code,
     signal: null,
     error: null,
-    stdout: output(JSON.stringify(body)),
+    stdout: output(
+      `HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(body)}`,
+    ),
     stderr: output(''),
     shutdown: { root: 'exited', processGroup: 'absent', termSent: false, killSent: false },
   };
@@ -72,7 +76,12 @@ function reader(responses: ProcessExecution[]) {
 await test('GitHub wrapper brackets exact base repository and fork head checks with explicit argv and controlled environment', async () => {
   const state = reader([
     execution(pr),
-    execution([{ name: 'test', state: 'IN_PROGRESS', bucket: 'pending' }], 8),
+    execution({
+      check_runs: [
+        { id: 1, head_sha: target.sha, name: 'test', status: 'in_progress', conclusion: null },
+      ],
+    }),
+    execution([]),
     execution(pr),
   ]);
   const result = await state.provider.read({ target, root: '/owned/review' });
@@ -80,15 +89,19 @@ await test('GitHub wrapper brackets exact base repository and fork head checks w
   assert.ok(result.outcome === 'completed', JSON.stringify(result));
   assert.equal(result.value.checks[0]?.state, 'pending');
   assert.equal(result.value.sourceRepository, 'contributor/fork');
-  assert.equal(state.calls.length, 3);
+  assert.equal(state.calls.length, 4);
   assert.deepEqual(state.calls[0]?.args, [
-    'pr',
-    'view',
-    '12',
-    '--repo',
-    'github.com/example/project',
-    '--json',
-    'number,url,headRefOid,baseRefOid,state,isDraft,headRepository,headRepositoryOwner',
+    'api',
+    '--hostname',
+    'github.com',
+    '--method',
+    'GET',
+    '--include',
+    '--header',
+    'Accept: application/vnd.github+json',
+    '--header',
+    'X-GitHub-Api-Version: 2022-11-28',
+    'repos/example/project/pulls/12',
   ]);
   assert.equal(
     state.calls.every((call) => call.cwd === '/owned/review' && !call.args.includes('--watch')),
@@ -98,15 +111,23 @@ await test('GitHub wrapper brackets exact base repository and fork head checks w
 });
 await test('GitHub wrapper rejects wrong PR attribution, moving head, ambiguous checks and incomplete subprocess evidence', async () => {
   const cases = [
-    [execution({ ...pr, url: 'https://github.com/wrong/project/pull/12' })],
-    [execution({ ...pr, headRefOid: 'b'.repeat(40) })],
-    [execution(pr), execution([]), execution({ ...pr, headRefOid: 'b'.repeat(40) })],
+    [execution({ ...pr, html_url: 'https://github.com/wrong/project/pull/12' })],
+    [execution({ ...pr, head: { ...pr.head, sha: 'b'.repeat(40) } })],
     [
       execution(pr),
-      execution([
-        { name: 'test', state: 'SUCCESS', bucket: 'pass' },
-        { name: 'test', state: 'FAILURE', bucket: 'fail' },
-      ]),
+      execution({ check_runs: [] }),
+      execution([]),
+      execution({ ...pr, head: { ...pr.head, sha: 'b'.repeat(40) } }),
+    ],
+    [
+      execution(pr),
+      execution({
+        check_runs: [
+          { id: 1, head_sha: target.sha, name: 'test', status: 'completed', conclusion: 'success' },
+          { id: 2, head_sha: target.sha, name: 'test', status: 'completed', conclusion: 'failure' },
+        ],
+      }),
+      execution([]),
       execution(pr),
     ],
     [
@@ -122,7 +143,14 @@ await test('GitHub wrapper rejects wrong PR attribution, moving head, ambiguous 
         },
       },
     ],
-    [execution(pr), execution([{ name: 'test', state: 'SUCCESS', bucket: 'unknown' }])],
+    [
+      execution(pr),
+      execution({
+        check_runs: [
+          { id: 1, head_sha: target.sha, name: 'test', status: 'completed', conclusion: 'unknown' },
+        ],
+      }),
+    ],
   ] satisfies ProcessExecution[][];
 
   for (const responses of cases) {

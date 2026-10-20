@@ -34,6 +34,8 @@ Explicit manual review is implemented; follow [the review contract](docs/review.
 
 Durable run inspection, host-supplied report acceptance, monotonic local events/cursors, decision responses, explicit same-worker continuation and cancellation are implemented; follow [run operations](docs/runs.md) and ADR 0011. Append events with their mutations transactionally; do not acknowledge consumers while reading. Validate current assignment/artifacts and acknowledged input before accepting a proposal. Preserve unknown delivery and never retry it with a new key. Cancellation blocks new claims/launch/input but an interrupt does not prove shutdown. Task outcome, native liveness and cleanup remain separate; no automatic cleanup, report harvesting or runtime wake-up is implemented.
 
+Targeted GitHub reads and publication effects follow [the GitHub contract](docs/github.md) and ADR 0015. Keep host/repository/full-SHA targeting explicit, paginate bounded collections, and preserve ambiguous/missing/nonpassing checks. Use the existing effect journal for publication intent and claim before effects; pending/unknown writes never replay by age or absence. Reconcile only after host confirmation that original writers stopped, querying exact actor/body/marker/target evidence without POST. Publication is a host capability, separate from worker result acceptance, issue transitions and handoff policy. Keep JSON bodies in private owned request files, never argv; imports/service startup must not enable writes.
+
 ## Toolchain
 
 Use Node 24 LTS, pnpm, strict TypeScript, ESM, and NodeNext module resolution. Honor `.node-version` and `package.json#packageManager`. Preserve the lockfile; do not switch package managers.
