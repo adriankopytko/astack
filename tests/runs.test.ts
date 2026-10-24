@@ -998,7 +998,7 @@ await test(
 
       try {
         raw.exec(
-          'DROP TABLE run_reconciliations; DROP TABLE runtime_input_retries; DROP TABLE run_cursors; DROP TABLE run_events; DROP TABLE run_cancellations; DROP TABLE run_resumes; DROP TABLE run_responses; DROP TABLE run_reports; DROP TABLE run_controls; DELETE FROM state_migrations WHERE version>=8; PRAGMA user_version=7;',
+          'DROP TABLE implementation_handoffs; DROP TABLE run_reconciliations; DROP TABLE runtime_input_retries; DROP TABLE run_cursors; DROP TABLE run_events; DROP TABLE run_cancellations; DROP TABLE run_resumes; DROP TABLE run_responses; DROP TABLE run_reports; DROP TABLE run_controls; DELETE FROM state_migrations WHERE version>=8; PRAGMA user_version=7;',
         );
       } finally {
         raw.close();
@@ -1023,6 +1023,11 @@ await test(
         assert.ok(page.outcome === 'completed');
         assert.equal(page.value.events[0]?.kind, 'baseline');
         assert.equal(saved(job.job.id, { runs: reopened.runs }).status, 'queued');
+
+        const handoff = reopened.handoffs.find(job.job.id);
+
+        assert.ok(handoff.outcome === 'completed');
+        assert.equal(handoff.value, null);
         assert.equal(context.launches.length, 0);
       } finally {
         reopened.store.close();
