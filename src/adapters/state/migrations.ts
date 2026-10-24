@@ -311,4 +311,43 @@ CREATE UNIQUE INDEX one_current_handoff ON implementation_handoffs(job_id) WHERE
 CREATE INDEX handoff_followups ON implementation_handoffs(project_id,id) WHERE phase='accepted';
 `,
   },
+  {
+    version: 12,
+    sql: `
+CREATE TABLE ci_targets (
+ id TEXT PRIMARY KEY,
+ next_refresh_at INTEGER NOT NULL,
+ claim_expires_at INTEGER,
+ data TEXT NOT NULL CHECK(json_valid(data)) CHECK(json_extract(data,'$.id') IS id)
+ CHECK(json_extract(data,'$.nextRefreshAt') IS next_refresh_at)
+ CHECK(json_extract(data,'$.claim.expiresAt') IS claim_expires_at)
+) STRICT;
+CREATE TABLE ci_requests (
+ id TEXT PRIMARY KEY,
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ source_id TEXT NOT NULL,
+ target_id TEXT NOT NULL REFERENCES ci_targets(id),
+ phase TEXT NOT NULL CHECK(phase IN ('watching','ready','blocked','suspended','cancelled','completed')),
+ deadline_at INTEGER NOT NULL,
+ data TEXT NOT NULL CHECK(json_valid(data)) CHECK(json_extract(data,'$.id') IS id)
+ CHECK(json_extract(data,'$.binding.projectId') IS project_id)
+ CHECK(json_extract(data,'$.binding.sourceId') IS source_id)
+ CHECK(json_extract(data,'$.targetId') IS target_id)
+ CHECK(json_extract(data,'$.phase') IS phase)
+ CHECK(json_extract(data,'$.deadlineAt') IS deadline_at)
+) STRICT;
+CREATE UNIQUE INDEX ci_one_active_source ON ci_requests(project_id,source_id) WHERE phase='watching';
+CREATE INDEX ci_subscribers ON ci_requests(target_id,phase);
+CREATE INDEX ci_deadlines ON ci_requests(phase,deadline_at);
+CREATE INDEX ci_due ON ci_targets(next_refresh_at,claim_expires_at);
+CREATE TABLE ci_budgets (
+ host TEXT PRIMARY KEY,
+ window_started_at INTEGER NOT NULL CHECK(window_started_at>=0),
+ window_ends_at INTEGER NOT NULL CHECK(window_ends_at>window_started_at),
+ used INTEGER NOT NULL CHECK(used>=0),
+ capacity INTEGER NOT NULL CHECK(capacity>=0),
+ not_before INTEGER NOT NULL CHECK(not_before>=0)
+) STRICT;
+`,
+  },
 ] as const;

@@ -212,6 +212,7 @@ export {
   stateRecordSchema,
   stateInspectionResultSchema,
   createStateWriteResultSchema,
+  stateUncertainResultSchema,
   type StateWriteResult,
   type StateJob,
   type StateAttempt,
@@ -431,3 +432,38 @@ export {
   type PushIntent,
   type PushReceipt,
 } from './contracts/handoff.js';
+
+export {
+  watchCi,
+  inspectCi,
+  listCi,
+  controlCi,
+  observeCi,
+  createCiObserver,
+  type CiDependencies,
+} from './application/ci.js';
+export { createGhCiReader } from './adapters/github/ci-reader.js';
+export type { CiStore, CiReader } from './ports/ci.js';
+export {
+  ciSourceSchema,
+  ciWatchRequestSchema,
+  ciPolicySchema,
+  ciRecordSchema,
+  ciTargetSchema,
+  ciViewSchema,
+  ciReadRequestSchema,
+  ciControlRequestSchema,
+  ciListRequestSchema,
+  ciTickRequestSchema,
+  ciReadResultSchema,
+  ciWriteResultSchema,
+  ciListResultSchema,
+  ciTickResultSchema,
+  ciWakeResultSchema,
+  type CiPolicy,
+  type CiSource,
+  type CiBinding,
+  type CiRecord,
+  type CiTarget,
+  type CiView,
+} from './contracts/ci.js';

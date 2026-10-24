@@ -38,6 +38,8 @@ Managed-file operations can create or upgrade owned generated assets, preserve d
 
 `createGhProvider` and `publishGithubEffect` provide targeted paginated GitHub reads and journaled PR/comment/review publication as library APIs. Unknown writes require explicit read-only reconciliation; publication is not enabled by service startup or worker reports. See [GitHub operations](docs/github.md). `handoff finish --file <trusted-request.json> --writers-stopped` now validates an accepted implementation report and clean exact commit, journals an explicit Git push and PR creation, then atomically saves acceptance and any authorized review request. `handoff inspect`, `reconcile` and `follow-ups` expose saved evidence and recovery; previously claimed writes never resend. Stop the coordinator and original writers before publication. See [validated implementation publication](docs/handoff.md). Automatic review dispatch and review-result publication remain later work.
 
+`service run --observe-ci` opts into targeted, shared CI observation. `ci watch` enrolls an existing manual review or accepted handoff follow-up; `ci inspect/list`, explicit controls and `ci wake` expose saved evidence and recovery. Migration 12 persists exact PR/SHA subscriptions, shared schedules, read claims, deadlines, backoff/jitter and per-host API budgets. Readiness creates no worker and remains subject to fresh dispatch gates. See [CI observation](docs/ci.md). Automatic follow-up dispatch remains later work.
+
 Local planning material is intentionally ignored. Durable contributor requirements belong in this README, [AGENTS.md](AGENTS.md), and tracked architecture decisions.
 
 ## First delivery

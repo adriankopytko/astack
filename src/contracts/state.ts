@@ -278,6 +278,11 @@ export const stateInspectionResultSchema = createOperationResultSchema(
   stateRecordSchema.nullable(),
 );
 
+export const stateUncertainResultSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  outcome: z.literal('uncertain'),
+  error: z.strictObject({ code: z.literal('state_write_uncertain'), message: z.string().min(1) }),
+});
 export function createStateWriteResultSchema<T extends z.ZodType>(value: T) {
   return z.union([
     z.strictObject({
@@ -286,14 +291,7 @@ export function createStateWriteResultSchema<T extends z.ZodType>(value: T) {
       disposition: z.enum(['created', 'existing', 'updated']),
       value,
     }),
-    z.strictObject({
-      schemaVersion: z.literal(1),
-      outcome: z.literal('uncertain'),
-      error: z.strictObject({
-        code: z.literal('state_write_uncertain'),
-        message: z.string().min(1),
-      }),
-    }),
+    stateUncertainResultSchema,
     rejectedResultSchema,
   ]);
 }

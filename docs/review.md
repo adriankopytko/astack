@@ -43,6 +43,8 @@ This is a bracketed observation, not an atomic GitHub snapshot. It cannot detect
 
 Without `--check`, every observed check must pass and at least one check must exist. With selected names, each must exist and pass; other checks remain visible in evidence. Missing, skipped and cancelled checks never count as success. This is an explicit Astack check policy, not an assertion that GitHub branch protection or rulesets were fully evaluated. Draft, closed and merged PRs block dispatch.
 
+`review submit --allow-no-checks` sets the optional gate field `allowNoChecks: true`. It requires private `execution.review.allowNoChecks: true` (alongside the existing `allowGateOverride` field). Only an entirely empty check set with no selected required names qualifies; observed pending/failing/skipped/cancelled checks and missing selected names still block. The optional field is absent on older gates, preserving reconstructed prompts and request digests.
+
 To review before checks pass, the host policy must contain:
 
 ```json
@@ -51,7 +53,7 @@ To review before checks pass, the host policy must contain:
 
 This is a fragment of the existing private host policy, not a complete configuration. Submit with `--override-gate 'Reason to review while CI is pending'`. The command is the manual authorization; the host setting permits its CI override. Repository proposals cannot grant permission. The override is recorded in the task and report proposal, preserves pending/failing/missing checks, and cannot bypass a changed target, unsafe checkout, draft/closed PR, unavailable provider, revoked configuration, capacity or integration-resource blocker. The optional host field has no default materialization, preserving existing policy digests when absent.
 
-No background PR scanner, cron, check watch or automatic review hook is installed. Explicit submissions, service startup, provider notifications and `service wake` drive reconciliation. Checks becoming green alone do not wake this version; event subscriptions or targeted check watching belong to later work.
+No background PR scanner, cron or automatic review hook is installed. The explicit [CI observer](ci.md) can wait on this saved review job when enrolled with `ci watch --review <job-id>` and enabled with `service run --observe-ci`. It does not launch a worker; `service wake` reconsiders authorized queued jobs using fresh target/readiness checks. Automatic follow-up dispatch remains separate.
 
 ## Delivery, results and retry
 

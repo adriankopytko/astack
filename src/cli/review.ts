@@ -85,6 +85,10 @@ export function wireReviewCommands(program: Command) {
       '--override-gate <reason>',
       'Explicit CI override reason; requires trusted host permission',
     )
+    .option(
+      '--allow-no-checks',
+      'Allow an empty check set only with explicit trusted no-CI permission',
+    )
     .option('--repeat', 'Create a new review attempt in a fresh dedicated checkout')
     .option(
       '--resource <name>',
@@ -111,6 +115,7 @@ export function wireReviewCommands(program: Command) {
         check: string[];
         overrideGate?: string;
         repeat?: boolean;
+        allowNoChecks?: boolean;
         resource: string[];
         instruction?: string[];
         json?: boolean;
@@ -132,7 +137,11 @@ export function wireReviewCommands(program: Command) {
               number: Number(options.pr),
               sha: options.commit,
             },
-            gate: { requiredChecks: options.check, overrideReason: options.overrideGate ?? null },
+            gate: {
+              requiredChecks: options.check,
+              overrideReason: options.overrideGate ?? null,
+              ...(options.allowNoChecks ? { allowNoChecks: true } : {}),
+            },
             repeat: options.repeat ?? false,
             resources: options.resource,
             ...(options.instruction === undefined ? {} : { instructionPaths: options.instruction }),

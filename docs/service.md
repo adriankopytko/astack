@@ -113,3 +113,7 @@ The [implementation workflow](implementation.md) adds strict `implement_submit` 
 Manual `review_submit`/`review_inspect` RPC operations share this queue and capacity with implementation jobs. Review uses a dedicated owned checkout, targeted GitHub reads and a separate reviewer policy. Workflow preflight rejections retain safe machine-readable error evidence in optional `entry.readiness`; claims clear it. See [manual review](review.md).
 
 Run RPC operations add host report acceptance, responses, explicit continuation, cancellation, event reads/waits and cursor acknowledgements. Cancellation/terminal control is rechecked inside claims and before native effects; active workers are still observed. Socket disconnect and shutdown abort pending bounded waits before draining. See [run operations](runs.md); reports do not release runtime capacity without quiescence.
+
+## Optional CI observer
+
+`service run --observe-ci` enables the separate [CI observation scheduler](ci.md). It consumes only explicitly enrolled persisted review sources, shares exact PR/SHA reads and host budgets, and schedules saved refreshes/deadlines. It has no worker runtime and does not create or dispatch review jobs. Default startup leaves it disabled; existing `service wake` and fresh review dispatch gates remain separate. Service shutdown aborts/drains observer reads together with the coordinator before closing state and releasing ownership. Bootstrap prepares the private state directory, then takes coordinator ownership before writable database opening/migration.

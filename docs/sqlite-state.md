@@ -135,3 +135,7 @@ Migration 8 adds run control, report/response/continuation/cancellation records,
 ## Implementation handoff journal
 
 Migration 11 adds `implementation_handoffs`, exposed through `openSqliteState().handoffs`. A unique current record per source implementation job binds a keyed publication request and completed report to a separate host publication job/attempt and push/PR effects. Preparation, safe predecessor replacement, and acceptance plus optional requested review/events are each atomic local transactions. No external process runs inside those transactions. See [the handoff contract](handoff.md) for replay, uncertainty, explicit writer exclusion and read-only listing limits.
+
+## CI request and observation state
+
+Migration 12 adds source-bound `ci_requests`, shared full-target `ci_targets` and per-host `ci_budgets`, exposed through `openSqliteState().ci`. Request controls and observation settlement append run events in the same transactions. Read claims reserve conservative API-slot costs before provider calls; schedules, participant revisions, leases, deadlines and cooldowns survive restart. Expired read claims are replaceable; uncertain write effects remain governed by their separate contracts. Writable local-service startup acquires coordinator ownership before opening/migrating the main database. See [CI observation](ci.md).

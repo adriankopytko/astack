@@ -131,3 +131,7 @@ Requests validate before reads. Cancellation before persistence rejects without 
 Stable errors are `configuration_invalid`, `configuration_unsafe`, `configuration_unavailable`, and `configuration_blocked`, plus existing request/context/state errors. Missing prerequisites are a completed resolution with `status: blocked`, diagnostics and, when possible, a non-authoritative snapshot. Missing state is a state error. No partial settings are accepted after invalid input.
 
 The [generic local service](service.md) consumes these contracts. Real runtime adapters, credential injection, hook execution, project initialization, cross-project user profile loading and automatic approval remain later work.
+
+## Explicit no-CI permission
+
+The optional private `execution.review.allowNoChecks` flag permits a reviewer gate that explicitly requests `allowNoChecks: true` to accept a wholly empty check set with no selected required names. It defaults through absence to no permission, preserves existing policy digests when absent, and is independent of `allowGateOverride`. Repository proposals cannot grant it. Normal observed failing/pending/skipped/cancelled checks do not pass. See [CI observation](ci.md) and [review gates](review.md).

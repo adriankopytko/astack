@@ -39,7 +39,7 @@ Publication is a same-host orchestrator capability, not a restricted worker endp
 
 Pages use explicit `per_page=100&page=N` URLs, not provider-supplied next links or an unbounded `--paginate`. A full final allowed page remains incomplete until a shorter page proves exhaustion; reaching the cap rejects with `github_limit_exceeded`. Duplicate identities reject instead of silently dropping records. Concurrent collection edits can invalidate pagination; absence is never sufficient to authorize a write retry.
 
-Successful checks map to pass; neutral/skipped map to skipping, cancellation to cancel, incomplete checks to pending and recognized failure conclusions to fail. Unknown output rejects. No observed checks remains empty and the review gate blocks it; missing checks do not imply success. This is not GitHub branch-protection evaluation or an atomic provider snapshot.
+Successful checks map to pass; neutral/skipped map to skipping, cancellation to cancel, incomplete checks to pending and recognized failure conclusions to fail. Unknown output rejects. No observed checks remains empty; gates block or wait unless both an explicit no-CI request and private host permission allow an empty set. Missing selected checks do not imply success. This is not GitHub branch-protection evaluation or an atomic provider snapshot.
 
 ## Publication intent
 
@@ -120,6 +120,8 @@ await publishGithubEffect(
 ```
 
 The flag is a trusted host attestation, not process detection. It is required even when a claim expired. Reconciliation only calls `findPublication`; it never POSTs. Positive matching evidence confirms the original effect using its original claim token; absent/conflicting/incomplete evidence retains unknown. Keep competing host writers excluded while reconciling. Historical comment/review receipts can be recovered after the PR advances; this does not make them current readiness evidence. Edited PR metadata can leave PR-creation reconciliation unresolved.
+
+The optional `maxRequests` provider option hard-limits API subprocess invocations per operation (default 1,000). The [targeted CI consumer](ci.md) supplies its pre-reserved allowance, including pages and bracket reads. Exhaustion rejects incomplete evidence; it does not truncate the result into success.
 
 All remote calls share an operation deadline (default 30 seconds, maximum five minutes), with each subprocess bounded to at most ten seconds and each output stream to one MiB. Complete root exit, absent original process group and complete untruncated stdout/stderr are required. These are process evidence, not domain success or proof escaped descendants stopped.
 

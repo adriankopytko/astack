@@ -5,13 +5,21 @@ export function sameReviewTarget(a: ReviewTarget, b: ReviewTarget): boolean {
   );
 }
 
-/** No checks, missing names, skipped and cancelled checks never establish a passing gate. */
+/** Missing/skipped/cancelled checks never pass. An empty set needs an explicit host-approved no-CI gate. */
 export function reviewGateBlocker(snapshot: ReviewSnapshot, gate: ReviewGatePolicy): string | null {
   if (snapshot.state !== 'OPEN' || snapshot.draft) {
     return 'pr_not_ready';
   }
 
   if (gate.overrideReason !== null) {
+    return null;
+  }
+
+  if (
+    gate.allowNoChecks === true &&
+    gate.requiredChecks.length === 0 &&
+    snapshot.checks.length === 0
+  ) {
     return null;
   }
 

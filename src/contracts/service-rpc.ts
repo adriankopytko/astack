@@ -1,4 +1,15 @@
 import {
+  ciWatchRequestSchema,
+  ciControlRequestSchema,
+  ciReadRequestSchema,
+  ciListRequestSchema,
+  ciTickRequestSchema,
+  ciReadResultSchema,
+  ciWriteResultSchema,
+  ciListResultSchema,
+  ciWakeResultSchema,
+} from './ci.js';
+import {
   runReadRequestSchema,
   runReportRequestSchema,
   runResponseRequestSchema,
@@ -36,6 +47,11 @@ import { createOperationResultSchema } from './operation-result.js';
 import { createStateWriteResultSchema } from './state.js';
 
 export const serviceRpcRequestSchema = z.discriminatedUnion('operation', [
+  ciWatchRequestSchema.extend({ operation: z.literal('ci_watch') }),
+  ciControlRequestSchema.safeExtend({ operation: z.literal('ci_control') }),
+  ciReadRequestSchema.extend({ operation: z.literal('ci_inspect') }),
+  ciListRequestSchema.extend({ operation: z.literal('ci_list') }),
+  ciTickRequestSchema.extend({ operation: z.literal('ci_wake') }),
   z.strictObject({ schemaVersion: z.literal(1), operation: z.literal('status') }),
   z.strictObject({ schemaVersion: z.literal(1), operation: z.literal('wake') }),
   serviceSubmitRequestSchema.extend({ operation: z.literal('submit') }),
@@ -54,6 +70,10 @@ export const serviceRpcRequestSchema = z.discriminatedUnion('operation', [
   runCursorRequestSchema.extend({ operation: z.literal('run_checkpoint') }),
 ]);
 export const serviceRpcResponseSchema = z.union([
+  ciReadResultSchema,
+  ciWriteResultSchema,
+  ciListResultSchema,
+  ciWakeResultSchema,
   createOperationResultSchema(serviceStatusSchema),
   createOperationResultSchema(serviceJobSchema.nullable()),
   createStateWriteResultSchema(serviceJobSchema),

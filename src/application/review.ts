@@ -97,6 +97,15 @@ async function policy(
   }
 
   if (
+    task.submission.gate.allowNoChecks === true &&
+    value.data.execution.review?.allowNoChecks !== true
+  ) {
+    throw new ReviewFailure(
+      rejected('review_blocked', 'No-CI readiness requires explicit trusted host permission.'),
+    );
+  }
+
+  if (
     task.submission.gate.overrideReason !== null &&
     value.data.execution.review?.allowGateOverride !== true
   ) {

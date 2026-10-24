@@ -1,4 +1,16 @@
 import {
+  watchCi,
+  controlCi,
+  inspectCi,
+  listCi,
+  createCiObserver,
+  type CiDependencies,
+} from '../application/ci.js';
+import { ciPolicySchema } from '../contracts/ci.js';
+import type { CiReader } from '../ports/ci.js';
+import { createGhCiReader } from '../adapters/github/ci-reader.js';
+import { prepareStateDirectory } from '../adapters/state/state-directory.js';
+import {
   inspectRun,
   acceptRunReport,
   respondToRun,
@@ -56,6 +68,7 @@ export async function startLocalService(
   input: unknown,
   options: {
     runtimes?: readonly ServiceWorkerRuntime[];
+    ci?: { policy?: unknown; reader?: CiReader };
     reviewTargets?: ReviewTargetReader;
     githubExecutable?: string;
     runWorkerInput?: ImplementationWorkerInput;
@@ -69,22 +82,35 @@ export async function startLocalService(
     return request.result;
   }
 
-  const opened = await openSqliteState({
-    schemaVersion: 1,
-    ...(request.value.stateDirectory === undefined
-      ? {}
-      : { stateDirectory: request.value.stateDirectory }),
-  });
+  if (process.platform !== 'linux' && process.platform !== 'darwin') {
+    return rejected('unsupported_platform', 'The local service requires Linux or macOS.');
+  }
 
-  if (opened.outcome !== 'opened') {
-    return opened;
+  const ciPolicy = ciPolicySchema.safeParse(options.ci?.policy ?? {});
+
+  if (!ciPolicy.success) {
+    return rejected('invalid_request', 'Invalid CI observer policy.');
   }
 
   let ownership: CoordinatorOwnership | undefined;
-  const stateStore = opened.store;
+  let closeState = () => {};
 
   try {
-    ownership = await acquireCoordinatorOwnership(opened.stateDirectory);
+    const prepared = await prepareStateDirectory(request.value.stateDirectory, false);
+    ownership = await acquireCoordinatorOwnership(prepared.root.path);
+    const opened = await openSqliteState({ schemaVersion: 1, stateDirectory: prepared.root.path });
+
+    if (opened.outcome !== 'opened') {
+      ownership.release();
+
+      return opened;
+    }
+
+    closeState = () => {
+      opened.store.close();
+    };
+
+    const stateStore = opened.store;
     const executable = await gitExecutable(request.value.gitExecutable);
 
     if (!executable) {
@@ -117,6 +143,17 @@ export async function startLocalService(
       instructions: nodeImplementationContextReader,
     };
     const gh = await hostExecutable('gh', options.githubExecutable);
+
+    if (options.ci && !options.ci.reader && !gh) {
+      ownership.release();
+      opened.store.close();
+
+      return rejected(
+        'github_unavailable',
+        'Select a trusted GitHub CLI executable before enabling CI observation.',
+      );
+    }
+
     const environment: Record<string, string> = {};
 
     for (const key of [
@@ -236,6 +273,34 @@ export async function startLocalService(
         void close();
       },
     });
+    const ciDependencies: CiDependencies = {
+      ...dependencies,
+      ci: opened.ci,
+      handoffs: opened.handoffs,
+      runs: opened.runs,
+      nextId: () => `ci-controller-${randomUUID()}`,
+      random: Math.random,
+      reader:
+        options.ci?.reader ??
+        (gh
+          ? createGhCiReader({
+              executable: gh,
+              runner: nodeProcessRunner,
+              environment,
+              now: Date.now,
+              timeoutMs: 30000,
+            })
+          : {
+              read: async () =>
+                rejected('github_unavailable', 'Select a trusted GitHub CLI executable.'),
+            }),
+    };
+    const ciObserver = options.ci
+      ? createCiObserver(ciDependencies, ciPolicy.data, () => {
+          fatal = true;
+          void close();
+        })
+      : null;
     const transport = await listenLocalService({
       stateDirectory: opened.stateDirectory,
       sessionId,
@@ -256,6 +321,53 @@ export async function startLocalService(
         const request = parsed.value;
 
         switch (request.operation) {
+          case 'ci_inspect': {
+            const { operation: _operation, ...value } = request;
+
+            return inspectCi(value, ciDependencies);
+          }
+
+          case 'ci_list': {
+            const { operation: _operation, ...value } = request;
+
+            return listCi(value, ciDependencies);
+          }
+
+          case 'ci_watch': {
+            const { operation: _operation, ...value } = request;
+            const result = await watchCi(value, ciDependencies, signal);
+
+            if (result.outcome === 'persisted') {
+              ciObserver?.wake();
+            }
+
+            return result;
+          }
+
+          case 'ci_control': {
+            const { operation: _operation, ...value } = request;
+            const result = await controlCi(value, ciDependencies, signal);
+
+            if (result.outcome === 'persisted') {
+              ciObserver?.wake();
+            }
+
+            return result;
+          }
+
+          case 'ci_wake': {
+            if (!ciObserver) {
+              return rejected(
+                'ci_blocked',
+                'CI observation is disabled; restart the service with explicit CI opt-in.',
+              );
+            }
+
+            ciObserver.wake();
+
+            return completed({ scheduled: true as const });
+          }
+
           case 'run_inspect':
             return inspectRun({ schemaVersion: 1, jobId: request.jobId }, runDependencies, signal);
           case 'run_events': {
@@ -361,7 +473,11 @@ export async function startLocalService(
           let result: OperationResult<{ closed: true }> = completed({ closed: true });
 
           try {
-            const drained = await Promise.allSettled([transport.close(), coordinator.stop()]);
+            const drained = await Promise.allSettled([
+              transport.close(),
+              coordinator.stop(),
+              ciObserver?.stop(),
+            ]);
 
             if (drained.some((result) => result.status === 'rejected')) {
               fatal = true;
@@ -390,6 +506,7 @@ export async function startLocalService(
     }
 
     coordinator.start();
+    ciObserver?.start();
 
     return {
       schemaVersion: 1 as const,
@@ -403,7 +520,7 @@ export async function startLocalService(
     };
   } catch (error) {
     ownership?.release();
-    opened.store.close();
+    closeState();
 
     if (hasFileCode(error, 'EPERM') || hasFileCode(error, 'EACCES')) {
       return rejected(

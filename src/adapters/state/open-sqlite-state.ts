@@ -18,6 +18,8 @@ import { createSqliteHerdrStore } from './herdr-store.js';
 
 import type { RuntimeStore } from '../../ports/runtime.js';
 import { createSqliteHandoffStore } from './handoff-store.js';
+import { createSqliteCiStore } from './ci-store.js';
+import type { CiStore } from '../../ports/ci.js';
 import type { HandoffStore } from '../../ports/handoff.js';
 import type { RunStore } from '../../ports/runs.js';
 import { createSqliteRunStore } from './run-store.js';
@@ -40,6 +42,7 @@ export type StateOpenResult =
       runtime: RuntimeStore;
       runs: RunStore;
       handoffs: HandoffStore;
+      ci: CiStore;
     }
   | RejectedResult;
 
@@ -80,6 +83,7 @@ export async function openSqliteState(
         worktrees: createSqliteWorktreeStore(database, dependencies.now ?? Date.now),
         service: createSqliteServiceStore(database, dependencies.now ?? Date.now),
         handoffs: createSqliteHandoffStore(database, dependencies.now ?? Date.now),
+        ci: createSqliteCiStore(database, dependencies.now ?? Date.now),
         runs: createSqliteRunStore(database, dependencies.now ?? Date.now),
         herdr: createSqliteHerdrStore(database, dependencies.now ?? Date.now),
         runtime: createSqliteRuntimeStore(database, dependencies.now ?? Date.now),

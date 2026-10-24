@@ -10,6 +10,7 @@ export interface GhOptions {
   now: () => number;
   timeoutMs?: number;
   maxPages?: number;
+  maxRequests?: number;
 }
 export class GhFailure extends Error {
   constructor(
@@ -39,6 +40,8 @@ export function createGhSession(options: GhOptions, root: string, signal?: Abort
   const duration = options.timeoutMs ?? 30000;
   const started = options.now();
   const maxPages = options.maxPages ?? 20;
+  const maxRequests = options.maxRequests ?? 1000;
+  let requests = 0;
 
   if (
     !isAbsolute(options.executable) ||
@@ -48,7 +51,10 @@ export function createGhSession(options: GhOptions, root: string, signal?: Abort
     duration > 300000 ||
     !Number.isInteger(maxPages) ||
     maxPages < 1 ||
-    maxPages > 100
+    maxPages > 100 ||
+    !Number.isInteger(maxRequests) ||
+    maxRequests < 1 ||
+    maxRequests > 1000
   ) {
     throw new GhFailure('github_unavailable');
   }
@@ -65,6 +71,11 @@ export function createGhSession(options: GhOptions, root: string, signal?: Abort
       throw new GhFailure('github_timed_out');
     }
 
+    if (requests >= maxRequests) {
+      throw new GhFailure('github_limit_exceeded');
+    }
+
+    requests++;
     const result = processResultSchema.parse(
       await options.runner.run(
         processRequestSchema.parse({

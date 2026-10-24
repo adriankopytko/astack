@@ -60,7 +60,9 @@ export const hostConfigurationPolicySchema = z
     local: configurationPatchSchema.default({}),
     execution: z.strictObject({
       enabled: z.boolean(),
-      review: z.strictObject({ allowGateOverride: z.boolean() }).optional(),
+      review: z
+        .strictObject({ allowGateOverride: z.boolean(), allowNoChecks: z.boolean().optional() })
+        .optional(),
       allowedRuntimes: z.array(name).max(32),
       allowedEnvironment: environment,
       maxTimeoutMs: z.number().int().min(1000).max(86_400_000).default(300_000),

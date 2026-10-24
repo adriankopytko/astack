@@ -40,7 +40,7 @@ function render(result: ServiceRpcResponse, json?: boolean): void {
       process.stdout.write(`Job: ${value.job.job.id}\nState: ${value.review.state}\n`);
     } else if ('implementation' in value) {
       process.stdout.write(`Job: ${value.job.job.id}\nState: ${value.implementation.state}\n`);
-    } else {
+    } else if ('entry' in value) {
       process.stdout.write(
         `Job: ${value.job.id}\nAttempt: ${value.attempt.id}\nState: ${value.entry.state}\nReason: ${value.entry.reason ?? 'none'}\n`,
       );
@@ -59,6 +59,7 @@ export function wireServiceCommands(program: Command): void {
   service
     .command('run')
     .description('Run the coordinator in the foreground with explicitly enabled runtimes')
+    .option('--observe-ci', 'Enable bounded targeted CI observations for persisted requests')
     .option('--codex-herdr', 'Trust Herdr-owned Codex execution in each configured project server')
     .option(
       '--codex-executable <absolute-path>',
@@ -72,6 +73,7 @@ export function wireServiceCommands(program: Command): void {
         capacity: number;
         roleCapacity: number;
         codexHerdr?: boolean;
+        observeCi?: boolean;
         codexExecutable?: string;
         json?: boolean;
       }) => {
@@ -89,18 +91,21 @@ export function wireServiceCommands(program: Command): void {
             ...(host.gitExecutable === undefined ? {} : { gitExecutable: host.gitExecutable }),
             limits: { global: options.capacity, defaultRole: options.roleCapacity, perRole: {} },
           },
-          options.codexHerdr
-            ? {
-                codexHerdr: {
-                  ...(host.herdrExecutable === undefined
-                    ? {}
-                    : { herdrExecutable: host.herdrExecutable }),
-                  ...(options.codexExecutable === undefined
-                    ? {}
-                    : { codexExecutable: options.codexExecutable }),
-                },
-              }
-            : {},
+          {
+            ...(options.observeCi ? { ci: {} } : {}),
+            ...(options.codexHerdr
+              ? {
+                  codexHerdr: {
+                    ...(host.herdrExecutable === undefined
+                      ? {}
+                      : { herdrExecutable: host.herdrExecutable }),
+                    ...(options.codexExecutable === undefined
+                      ? {}
+                      : { codexExecutable: options.codexExecutable }),
+                  },
+                }
+              : {}),
+          },
         );
 
         if (started.outcome === 'rejected') {
@@ -118,7 +123,7 @@ export function wireServiceCommands(program: Command): void {
         process.stdout.write(
           options.json
             ? `${JSON.stringify({ schemaVersion: 1, outcome: 'listening', sessionId: started.sessionId, socketPath: started.socketPath })}\n`
-            : `Service listening at ${started.socketPath}\nRuntimes: ${options.codexHerdr ? 'codex-herdr' : 'none enabled'}.\n`,
+            : `Service listening at ${started.socketPath}\nRuntimes: ${options.codexHerdr ? 'codex-herdr' : 'none enabled'}.\nCI observations: ${options.observeCi ? 'enabled' : 'disabled'}.\n`,
         );
 
         try {

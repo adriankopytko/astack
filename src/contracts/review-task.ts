@@ -25,6 +25,7 @@ const checkName = z
 export const reviewGatePolicySchema = z
   .strictObject({
     requiredChecks: z.array(checkName).max(32).default([]),
+    allowNoChecks: z.boolean().optional(),
     overrideReason: z
       .string()
       .min(1)

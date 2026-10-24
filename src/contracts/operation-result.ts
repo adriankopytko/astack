@@ -65,6 +65,8 @@ export const operationErrorSchema = z.strictObject({
     'github_timed_out',
     'github_limit_exceeded',
     'github_conflict',
+    'ci_blocked',
+    'ci_not_found',
     'handoff_blocked',
     'handoff_not_found',
     'handoff_target_changed',
