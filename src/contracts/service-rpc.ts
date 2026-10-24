@@ -1,4 +1,17 @@
 import {
+  reviewAutomationReadSchema,
+  reviewAutomationSetSchema,
+  followUpEnqueueSchema,
+  followUpReadSchema,
+  followUpControlSchema,
+  followUpListRequestSchema,
+  reviewAutomationReadResultSchema,
+  reviewAutomationWriteResultSchema,
+  followUpReadResultSchema,
+  followUpWriteResultSchema,
+  followUpListResultSchema,
+} from './automatic-review.js';
+import {
   ciWatchRequestSchema,
   ciControlRequestSchema,
   ciReadRequestSchema,
@@ -47,6 +60,12 @@ import { createOperationResultSchema } from './operation-result.js';
 import { createStateWriteResultSchema } from './state.js';
 
 export const serviceRpcRequestSchema = z.discriminatedUnion('operation', [
+  reviewAutomationReadSchema.extend({ operation: z.literal('review_automation_inspect') }),
+  reviewAutomationSetSchema.extend({ operation: z.literal('review_automation_configure') }),
+  followUpEnqueueSchema.extend({ operation: z.literal('follow_up_enqueue') }),
+  followUpReadSchema.extend({ operation: z.literal('follow_up_inspect') }),
+  followUpControlSchema.extend({ operation: z.literal('follow_up_control') }),
+  followUpListRequestSchema.extend({ operation: z.literal('follow_up_list') }),
   ciWatchRequestSchema.extend({ operation: z.literal('ci_watch') }),
   ciControlRequestSchema.safeExtend({ operation: z.literal('ci_control') }),
   ciReadRequestSchema.extend({ operation: z.literal('ci_inspect') }),
@@ -70,6 +89,11 @@ export const serviceRpcRequestSchema = z.discriminatedUnion('operation', [
   runCursorRequestSchema.extend({ operation: z.literal('run_checkpoint') }),
 ]);
 export const serviceRpcResponseSchema = z.union([
+  reviewAutomationReadResultSchema,
+  reviewAutomationWriteResultSchema,
+  followUpReadResultSchema,
+  followUpWriteResultSchema,
+  followUpListResultSchema,
   ciReadResultSchema,
   ciWriteResultSchema,
   ciListResultSchema,

@@ -139,3 +139,7 @@ Migration 11 adds `implementation_handoffs`, exposed through `openSqliteState().
 ## CI request and observation state
 
 Migration 12 adds source-bound `ci_requests`, shared full-target `ci_targets` and per-host `ci_budgets`, exposed through `openSqliteState().ci`. Request controls and observation settlement append run events in the same transactions. Read claims reserve conservative API-slot costs before provider calls; schedules, participant revisions, leases, deadlines and cooldowns survive restart. Expired read claims are replaceable; uncertain write effects remain governed by their separate contracts. Writable local-service startup acquires coordinator ownership before opening/migrating the main database. See [CI observation](ci.md).
+
+## Automatic review controls and plans
+
+Migration 13 adds `review_automation` and `review_follow_ups`, exposed through `openSqliteState().automaticReviews`. Settings disablement and owned-wait suspension are atomic; queue acceptance/linking and worker claim/plan dispatch are also atomic. Control revisions and fresh CI generations prevent implicit backlog resume. Shared adapter transaction helpers preserve state-layer direction without nested transactions or importing application policy. See [after-handoff review](automatic-review.md).

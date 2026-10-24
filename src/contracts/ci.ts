@@ -20,6 +20,7 @@ export const ciSourceSchema = z.discriminatedUnion('kind', [
 export const ciWatchRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   source: ciSourceSchema,
+  automaticReviewPlanId: stateIdSchema.optional(),
   key: stateIdSchema,
   timeoutMs: timeout.default(3600000),
 });

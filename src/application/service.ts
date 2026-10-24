@@ -1,3 +1,5 @@
+import type { AutomaticReviewStore } from '../ports/automatic-review.js';
+import { reviewTaskSchema } from '../contracts/review-task.js';
 import {
   completed,
   rejected,
@@ -26,6 +28,7 @@ import {
 import { selectProjectContext } from './select-project-context.js';
 
 export interface ServiceDependencies extends ConfigurationDependencies {
+  automaticReviews?: Pick<AutomaticReviewStore, 'authorize'>;
   queue: ServiceStore;
   now: () => number;
   nextId: (kind: 'job' | 'attempt' | 'effect' | 'claim') => string;
@@ -209,6 +212,29 @@ export function createServiceCoordinator(input: {
     let observation: WorkerObservation;
 
     try {
+      const automatic = reviewTaskSchema.safeParse(job.job.intent.task);
+
+      if (
+        start &&
+        automatic.success &&
+        automatic.data.authorization === 'after-handoff' &&
+        dependencies.automaticReviews?.authorize(job.job.id).outcome !== 'completed'
+      ) {
+        written(
+          dependencies.queue.observe(
+            job.job.id,
+            {
+              state: 'not_started',
+              handle: null,
+              evidence: { reason: 'automatic_review_suspended' },
+            },
+            dependencies.now(),
+          ),
+        );
+
+        return;
+      }
+
       observation = provider
         ? workerObservationSchema.parse(
             await (start
@@ -250,6 +276,23 @@ export function createServiceCoordinator(input: {
         job.entry.claim !== null ||
         !['queued', 'blocked'].includes(job.entry.state)
       ) {
+        return;
+      }
+
+      const automatic = reviewTaskSchema.safeParse(job.job.intent.task);
+
+      if (
+        automatic.success &&
+        automatic.data.authorization === 'after-handoff' &&
+        dependencies.automaticReviews?.authorize(job.job.id).outcome !== 'completed'
+      ) {
+        written(
+          dependencies.queue.block(job.job.id, 'workflow_blocked', {
+            code: 'automatic_review_blocked',
+            message: 'Automatic review is suspended or disabled.',
+          }),
+        );
+
         return;
       }
 
@@ -306,6 +349,16 @@ export function createServiceCoordinator(input: {
       }
 
       const provider = runtime(job);
+
+      if (
+        automatic.success &&
+        automatic.data.authorization === 'after-handoff' &&
+        !provider?.preflight
+      ) {
+        written(dependencies.queue.block(job.job.id, 'workflow_unavailable'));
+
+        return;
+      }
 
       if (provider?.preflight) {
         let ready = false;

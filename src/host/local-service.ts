@@ -1,4 +1,15 @@
 import {
+  inspectReviewAutomation,
+  configureReviewAutomation,
+  enqueueFollowUpReview,
+  inspectFollowUpReview,
+  listFollowUpReviews,
+  controlFollowUpReview,
+  createFollowUpDispatcher,
+  suspendFollowUpExecutor,
+  type AutomaticReviewDependencies,
+} from '../application/automatic-review.js';
+import {
   watchCi,
   controlCi,
   inspectCi,
@@ -69,6 +80,7 @@ export async function startLocalService(
   options: {
     runtimes?: readonly ServiceWorkerRuntime[];
     ci?: { policy?: unknown; reader?: CiReader };
+    afterHandoffReview?: boolean;
     reviewTargets?: ReviewTargetReader;
     githubExecutable?: string;
     runWorkerInput?: ImplementationWorkerInput;
@@ -84,6 +96,10 @@ export async function startLocalService(
 
   if (process.platform !== 'linux' && process.platform !== 'darwin') {
     return rejected('unsupported_platform', 'The local service requires Linux or macOS.');
+  }
+
+  if (options.afterHandoffReview && !options.ci) {
+    return rejected('invalid_request', 'After-handoff review requires the CI observer opt-in.');
   }
 
   const ciPolicy = ciPolicySchema.safeParse(options.ci?.policy ?? {});
@@ -127,6 +143,7 @@ export async function startLocalService(
     const dependencies: ServiceDependencies = {
       registry: opened.registry,
       queue: opened.service,
+      ...(options.afterHandoffReview ? { automaticReviews: opened.automaticReviews } : {}),
       git: createGitInspector({ executable, runner: nodeProcessRunner }),
       identity: nodeCheckoutIdentityReader,
       configuration: createNodeConfigurationReader(opened.stateDirectory),
@@ -242,6 +259,7 @@ export async function startLocalService(
         reviewDependencies,
         herdrExecutable: herdr,
         codexExecutable: codex,
+        allowAutomaticReview: options.afterHandoffReview ?? false,
       });
       runtimes.push(codexRuntime.runtime);
       workerInput = options.runWorkerInput ?? codexRuntime.workerInput;
@@ -276,6 +294,7 @@ export async function startLocalService(
     const ciDependencies: CiDependencies = {
       ...dependencies,
       ci: opened.ci,
+      ...(options.afterHandoffReview ? { automaticCi: opened.automaticReviews } : {}),
       handoffs: opened.handoffs,
       runs: opened.runs,
       nextId: () => `ci-controller-${randomUUID()}`,
@@ -295,12 +314,45 @@ export async function startLocalService(
                 rejected('github_unavailable', 'Select a trusted GitHub CLI executable.'),
             }),
     };
-    const ciObserver = options.ci
-      ? createCiObserver(ciDependencies, ciPolicy.data, () => {
+    const automaticDependencies: AutomaticReviewDependencies = {
+      executorEnabled: options.afterHandoffReview ?? false,
+      store: opened.automaticReviews,
+      reviews: reviewDependencies,
+      ci: ciDependencies,
+      now: Date.now,
+      wake: () => coordinator.wake(),
+      wakeCi: () => ciObserver?.wake(),
+    };
+    let ciObserver: ReturnType<typeof createCiObserver> | null = null;
+    const automaticDispatcher = options.afterHandoffReview
+      ? createFollowUpDispatcher(automaticDependencies, () => {
           fatal = true;
           void close();
         })
       : null;
+    ciObserver = options.ci
+      ? createCiObserver(
+          ciDependencies,
+          ciPolicy.data,
+          () => {
+            fatal = true;
+            void close();
+          },
+          () => automaticDispatcher?.wake(),
+        )
+      : null;
+
+    if (!options.afterHandoffReview) {
+      const suspended = await suspendFollowUpExecutor(opened.automaticReviews, Date.now);
+
+      if (suspended.outcome !== 'completed') {
+        opened.store.close();
+        ownership.release();
+
+        return suspended;
+      }
+    }
+
     const transport = await listenLocalService({
       stateDirectory: opened.stateDirectory,
       sessionId,
@@ -321,6 +373,57 @@ export async function startLocalService(
         const request = parsed.value;
 
         switch (request.operation) {
+          case 'review_automation_inspect': {
+            const { operation: _operation, ...value } = request;
+
+            return inspectReviewAutomation(value, automaticDependencies);
+          }
+
+          case 'review_automation_configure': {
+            const { operation: _operation, ...value } = request;
+            const result = await configureReviewAutomation(value, automaticDependencies, signal);
+            automaticDispatcher?.wake();
+            ciObserver?.wake();
+
+            return result;
+          }
+
+          case 'follow_up_inspect': {
+            const { operation: _operation, ...value } = request;
+
+            return inspectFollowUpReview(value, automaticDependencies);
+          }
+
+          case 'follow_up_list': {
+            const { operation: _operation, ...value } = request;
+
+            return listFollowUpReviews(value, automaticDependencies);
+          }
+
+          case 'follow_up_enqueue': {
+            const { operation: _operation, ...value } = request;
+            const result = await enqueueFollowUpReview(value, automaticDependencies, signal);
+
+            if (result.outcome === 'persisted') {
+              automaticDispatcher?.wake();
+            }
+
+            return result;
+          }
+
+          case 'follow_up_control': {
+            const { operation: _operation, ...value } = request;
+            const result = await controlFollowUpReview(value, automaticDependencies, signal);
+
+            if (result.outcome === 'persisted') {
+              automaticDispatcher?.wake();
+              ciObserver?.wake();
+              coordinator.wake();
+            }
+
+            return result;
+          }
+
           case 'ci_inspect': {
             const { operation: _operation, ...value } = request;
 
@@ -420,6 +523,7 @@ export async function startLocalService(
             return coordinator.status();
           case 'wake':
             coordinator.wake();
+            automaticDispatcher?.wake();
 
             return coordinator.status();
           case 'inspect':
@@ -477,6 +581,7 @@ export async function startLocalService(
               transport.close(),
               coordinator.stop(),
               ciObserver?.stop(),
+              automaticDispatcher?.stop(),
             ]);
 
             if (drained.some((result) => result.status === 'rejected')) {
@@ -507,6 +612,7 @@ export async function startLocalService(
 
     coordinator.start();
     ciObserver?.start();
+    automaticDispatcher?.start();
 
     return {
       schemaVersion: 1 as const,

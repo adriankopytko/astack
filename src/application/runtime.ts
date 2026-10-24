@@ -1,3 +1,4 @@
+import { reviewTaskSchema } from '../contracts/review-task.js';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
@@ -28,6 +29,7 @@ import type { HerdrDependencies } from './herdr.js';
 
 export interface RuntimeDependencies extends HerdrDependencies {
   runtime: RuntimeStore;
+  allowAutomaticReview?: boolean;
   queue: ServiceStore;
   worker: InteractiveWorkerProvider;
   /** Host opt-in attests that the selected Herdr server resolves canonical `codex` to this approved executable. */
@@ -44,6 +46,29 @@ function read<T>(result: OperationResult<T>): T {
   }
 
   return result.value;
+}
+
+function checkAutomaticReview(job: ServiceJob, deps: RuntimeDependencies) {
+  const task = reviewTaskSchema.safeParse(job.job.intent.task);
+
+  if (task.success && task.data.authorization === 'after-handoff') {
+    if (deps.allowAutomaticReview !== true) {
+      throw new RuntimeFailure(
+        rejected(
+          'automatic_review_blocked',
+          'Automatic review execution is disabled in this host.',
+        ),
+      );
+    }
+
+    read(
+      deps.runtime.checkAutomaticReview?.(job.job.id) ??
+        rejected(
+          'automatic_review_blocked',
+          'This runtime cannot validate automatic authorization.',
+        ),
+    );
+  }
 }
 
 function write<T>(result: StateWriteResult<T>): T {
@@ -359,6 +384,7 @@ export async function launchRuntime(
     }
 
     const job = await jobFor(attemptId, deps);
+    checkAutomaticReview(job, deps);
     const command = await approved(job, deps, signal);
     const layout = await prepareHerdrWorker(input, deps, signal);
 
@@ -407,6 +433,7 @@ export async function launchRuntime(
       phase: 'pending',
       agent: null,
     });
+    checkAutomaticReview(await jobFor(attemptId, deps), deps);
     const reserved = deps.runtime.reserve(session);
     write(reserved);
 
@@ -415,7 +442,7 @@ export async function launchRuntime(
     }
 
     try {
-      await jobFor(attemptId, deps);
+      checkAutomaticReview(await jobFor(attemptId, deps), deps);
       // Persistence precedes the only launch call. Cancellation/timeout after this point leaves unknown intent.
       const launched = await deps.worker.launch(
         { space, ...command },
@@ -537,6 +564,11 @@ async function control(
     }
 
     const job = await jobFor(attemptId, deps, kind === 'interrupt');
+
+    if (kind === 'input' && key === 'review:initial:v1') {
+      checkAutomaticReview(job, deps);
+    }
+
     const command = await approved(job, deps, signal);
     const observation = await observed(session, deps, signal);
 
@@ -571,7 +603,11 @@ async function control(
       return rejected('cancelled', 'Runtime control was cancelled before acceptance.');
     }
 
-    await jobFor(attemptId, deps, kind === 'interrupt');
+    const currentJob = await jobFor(attemptId, deps, kind === 'interrupt');
+
+    if (kind === 'input' && key === 'review:initial:v1') {
+      checkAutomaticReview(currentJob, deps);
+    }
 
     const action: RuntimeAction = { attemptId, key, kind, digest, state: 'pending', generation: 0 };
     const reserved = deps.runtime.reserveAction(session, action);
@@ -582,7 +618,12 @@ async function control(
     }
 
     try {
-      await jobFor(attemptId, deps, kind === 'interrupt');
+      const current = await jobFor(attemptId, deps, kind === 'interrupt');
+
+      if (kind === 'input' && key === 'review:initial:v1') {
+        checkAutomaticReview(current, deps);
+      }
+
       const bound = { ...session.space, agent: session.agent };
       const response =
         kind === 'input'

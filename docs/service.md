@@ -117,3 +117,7 @@ Run RPC operations add host report acceptance, responses, explicit continuation,
 ## Optional CI observer
 
 `service run --observe-ci` enables the separate [CI observation scheduler](ci.md). It consumes only explicitly enrolled persisted review sources, shares exact PR/SHA reads and host budgets, and schedules saved refreshes/deadlines. It has no worker runtime and does not create or dispatch review jobs. Default startup leaves it disabled; existing `service wake` and fresh review dispatch gates remain separate. Service shutdown aborts/drains observer reads together with the coordinator before closing state and releasing ownership. Bootstrap prepares the private state directory, then takes coordinator ownership before writable database opening/migration.
+
+## After-handoff executor
+
+`service run --observe-ci --after-handoff-review` enables [explicit follow-up dispatch](automatic-review.md), independent of the worker runtime flag. Project controls default to disabled and checkout binding is explicit. CI progress wakes the dispatcher; queue readiness and capacity remain fresh. Starting without the executor suspends eligible saved plans before coordinator startup. Shutdown drains both schedulers before state/ownership release. Running/claimed jobs use explicit run cancellation, never an implicit automation-stop signal.

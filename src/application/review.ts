@@ -156,10 +156,11 @@ async function target(task: ReviewTask, deps: ReviewDependencies, signal?: Abort
   return snapshot;
 }
 
-export async function submitReview(
+async function submitReviewAuthorized(
   input: unknown,
   deps: ReviewDependencies,
   signal?: AbortSignal,
+  automatic?: { planId: string; followUpId: string },
 ): Promise<StateWriteResult<ReviewJob>> {
   const request = parseOperationRequest(reviewSubmitRequestSchema, input);
 
@@ -176,6 +177,13 @@ export async function submitReview(
     const previous = read(deps.queue.reviewRequest({ projectId: value.projectId, key: value.key }));
 
     if (previous) {
+      if (!automatic && reviewTask(previous.job)?.authorization === 'after-handoff') {
+        return rejected(
+          'state_conflict',
+          'This key belongs to an automatic request; submit manual review with a distinct key.',
+        );
+      }
+
       if (!isDeepStrictEqual(previous.submission, value)) {
         return rejected(
           'state_conflict',
@@ -210,15 +218,24 @@ export async function submitReview(
       schemaVersion: 1,
       workflow: 'review',
       submission: value,
-      authorization: 'manual-request',
+      authorization: automatic ? 'after-handoff' : 'manual-request',
+      ...(automatic ? { followUp: automatic } : {}),
       worktreeId: owned.managed.intent.id,
       root: owned.root,
       instructions,
       initialSnapshot: snapshot,
       resultContractVersion: 1,
-      promptVersion: 3,
+      promptVersion: automatic ? 4 : 3,
     });
     const approvedDigest = await policy(task, deps, signal);
+
+    if (automatic && reviewGateBlocker(snapshot, value.gate)) {
+      return rejected(
+        'review_blocked',
+        'Fresh readiness no longer permits automatic review acceptance.',
+      );
+    }
+
     const accepted = await submitServiceJob(
       {
         schemaVersion: 1,
@@ -253,6 +270,21 @@ export async function submitReview(
       ? error.result
       : rejected('review_blocked', 'Review context could not be accepted; no worker was launched.');
   }
+}
+
+/** Manual authorization remains distinct from host-scheduled after-handoff requests. */
+export function submitReview(input: unknown, deps: ReviewDependencies, signal?: AbortSignal) {
+  return submitReviewAuthorized(input, deps, signal);
+}
+
+/** Internal workflow consumer; the state adapter also validates and links its saved plan transactionally. */
+export function submitFollowUpReview(
+  input: unknown,
+  deps: ReviewDependencies,
+  automatic: { planId: string; followUpId: string },
+  signal?: AbortSignal,
+) {
+  return submitReviewAuthorized(input, deps, signal, automatic);
 }
 
 /** Saved observations only, available with the service stopped. */
@@ -300,6 +332,16 @@ export function createReviewRuntime(input: {
     async readiness(job, task, signal) {
       try {
         await policy(task, input.dependencies, signal, job);
+
+        if (task.authorization === 'after-handoff') {
+          read(
+            input.dependencies.automaticReviews?.authorize(job.job.id) ??
+              rejected(
+                'automatic_review_blocked',
+                'Automatic dispatch is not enabled in this host.',
+              ),
+          );
+        }
 
         if (task.submission.resources.length > 0) {
           return rejected(

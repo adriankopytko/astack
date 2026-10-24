@@ -2,7 +2,7 @@
 
 ## Scope and authority
 
-Issue #25 adds persistent, shared CI observations for already accepted review work. It never discovers unrelated PRs, creates a review job, starts an agent, publishes findings or merges. The default service has no CI observer. `service run --observe-ci` explicitly enables the scheduler; `ci watch` separately authorizes waiting for one persisted source.
+Issue #25 adds persistent, shared CI observations for already accepted review work. The CI observer never discovers unrelated PRs, creates a review job, starts an agent, publishes findings or merges. Its progress can wake the separately opted-in [follow-up dispatcher](automatic-review.md). The default service has no CI observer. `service run --observe-ci` explicitly enables the scheduler; `ci watch` separately authorizes waiting for one persisted source.
 
 A source is either an existing manual review job or an accepted implementation handoff containing an explicitly authorized follow-up review. A handoff with `review: null` cannot be watched. Arbitrary repository/PR/SHA targets are not accepted by the enrollment operation. The saved source supplies the exact target and gate; enrollment and every read revalidate it against current trusted host policy and explicit registered project identity.
 
@@ -27,7 +27,7 @@ All commands honor `--state-directory`. Enrollment and controls use the owning s
 
 The deadline defaults to one hour and supports 1,000–604,800,000 ms. Suspend/cancel/complete/resume require the exact saved revision. Explicit resume revalidates original source/policy/context, establishes a new deadline and requests a fresh observation; it never retargets a changed SHA. Cancelled/completed CI requests are terminal. `complete` ends local tracking; it does not establish a successful review or release resources. Controls during an in-flight read invalidate its captured request revision.
 
-`ci wake` only acknowledges that the enabled observer was woken; it does not report a completed observation, bypass a future schedule/budget, or launch an agent. With observation disabled it rejects. Enrollment can remain durably watching while the service observer is disabled. Restarting an enabled observer resumes these previously authorized reads; this is separate from the automatic-review enable/resume policy planned in #26.
+`ci wake` only acknowledges that the enabled observer was woken; it does not report a completed observation, bypass a future schedule/budget, or launch an agent. With observation disabled it rejects. Enrollment can remain durably watching while the service observer is disabled. Restarting an enabled observer resumes these previously authorized reads; this is separate from the separate [automatic-review enable/resume policy](automatic-review.md).
 
 ## State and evidence
 
@@ -58,7 +58,7 @@ An explicit no-CI policy is supported only when both the gate sets `allowNoCheck
 
 The optional gate/host fields remain absent on older records, preserving old configuration digests and reconstructed prompt bytes. Repository proposals cannot grant either permission.
 
-The existing review workflow still checks live target/base/readiness before capacity claim, first input and report acceptance. The CI cache is never substituted for those checks. Use `service wake` to reconsider an existing manual review job after readiness; automatic enrollment/dispatch from handoff follow-ups belongs to #26. Observing CI creates no idle worker.
+The existing review workflow still checks live target/base/readiness before capacity claim, first input and report acceptance. The CI cache is never substituted for those checks. Use `service wake` to reconsider an existing manual review job after readiness; the [follow-up dispatcher](automatic-review.md) can separately enroll an owned CI generation and queue authorized review. Observing CI creates no idle worker.
 
 ## Schedules, budgets and restarts
 
@@ -97,3 +97,7 @@ Writable service startup now takes coordinator ownership before opening/migratin
 ## Verification status
 
 This change is checked with build, TypeScript, typed lint, formatting and resolved module boundaries. New controlled-clock/provider tests and supervised live-provider checks have not been added or run for #25. The older migration fixtures have been updated for migration 12; their next execution is part of explicit verification. The 327-test verification of #24 applies to the preceding commit, not to these new CI operations.
+
+## Owned automatic waits
+
+A follow-up dispatcher enrollment includes an optional `automaticReviewPlanId`. Its saved plan, current project control revision, executor capability, source and canonical CI generation are checked before observation and atomically at new CI intent acceptance. Manual enrollments omit this field and are unaffected by project automation controls. Control automatic waits through their plan; new generations/revisions cannot consume late results from a previous wait. The CI observer's optional progress callback is a host composition hook, not reviewer dispatch authority by itself.

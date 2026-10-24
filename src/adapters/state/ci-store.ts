@@ -1,3 +1,4 @@
+import { assertAutomaticCiRecord } from './automatic-review-evidence.js';
 import { configurationDigest } from '../../core/configuration.js';
 import { isDeepStrictEqual } from 'node:util';
 import {
@@ -110,6 +111,7 @@ export function createSqliteCiStore(db: StateDatabase, now: () => number): CiSto
     reserve(input) {
       return db.write(() => {
         const record = ciRecordSchema.parse(input);
+        assertAutomaticCiRecord(db, record);
 
         if (
           record.id !==

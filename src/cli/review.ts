@@ -1,3 +1,4 @@
+import { wireAutomaticReviewCommands } from './automatic-review.js';
 import { resolve } from 'node:path';
 import { Command } from 'commander';
 import { requestLocalService } from '../adapters/local/service-client.js';
@@ -36,7 +37,8 @@ function render(result: ServiceRpcResponse, json?: boolean) {
 export function wireReviewCommands(program: Command) {
   const review = program
     .command('review')
-    .description('Manually delegate review of an explicit repository, PR and full head SHA');
+    .description('Delegate explicit review work with separately controlled follow-up automation');
+  wireAutomaticReviewCommands(program, review);
   async function execute(
     json: boolean | undefined,
     action: (

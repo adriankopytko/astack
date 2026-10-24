@@ -4,7 +4,7 @@
 
 `finishImplementation`, `reconcileImplementationHandoff` and `inspectImplementationHandoff` consume completed implementation runs and the Git/GitHub publication primitives. The CLI exposes these through `handoff finish`, `reconcile`, `inspect` and `follow-ups`. Migration 11 adds a durable handoff record; acceptance and any explicitly authorized follow-up review request are committed together.
 
-This is an explicit trusted host operation. It does not launch reviewers, watch CI, merge PRs, change issues, shut workers down, release capacity or delete resources. Saved review requests are inputs for a later dispatcher, not accepted review jobs. Manual `review submit` remains available with its own owned checkout, policy, capacity and fresh target/check gates.
+This is an explicit trusted host operation. It does not launch reviewers, watch CI, merge PRs, change issues, shut workers down, release capacity or delete resources. Saved review requests are inputs for the separately opted-in [follow-up dispatcher](automatic-review.md), not accepted review jobs. Attach a dedicated owned checkout explicitly before dispatch. Manual `review submit` remains available with its own owned checkout, policy, capacity and fresh target/check gates.
 
 ## Host authority and preconditions
 

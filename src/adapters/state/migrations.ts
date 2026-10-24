@@ -350,4 +350,24 @@ CREATE TABLE ci_budgets (
 ) STRICT;
 `,
   },
+  {
+    version: 13,
+    sql: `
+CREATE TABLE review_automation (
+ project_id TEXT PRIMARY KEY REFERENCES projects(id),
+ data TEXT NOT NULL CHECK(json_valid(data)) CHECK(json_extract(data,'$.projectId') IS project_id)
+) STRICT;
+CREATE TABLE review_follow_ups (
+ id TEXT PRIMARY KEY,
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ follow_up_id TEXT NOT NULL UNIQUE,
+ phase TEXT NOT NULL CHECK(phase IN ('waiting','queued','suspended','blocked','dispatched','satisfied','cancelled')),
+ data TEXT NOT NULL CHECK(json_valid(data)) CHECK(json_extract(data,'$.id') IS id)
+ CHECK(json_extract(data,'$.projectId') IS project_id)
+ CHECK(json_extract(data,'$.followUpId') IS follow_up_id)
+ CHECK(json_extract(data,'$.phase') IS phase)
+) STRICT;
+CREATE INDEX automatic_review_queue ON review_follow_ups(phase,id);
+`,
+  },
 ] as const;

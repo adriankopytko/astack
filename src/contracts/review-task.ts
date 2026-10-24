@@ -79,16 +79,20 @@ export const reviewTaskSchema = z
     schemaVersion: z.literal(1),
     workflow: z.literal('review'),
     submission: reviewSubmitRequestSchema,
-    authorization: z.literal('manual-request'),
+    authorization: z.enum(['manual-request', 'after-handoff']),
+    followUp: z.strictObject({ planId: stateIdSchema, followUpId: stateIdSchema }).optional(),
     worktreeId: stateIdSchema,
     root: z.string().min(1).max(4096),
     instructions: z.array(instructionReferenceSchema).max(8),
     initialSnapshot: reviewSnapshotSchema,
     resultContractVersion: z.literal(1),
-    promptVersion: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+    promptVersion: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).optional(),
   })
   .refine(
     (v) =>
+      (v.authorization === 'after-handoff'
+        ? v.followUp !== undefined && v.promptVersion === 4
+        : v.followUp === undefined) &&
       JSON.stringify(v.submission.target) === JSON.stringify(v.initialSnapshot.target) &&
       v.instructions.length === v.submission.instructionPaths.length &&
       v.instructions.every((x, i) => x.path === v.submission.instructionPaths[i]) &&

@@ -1,7 +1,6 @@
 import { stateResultSchema } from '../../contracts/state.js';
 import { runControlSchema, type RunControl } from '../../contracts/run-control.js';
 import { runEventSchema, type RunEvent } from '../../contracts/runs.js';
-import type { ServiceJob } from '../../contracts/service.js';
 import { canonicalJson, type StateDatabase } from './database.js';
 export const initialRunControl: RunControl = { phase: 'active', revision: 0, reportId: null };
 export function runControl(db: StateDatabase, jobId: string): RunControl {
@@ -28,7 +27,7 @@ export function saveRunControl(db: StateDatabase, jobId: string, control: RunCon
 
 export function appendRunEvent(
   db: StateDatabase,
-  job: ServiceJob,
+  job: { job: { id: string; projectId: string }; attempt: { id: string } },
   kind: RunEvent['kind'],
   now: number,
   detail: RunEvent['detail'],

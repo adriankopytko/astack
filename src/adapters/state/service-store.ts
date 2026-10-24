@@ -1,4 +1,10 @@
 import {
+  assertFollowUpSubmission,
+  linkFollowUpJob,
+  automaticReviewAllowed,
+  markAutomaticDispatch,
+} from './automatic-review-evidence.js';
+import {
   serviceEntrySchema,
   serviceJobSchema,
   workerObservationSchema,
@@ -105,6 +111,7 @@ export function createSqliteServiceStore(
         }
 
         if (review.success) {
+          assertFollowUpSubmission(db, review.data, job);
           const submission = review.data.submission;
           const alias = db
             .statement(
@@ -117,7 +124,10 @@ export function createSqliteServiceStore(
               stateFailure('state_conflict');
             }
 
-            return { value: required(String(alias.job_id)), disposition: 'existing' };
+            const saved = required(String(alias.job_id));
+            linkFollowUpJob(db, review.data, saved.job, now());
+
+            return { value: saved, disposition: 'existing' };
           }
 
           if (!submission.repeat) {
@@ -128,7 +138,7 @@ export function createSqliteServiceStore(
               AND json_extract(data, '$.intent.task.submission.target.host')=?
               AND json_extract(data, '$.intent.task.submission.target.repository')=?
               AND json_extract(data, '$.intent.task.submission.target.number')=?
-              AND json_extract(data, '$.intent.task.submission.target.sha')=? ORDER BY json_extract(data, '$.createdAt') DESC, id DESC LIMIT 1`)
+              AND json_extract(data, '$.intent.task.submission.target.sha')=? AND (?='after-handoff' OR json_extract(data, '$.intent.task.authorization')='manual-request') ORDER BY json_extract(data, '$.createdAt') DESC, id DESC LIMIT 1`)
               .get(
                 job.projectId,
                 job.repositoryId,
@@ -136,6 +146,7 @@ export function createSqliteServiceStore(
                 target.repository,
                 target.number,
                 target.sha,
+                review.data.authorization,
               );
 
             if (existing) {
@@ -162,6 +173,8 @@ export function createSqliteServiceStore(
               db.statement(
                 'INSERT INTO review_requests(project_id, request_key, job_id, submission) VALUES (?,?,?,?)',
               ).run(job.projectId, submission.key, saved.job.id, canonicalJson(submission));
+
+              linkFollowUpJob(db, review.data, saved.job, now());
 
               return { value: saved, disposition: 'existing' };
             }
@@ -193,6 +206,10 @@ export function createSqliteServiceStore(
             existing.entry.role !== entry.role
           ) {
             stateFailure('state_conflict');
+          }
+
+          if (review.success) {
+            linkFollowUpJob(db, review.data, existing.job, now());
           }
 
           return { value: existing, disposition: 'existing' };
@@ -275,6 +292,10 @@ export function createSqliteServiceStore(
 
         const created = required(job.id);
         appendRunEvent(db, created, 'accepted', now(), { role: entry.role });
+
+        if (review.success) {
+          linkFollowUpJob(db, review.data, created.job, now());
+        }
 
         return { value: created, disposition: 'created' };
       });
@@ -359,6 +380,10 @@ export function createSqliteServiceStore(
           return { value: null, disposition: 'existing' };
         }
 
+        if (!automaticReviewAllowed(db, jobId)) {
+          return { value: null, disposition: 'existing' };
+        }
+
         const counts = db
           .statement(
             "SELECT role, COUNT(*) AS count FROM service_entries WHERE state IN ('dispatching', 'started', 'unknown') GROUP BY role",
@@ -413,6 +438,7 @@ export function createSqliteServiceStore(
           stateFailure('state_reconciliation_required');
         }
 
+        markAutomaticDispatch(db, jobId, now);
         appendRunEvent(db, current, 'claimed', now, { owner });
 
         return {

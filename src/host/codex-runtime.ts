@@ -20,6 +20,7 @@ export function composeCodexHerdrRuntime(input: {
   dependencies: ServiceDependencies;
   reviewDependencies: ReviewDependencies;
   herdrExecutable: string;
+  allowAutomaticReview?: boolean;
   codexExecutable: string;
 }) {
   const provider = createHerdrCliProvider({
@@ -30,6 +31,7 @@ export function composeCodexHerdrRuntime(input: {
 
   const dependencies: RuntimeDependencies = {
     ...input.dependencies,
+    allowAutomaticReview: input.allowAutomaticReview ?? false,
     state: input.opened.store,
     herdr: input.opened.herdr,
     runtime: input.opened.runtime,

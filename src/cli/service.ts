@@ -59,6 +59,10 @@ export function wireServiceCommands(program: Command): void {
   service
     .command('run')
     .description('Run the coordinator in the foreground with explicitly enabled runtimes')
+    .option(
+      '--after-handoff-review',
+      'Enable the project-controlled follow-up executor; requires --observe-ci',
+    )
     .option('--observe-ci', 'Enable bounded targeted CI observations for persisted requests')
     .option('--codex-herdr', 'Trust Herdr-owned Codex execution in each configured project server')
     .option(
@@ -74,6 +78,7 @@ export function wireServiceCommands(program: Command): void {
         roleCapacity: number;
         codexHerdr?: boolean;
         observeCi?: boolean;
+        afterHandoffReview?: boolean;
         codexExecutable?: string;
         json?: boolean;
       }) => {
@@ -93,6 +98,7 @@ export function wireServiceCommands(program: Command): void {
           },
           {
             ...(options.observeCi ? { ci: {} } : {}),
+            afterHandoffReview: options.afterHandoffReview ?? false,
             ...(options.codexHerdr
               ? {
                   codexHerdr: {
@@ -108,7 +114,7 @@ export function wireServiceCommands(program: Command): void {
           },
         );
 
-        if (started.outcome === 'rejected') {
+        if (started.outcome !== 'listening') {
           render(started, options.json);
 
           return;
@@ -123,7 +129,7 @@ export function wireServiceCommands(program: Command): void {
         process.stdout.write(
           options.json
             ? `${JSON.stringify({ schemaVersion: 1, outcome: 'listening', sessionId: started.sessionId, socketPath: started.socketPath })}\n`
-            : `Service listening at ${started.socketPath}\nRuntimes: ${options.codexHerdr ? 'codex-herdr' : 'none enabled'}.\nCI observations: ${options.observeCi ? 'enabled' : 'disabled'}.\n`,
+            : `Service listening at ${started.socketPath}\nRuntimes: ${options.codexHerdr ? 'codex-herdr' : 'none enabled'}.\nCI observations: ${options.observeCi ? 'enabled' : 'disabled'}.\nAfter-handoff executor: ${options.afterHandoffReview ? 'enabled' : 'disabled'}.\n`,
         );
 
         try {

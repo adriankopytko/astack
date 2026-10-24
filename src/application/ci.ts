@@ -1,3 +1,4 @@
+import type { AutomaticReviewStore } from '../ports/automatic-review.js';
 import { isDeepStrictEqual } from 'node:util';
 import {
   ciWatchRequestSchema,
@@ -32,6 +33,7 @@ import { sameReviewTarget, reviewGateBlocker } from '../core/review-gates.js';
 import { parseOperationRequest } from '../core/parse-operation-request.js';
 
 export interface CiDependencies extends ProjectDependencies {
+  automaticCi?: Pick<AutomaticReviewStore, 'authorizeCi'>;
   ci: CiStore;
   handoffs: HandoffStore;
   runs: RunStore;
@@ -173,6 +175,13 @@ async function binding(
 }
 
 async function validate(record: CiRecord, deps: CiDependencies, signal?: AbortSignal) {
+  if (record.request.automaticReviewPlanId) {
+    take(
+      deps.automaticCi?.authorizeCi(record.request.automaticReviewPlanId, record.id) ??
+        rejected('automatic_review_blocked', 'Automatic CI is disabled in this host.'),
+    );
+  }
+
   const fresh = await binding(record.request.source, deps, signal);
 
   if (!isDeepStrictEqual(fresh, record.binding)) {
@@ -201,6 +210,13 @@ export async function watchCi(input: unknown, deps: CiDependencies, signal?: Abo
             value: existing,
           }
         : rejected('state_conflict', 'CI request key already identifies different intent.');
+    }
+
+    if (request.automaticReviewPlanId) {
+      take(
+        deps.automaticCi?.authorizeCi(request.automaticReviewPlanId, id) ??
+          rejected('automatic_review_blocked', 'Automatic CI is disabled in this host.'),
+      );
     }
 
     const source = await binding(request.source, deps, signal);
@@ -583,7 +599,12 @@ export async function observeCi(
 }
 
 /** Serialized bounded passes. Only persisted due targets cause provider reads. */
-export function createCiObserver(deps: CiDependencies, policy: CiPolicy, onFailure: () => void) {
+export function createCiObserver(
+  deps: CiDependencies,
+  policy: CiPolicy,
+  onFailure: () => void,
+  onProgress?: () => void,
+) {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   let running: Promise<void> | null = null;
@@ -609,6 +630,10 @@ export function createCiObserver(deps: CiDependencies, policy: CiPolicy, onFailu
       do {
         requested = false;
         const result = await observeCi({ schemaVersion: 1 }, deps, policy, controller.signal);
+
+        if (result.outcome === 'completed' && !controller.signal.aborted) {
+          onProgress?.();
+        }
 
         if (result.outcome !== 'completed' && !controller.signal.aborted) {
           stopped = true;

@@ -467,3 +467,34 @@ export {
   type CiTarget,
   type CiView,
 } from './contracts/ci.js';
+
+export {
+  inspectReviewAutomation,
+  configureReviewAutomation,
+  enqueueFollowUpReview,
+  inspectFollowUpReview,
+  listFollowUpReviews,
+  controlFollowUpReview,
+  dispatchFollowUpReviews,
+  createFollowUpDispatcher,
+  type AutomaticReviewDependencies,
+} from './application/automatic-review.js';
+export type { AutomaticReviewStore } from './ports/automatic-review.js';
+export {
+  reviewAutomationSchema,
+  reviewAutomationReadSchema,
+  reviewAutomationSetSchema,
+  followUpEnqueueSchema,
+  followUpPlanSchema,
+  followUpReadSchema,
+  followUpControlSchema,
+  followUpListRequestSchema,
+  reviewAutomationReadResultSchema,
+  reviewAutomationWriteResultSchema,
+  followUpReadResultSchema,
+  followUpWriteResultSchema,
+  followUpListResultSchema,
+  followUpDispatchResultSchema,
+  type ReviewAutomation,
+  type FollowUpPlan,
+} from './contracts/automatic-review.js';

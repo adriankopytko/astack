@@ -53,7 +53,7 @@ To review before checks pass, the host policy must contain:
 
 This is a fragment of the existing private host policy, not a complete configuration. Submit with `--override-gate 'Reason to review while CI is pending'`. The command is the manual authorization; the host setting permits its CI override. Repository proposals cannot grant permission. The override is recorded in the task and report proposal, preserves pending/failing/missing checks, and cannot bypass a changed target, unsafe checkout, draft/closed PR, unavailable provider, revoked configuration, capacity or integration-resource blocker. The optional host field has no default materialization, preserving existing policy digests when absent.
 
-No background PR scanner, cron or automatic review hook is installed. The explicit [CI observer](ci.md) can wait on this saved review job when enrolled with `ci watch --review <job-id>` and enabled with `service run --observe-ci`. It does not launch a worker; `service wake` reconsiders authorized queued jobs using fresh target/readiness checks. Automatic follow-up dispatch remains separate.
+No background PR scanner, cron or automatic review hook is installed. The explicit [CI observer](ci.md) can wait on this saved review job when enrolled with `ci watch --review <job-id>` and enabled with `service run --observe-ci`. It does not launch a worker; `service wake` reconsiders authorized queued jobs using fresh target/readiness checks. The separately opted-in [after-handoff dispatcher](automatic-review.md) can queue provenance-bound reviews using the same fresh gates. Manual submissions stay independent of its settings.
 
 ## Delivery, results and retry
 
@@ -70,3 +70,7 @@ Cancellation before acceptance writes nothing; after acceptance, caller disconne
 Disposable repositories, owned worktrees, SQLite state, private sockets and injected providers cover external fork attribution, manual acceptance, aliases/repeats, dedicated-checkout conflicts in both directions, capacity, pending CI, overrides, stale heads, integration blockers, report proposals, offline inspection, restart and lost input. GitHub wrapper fixtures cover exact argv/cwd/environment, pending check state, identity changes, malformed checks and incomplete output. No real agents, live PR writes or user project resources are exercised by default verification.
 
 See [run operations](runs.md) for report validation and accepted outcomes, explicit response/resume/cancellation, event waiting and retained resources.
+
+## Automatic provenance
+
+The after-handoff consumer validates an accepted explicit follow-up and a dedicated owned reviewer checkout, then accepts `authorization: after-handoff` with an immutable plan reference and prompt version 4. Queue acceptance and plan linking are atomic; project controls are rechecked at worker claim and native initial effect boundaries. Manual `submitReview` remains `manual-request` with version 3, and version 1/2/3 reconstruction is unchanged. Automatic acceptance additionally requires the fresh gate to pass, while manual acceptance can remain queued/blocked waiting for checks. See [the automatic review contract](automatic-review.md).

@@ -1,3 +1,4 @@
+import { automaticReviewAllowed } from './automatic-review-evidence.js';
 import {
   runtimeSessionSchema,
   runtimeActionSchema,
@@ -70,6 +71,15 @@ export function createSqliteRuntimeStore(db: StateDatabase, now: () => number): 
   }
 
   return {
+    checkAutomaticReview(jobId) {
+      return db.read(() => {
+        if (!automaticReviewAllowed(db, jobId)) {
+          stateFailure('automatic_review_blocked');
+        }
+
+        return null;
+      });
+    },
     read: (id) => db.read(() => read(id)),
     action: (id, key) => db.read(() => action(id, key)),
     pending: (id) => db.read(() => pending(id)),
@@ -84,6 +94,11 @@ export function createSqliteRuntimeStore(db: StateDatabase, now: () => number): 
         }
 
         active(value);
+
+        if (!automaticReviewAllowed(db, value.jobId)) {
+          stateFailure('automatic_review_blocked');
+        }
+
         const space = db.get(
           herdrSpaceSchema,
           'SELECT data FROM herdr_spaces WHERE id=?',
@@ -151,6 +166,15 @@ export function createSqliteRuntimeStore(db: StateDatabase, now: () => number): 
         checked(session);
         active(session);
         let value = runtimeActionSchema.parse(input);
+
+        if (
+          value.kind === 'input' &&
+          value.key === 'review:initial:v1' &&
+          !automaticReviewAllowed(db, session.jobId)
+        ) {
+          stateFailure('automatic_review_blocked');
+        }
+
         const existing = action(value.attemptId, value.key);
 
         if (existing) {
