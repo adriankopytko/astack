@@ -6,7 +6,7 @@
 
 The existing `createGhReviewTargetReader` delegates to the same paginated check reader. Service review acceptance, dispatch and report validation therefore use this implementation without enabling publication.
 
-These are library APIs. There is no publication CLI command or automatic implementation-finish/review-publication hook. Git pushes, validated implementation handoffs, source-report linkage, automated dispatch and tracker transitions belong to their consuming workflows. A returned review report does not itself authorize publication.
+These primitives are library APIs. The explicit [implementation handoff](handoff.md) now consumes PR publication with source-report validation, Git push and CLI finish/reconciliation commands. Automatic review dispatch, review-result publication and tracker transitions remain separate workflows. A returned review report does not itself authorize publication.
 
 ## Host configuration and authority
 
@@ -28,7 +28,7 @@ The executable and cwd must be absolute. The caller supplies a controlled enviro
 
 Every operation explicitly names canonical lowercase host and owner/repository. PR operations require a PR number and full lowercase SHA-1/SHA-256 head. Discovery requires the source repository and head branch, scopes the query to that branch, includes closed PRs for reconciliation, and rejects unexpected attribution or duplicate identities. It never chooses the current-directory repository, discovers unrelated PRs or fetches Git objects.
 
-Publication is a same-host orchestrator capability, not a restricted worker endpoint. The host must authorize the destination, expected actor, content and action before accepting intent. Keep publication jobs/attempts separate from worker-launch effects and bind the publication attempt to its intended commit. Project registration or a worker report does not grant GitHub write authority. This primitive does not implement the higher-level accepted implementation/report policy in #24/#27.
+Publication is a same-host orchestrator capability, not a restricted worker endpoint. The host must authorize the destination, expected actor, content and action before accepting intent. Keep publication jobs/attempts separate from worker-launch effects and bind the publication attempt to its intended commit. Project registration or a worker report does not grant GitHub write authority. This primitive does not itself implement higher-level accepted report policy; the implementation handoff consumer supplies that policy, while review-result publication remains separate.
 
 ## Reads and pagination
 

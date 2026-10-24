@@ -36,6 +36,8 @@ Durable run inspection, host-supplied report acceptance, monotonic local events/
 
 Targeted GitHub reads and publication effects follow [the GitHub contract](docs/github.md) and ADR 0015. Keep host/repository/full-SHA targeting explicit, paginate bounded collections, and preserve ambiguous/missing/nonpassing checks. Use the existing effect journal for publication intent and claim before effects; pending/unknown writes never replay by age or absence. Reconcile only after host confirmation that original writers stopped, querying exact actor/body/marker/target evidence without POST. Publication is a host capability, separate from worker result acceptance, issue transitions and handoff policy. Keep JSON bodies in private owned request files, never argv; imports/service startup must not enable writes.
 
+Validated implementation publication is implemented through explicit `handoff finish/inspect/reconcile/follow-ups`; follow [its contract](docs/handoff.md) and ADR 0016. Require an accepted completed report, acknowledged original input, unchanged clean owned commit, fresh artifacts and explicit host verification/publication authority. Migration 11 reserves separate host publication jobs/effects. Persist before Git/GitHub writes; claimed/unknown stages only reconcile. Acceptance and authorized review request are atomic; requested review is not dispatch, shutdown or cleanup. The offline CLI holds coordinator ownership, and the host must stop/exclude original writers and descendants. Preserve explicit predecessor constraints on replacement.
+
 ## Toolchain
 
 Use Node 24 LTS, pnpm, strict TypeScript, ESM, and NodeNext module resolution. Honor `.node-version` and `package.json#packageManager`. Preserve the lockfile; do not switch package managers.
@@ -63,7 +65,7 @@ The intended production dependency directions are:
 | `service`       | Inner layers and its own modules; concrete adapters only where wiring dependencies |
 | `host`          | Inner layers, concrete adapters and service transport; no CLI policy               |
 
-`cli` and `service` must not import each other. Share behavior through application operations and contracts. The exact composition exceptions are `src/cli/service.ts` → `src/host/local-service.ts` and `src/cli/runs.ts` → `src/host/reconcile-run.ts`; other CLI/host edges are forbidden. Keep other shared dependency wiring narrow and explicit. Adapters must not import application policy or unrelated adapter implementations. Keep runtime interfaces in `ports`; application operations receive implementations through explicit dependencies.
+`cli` and `service` must not import each other. Share behavior through application operations and contracts. The exact composition exceptions are `src/cli/service.ts` → `src/host/local-service.ts`, `src/cli/runs.ts` → `src/host/reconcile-run.ts`, and `src/cli/handoff.ts` → `src/host/handoff.ts`; other CLI/host edges are forbidden. Keep other shared dependency wiring narrow and explicit. Adapters must not import application policy or unrelated adapter implementations. Keep runtime interfaces in `ports`; application operations receive implementations through explicit dependencies.
 
 Hono and Commander imports stay in their outer transport/CLI layers. `node:sqlite` stays in the state adapter. Project/provider-specific dependencies stay in their adapters or profiles. Contract schemas may use their declared validation dependency. Type-only imports obey boundaries too, apart from the explicit core-type allowance above.
 

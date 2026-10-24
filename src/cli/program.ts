@@ -8,6 +8,7 @@ import { wireServiceCommands } from './service.js';
 import { wireRunCommands } from './runs.js';
 import { wireReviewCommands } from './review.js';
 import { wireImplementationCommands } from './implementation.js';
+import { wireHandoffCommands } from './handoff.js';
 import { wireHerdrCommands } from './herdr.js';
 
 /** Construct commands without parsing arguments or performing startup effects. */
@@ -66,6 +67,7 @@ export function createProgram(version: string): Command {
   wireImplementationCommands(program);
   wireReviewCommands(program);
   wireRunCommands(program);
+  wireHandoffCommands(program);
 
   return program;
 }

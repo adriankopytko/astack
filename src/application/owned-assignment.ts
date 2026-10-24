@@ -7,6 +7,10 @@ export interface OwnedAssignmentDependencies extends ServiceDependencies {
   worktrees: WorktreeStore;
   files: WorktreeFiles;
 }
+export type OwnedAssignmentReaderDependencies = Pick<
+  OwnedAssignmentDependencies,
+  'registry' | 'git' | 'identity' | 'worktrees' | 'files'
+>;
 export class OwnedAssignmentFailure extends Error {
   constructor(readonly result: ReturnType<typeof rejected>) {
     super('Owned assignment blocked');
@@ -22,7 +26,7 @@ function read<T>(result: OperationResult<T>): T {
 
 export async function inspectOwnedAssignment(
   input: { projectId: string; checkoutId: string; branch: string; commit: string },
-  deps: OwnedAssignmentDependencies,
+  deps: OwnedAssignmentReaderDependencies,
   signal?: AbortSignal,
   initial = true,
 ) {

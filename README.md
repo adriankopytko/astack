@@ -36,7 +36,7 @@ Managed-file operations can create or upgrade owned generated assets, preserve d
 
 `run inspect`, `report`, `collect-report`, `respond`, `resume`, `cancel`, `reconcile`, `events` and `cursor` expose durable results and explicit lifecycle controls. Reports validate assignment/current evidence; local event waiting needs no agent prompt or GitHub scanner. Cancellation blocks future dispatch and optionally interrupts a verified session, preserving work and shutdown uncertainty. Explicit Codex report collection selects one structured session file; offline shutdown reconciliation records host evidence and releases only matching worker holds. See [run operations](docs/runs.md).
 
-`createGhProvider` and `publishGithubEffect` provide targeted paginated GitHub reads and journaled PR/comment/review publication as library APIs. Unknown writes require explicit read-only reconciliation; publication is not enabled by service startup or worker reports. See [GitHub operations](docs/github.md). Git pushes and workflow-level handoff/publication commands remain later work.
+`createGhProvider` and `publishGithubEffect` provide targeted paginated GitHub reads and journaled PR/comment/review publication as library APIs. Unknown writes require explicit read-only reconciliation; publication is not enabled by service startup or worker reports. See [GitHub operations](docs/github.md). `handoff finish --file <trusted-request.json> --writers-stopped` now validates an accepted implementation report and clean exact commit, journals an explicit Git push and PR creation, then atomically saves acceptance and any authorized review request. `handoff inspect`, `reconcile` and `follow-ups` expose saved evidence and recovery; previously claimed writes never resend. Stop the coordinator and original writers before publication. See [validated implementation publication](docs/handoff.md). Automatic review dispatch and review-result publication remain later work.
 
 Local planning material is intentionally ignored. Durable contributor requirements belong in this README, [AGENTS.md](AGENTS.md), and tracked architecture decisions.
 
@@ -81,7 +81,7 @@ src/
   adapters/      Git, GitHub CLI, Herdr and SQLite implementations
   cli/           command parsing, rendering and dependency wiring
   service/       local transport
-  host/          explicit local service composition root
+  host/          explicit local service and offline host composition roots
 tests/
   integration/   disposable repository/process/state scenarios
   fixtures/      controlled programs, repositories and hooks

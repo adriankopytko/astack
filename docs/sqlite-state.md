@@ -131,3 +131,7 @@ Migration 8 adds run control, report/response/continuation/cancellation records,
 ## Runtime input retry journal (migration 9)
 
 `runtime_input_retries` preserves explicit host-attested authorization keyed by attempt/input key/generation, including digest, launch binding and timestamp. Authorization and removal of the exact active pending input are one transaction. Recreated same-key actions use the next generation and must retain the original input digest/kind. Older action JSON defaults to generation zero. Full-action comparisons reject delayed acknowledgements. The journal neither proves non-delivery nor authorizes a provider write itself; see [runtime recovery](runtime.md#explicit-recovery-after-proven-input-refusal).
+
+## Implementation handoff journal
+
+Migration 11 adds `implementation_handoffs`, exposed through `openSqliteState().handoffs`. A unique current record per source implementation job binds a keyed publication request and completed report to a separate host publication job/attempt and push/PR effects. Preparation, safe predecessor replacement, and acceptance plus optional requested review/events are each atomic local transactions. No external process runs inside those transactions. See [the handoff contract](handoff.md) for replay, uncertainty, explicit writer exclusion and read-only listing limits.

@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { githubPublicationMarker } from '../core/github-publication.js';
 import { z } from 'zod';
 import {
   githubEffectRequestSchema,
@@ -92,20 +92,15 @@ export async function publishGithubEffect(
     return rejected('github_conflict', 'Publication must name the accepted attempt commit.');
   }
 
-  const digest = createHash('sha256')
-    .update(
-      JSON.stringify({
-        schemaVersion: 1,
-        projectId: job.value.record.projectId,
-        jobId: job.value.record.id,
-        attemptId: effect.intent.attemptId,
-        effectId: effect.intent.id,
-        key: effect.intent.key,
-        publication,
-      }),
-    )
-    .digest('hex');
-  const marker = `<!-- astack:publication:v1:${digest} -->`;
+  const marker = githubPublicationMarker({
+    projectId: job.value.record.projectId,
+    jobId: job.value.record.id,
+    attemptId: effect.intent.attemptId,
+    effectId: effect.intent.id,
+    key: effect.intent.key,
+    publication,
+  });
+
   function validReceipt(value: unknown): GithubPublicationReceipt | null {
     const result = githubPublicationReceiptSchema.safeParse(value);
 

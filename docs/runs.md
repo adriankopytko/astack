@@ -110,3 +110,7 @@ Events contain IDs, bounded state and safe references, not response text, report
 ## Verification
 
 Disposable repositories/state, private sockets and injected runtimes exercise duplicate/invalid/stale reports, exact review scope, artifacts, disconnect/reconnect cursors, bounded waiting, decision/resume, lost acknowledgement, cancellation during preflight, verified native interrupt, changed binding, retained work and migration backfill. Routine checks never launch real agents, mutate GitHub or use user-project runtime resources.
+
+## Implementation publication events
+
+The explicit [handoff workflow](handoff.md) appends `handoff_prepared`, `handoff_abandoned` and `handoff_accepted` events transactionally with the corresponding publication journal mutations. Acceptance includes the exact target and nullable follow-up review ID. These events do not change the accepted implementation outcome, prove worker shutdown or release resources. A saved requested review remains distinct from a submitted/dispatched review job.

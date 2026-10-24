@@ -403,3 +403,31 @@ export {
   type GithubResult,
   type GithubWriteResult,
 } from './contracts/github.js';
+
+export {
+  finishImplementation,
+  reconcileImplementationHandoff,
+  inspectImplementationHandoff,
+  type HandoffDependencies,
+} from './application/handoff.js';
+export { executeLocalHandoff } from './host/handoff.js';
+export { createGitPublisher } from './adapters/git/publisher.js';
+export type { HandoffStore, GitPublisher } from './ports/handoff.js';
+export {
+  handoffRequestSchema,
+  handoffRecordSchema,
+  handoffViewSchema,
+  handoffReadRequestSchema,
+  handoffExecuteRequestSchema,
+  handoffReconcileRequestSchema,
+  handoffReadResultSchema,
+  handoffWriteResultSchema,
+  pushIntentSchema,
+  pushReceiptSchema,
+  type HandoffRequest,
+  type HandoffRecord,
+  type HandoffView,
+  type HandoffSource,
+  type PushIntent,
+  type PushReceipt,
+} from './contracts/handoff.js';

@@ -290,4 +290,25 @@ CREATE TABLE run_reconciliations (
 ) STRICT;
 `,
   },
+  {
+    version: 11,
+    sql: `
+CREATE TABLE implementation_handoffs (
+  id TEXT PRIMARY KEY,
+  job_id TEXT NOT NULL REFERENCES service_entries(job_id),
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  request_key TEXT NOT NULL,
+  phase TEXT NOT NULL CHECK(phase IN ('prepared','accepted','abandoned')),
+  data TEXT NOT NULL CHECK(json_valid(data))
+    CHECK(json_extract(data,'$.id') IS id)
+    CHECK(json_extract(data,'$.request.jobId') IS job_id)
+    CHECK(json_extract(data,'$.source.projectId') IS project_id)
+    CHECK(json_extract(data,'$.request.key') IS request_key)
+    CHECK(json_extract(data,'$.phase') IS phase),
+  UNIQUE(job_id, request_key)
+) STRICT;
+CREATE UNIQUE INDEX one_current_handoff ON implementation_handoffs(job_id) WHERE phase != 'abandoned';
+CREATE INDEX handoff_followups ON implementation_handoffs(project_id,id) WHERE phase='accepted';
+`,
+  },
 ] as const;
