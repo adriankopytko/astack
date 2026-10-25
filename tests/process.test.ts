@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, realpath, rm, stat, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
-import { test } from 'node:test';
+import { mock, test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import {
@@ -437,6 +437,70 @@ await test('cancellation escalates when the owned process ignores SIGTERM', opti
     assert.equal(result.shutdown.processGroup, 'absent');
   });
 });
+
+for (const persistent of [false, true]) {
+  await test(
+    `unknown process-group probes ${persistent ? 'remain bounded and uncertain' : 'can settle to verified absence after root exit'}`,
+    options,
+    async () => {
+      await temporary(async (directory) => {
+        const originalKill = process.kill.bind(process);
+        let denied = 0;
+        const probe = mock.method(
+          process,
+          'kill',
+          (pid: number, signal?: NodeJS.Signals | number) => {
+            try {
+              return originalKill(pid, signal);
+            } catch (error) {
+              if (
+                pid < 0 &&
+                signal === 0 &&
+                error instanceof Error &&
+                'code' in error &&
+                error.code === 'ESRCH' &&
+                (persistent || denied === 0)
+              ) {
+                denied++;
+
+                throw Object.assign(new Error('Synthetic unavailable group observation'), {
+                  code: 'EPERM',
+                });
+              }
+
+              throw error;
+            }
+          },
+        );
+
+        try {
+          const result = await run({
+            ...input(directory, 'exit', ['0']),
+            timeoutMs: persistent ? 500 : 3000,
+            terminationGraceMs: 20,
+            shutdownWaitMs: 40,
+          });
+
+          assert.ok(denied > 0, 'The test must exercise an unknown group observation.');
+          assert.equal(result.exitCode, 0);
+          assert.equal(result.shutdown.root, 'exited');
+          assert.equal(result.outcome, persistent ? 'timed_out' : 'exited');
+          assert.equal(result.shutdown.processGroup, persistent ? 'unknown' : 'absent');
+          assert.equal(result.shutdown.termSent, false);
+          assert.equal(result.shutdown.killSent, false);
+          assert.equal(result.stdout.complete, true);
+          assert.equal(result.stderr.complete, true);
+
+          if (!persistent) {
+            assert.equal(result.error, null);
+          }
+        } finally {
+          probe.mock.restore();
+        }
+      });
+    },
+  );
+}
 
 await test(
   'children outliving the parent are terminated through the owned process group',

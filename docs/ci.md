@@ -96,7 +96,13 @@ Writable service startup now takes coordinator ownership before opening/migratin
 
 ## Verification status
 
-This change is checked with build, TypeScript, typed lint, formatting and resolved module boundaries. New controlled-clock/provider tests and supervised live-provider checks have not been added or run for #25. The older migration fixtures have been updated for migration 12; their next execution is part of explicit verification. The 327-test verification of #24 applies to the preceding commit, not to these new CI operations.
+`tests/ci-observation.test.ts` exercises persisted CI operations with disposable Git repositories, real SQLite state, a controlled clock and injected provider responses. Coverage includes shared target reads with independent consumer gates; missing, pending, failing, skipped and cancelled checks; explicit no-CI permission; rate-limit cooldowns, hard request budgets and deadlines; reopened state; suspension, cancellation and stale claim rejection; policy changes; and historical snapshots after failed reads. Transport fixtures also verify that pagination and bracketing reads obey the request ceiling.
+
+The local-service integration in `tests/automatic-review.test.ts` checks that CI progress wakes the follow-up dispatcher without manual observation/dispatch ticks. These fixtures use fake providers and do not establish live GitHub or Herdr compatibility. Supervised live-provider verification remains separate.
+
+Initial verification on 2026-10-25 passed all 31 new CI/automatic-review test cases, but two full runs each finished at 357/358 because different existing tests encountered `git_failed`. Diagnostic work reproduced a successful Git exit being classified as `descendants_remaining` after a permission-sensitive process-group probe, even though final group absence was verified. The [process runner](process-runner.md#execution-and-shutdown-evidence) now waits within the existing deadline when a post-exit probe is unknown, rather than treating uncertainty as confirmed descendants. Two deterministic regression cases fail against the old behavior and pass with the fix; persistent uncertainty remains bounded and cannot establish success. No Git invocation is retried. A concurrent disposable implementation/worktree probe passed 20 setups with the fix.
+
+After the fix, `pnpm check` passed all 360 tests, including the previously failing implementation/configuration cases, together with build, TypeScript, typed lint, formatting and resolved module boundaries.
 
 ## Owned automatic waits
 

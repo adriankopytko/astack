@@ -62,6 +62,8 @@ The result uses a process-specific schema rather than the completed-read envelop
 
 The Node implementation starts a new POSIX session/process group with `detached: true`; its group ID is the spawned child's PID. The parent still observes the child and its pipes. While the command is running, cancellation and timeout send SIGTERM to that group. After the configured grace, a remaining/uncertain group receives one SIGKILL attempt. A root exit with remaining children initiates the same bounded teardown. Stop causes are retained rather than changed to `exited` after termination succeeds.
 
+After root exit, a probe that reports `present` initiates descendant teardown. An `unknown` probe does not establish that descendants remain: the runner keeps observing within the original execution deadline. Later verified absence and complete output can finish normally; a persistently unknown group reaches the ordinary timeout/shutdown path and remains uncertain. No command is retried, and unknown is never treated as absence. This prevents a transient permission-denied probe from turning a successful Git command into a permanent `descendants_remaining` failure.
+
 `shutdown` records independent evidence:
 
 - `root`: `not_started`, `exited`, or `unverified`.
@@ -104,7 +106,7 @@ Captured text and artifacts can contain whatever the command prints, including s
 
 ## Verification
 
-Default tests use controlled child fixtures and disposable directories only. They cover literal arguments/paths, explicit environment and PATH, missing executable/cwd, nonzero exits/signals, bounded/discarded output, raw/private/capped artifacts, pre-launch failure/cancellation, deadline shutdown, SIGTERM resistance and SIGKILL escalation, remaining descendants, and an escaped process holding pipes open. Fixture processes have an independent expiry; the escaped test process is explicitly stopped by its test owner.
+Default tests use controlled child fixtures and disposable directories only. They cover literal arguments/paths, explicit environment and PATH, missing executable/cwd, nonzero exits/signals, bounded/discarded output, raw/private/capped artifacts, pre-launch failure/cancellation, deadline shutdown, SIGTERM resistance and SIGKILL escalation, remaining descendants, and an escaped process holding pipes open. Injected permission-denied group probes verify both transient recovery to confirmed absence and bounded timeout with persistent uncertainty. Fixture processes have an independent expiry; the escaped test process is explicitly stopped by its test owner.
 
 No live user agents, application services, or GitHub mutations are part of these checks. Linux/macOS CI exercises the same cases; platform-specific verification remains the recorded group observation rather than an assumption that zombies have already been reaped.
 

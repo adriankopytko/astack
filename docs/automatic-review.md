@@ -80,4 +80,10 @@ Service shutdown drains the follow-up dispatcher, CI reader, transport and worke
 
 ## Verification status
 
-This implementation has static type, build, lint, formatting and module-boundary checks. Dedicated race/fault tests for #25/#26 and supervised live-provider verification have not been run. Existing migration fixtures are updated for schema 13, but have not been executed for this change. The preceding 327-test result belongs to #24's verification commit.
+`tests/automatic-review.test.ts` exercises accepted handoffs through CI waiting, queue acceptance, capacity claim, initial review input and report acceptance using disposable Git repositories, real SQLite state and fake providers. Coverage includes manual defaults, explicit resume, competing dispatchers and worker coordinators, capacity deferral, project disablement at CI enrollment/queue acceptance/claim/native launch/native input, manual review while automation is suspended, closed or stale PRs, nonpassing checks, queue-link transaction rollback, and restart without an executor. An already-started review can still submit its result after future automation is disabled.
+
+A real disposable local service verifies the scheduler/dispatcher/coordinator wake-up chain: pending CI starts no reviewer and passing CI dispatches one. Native adapter tests inject a fake Herdr provider and send no input to real agents. These tests do not establish live-provider compatibility; a supervised GitHub/Codex/Herdr pilot remains separate.
+
+All 31 new CI/automatic-review cases passed in both initial full verification runs on 2026-10-25. Intermittent `git_failed` errors in existing tests led to a process-group observation fix with deterministic regression coverage; see [the CI verification status](ci.md#verification-status) for the evidence and limits.
+
+The full `pnpm check` passed after that fix: 360 tests, with no failures, plus build, type, lint, formatting and module-boundary checks.

@@ -214,6 +214,7 @@ async function run(request: ProcessRequest, signal?: AbortSignal): Promise<Proce
       break;
     }
 
+    // An unavailable probe after root exit may settle; keep observing within the deadline.
     const group = rootExited || stopAt !== undefined ? groupState() : 'unknown';
 
     if (rootExited && group === 'absent' && stdout.done && stderr.done) {
@@ -224,7 +225,7 @@ async function run(request: ProcessRequest, signal?: AbortSignal): Promise<Proce
       stop('cancelled');
     } else if (performance.now() - startedAt >= request.timeoutMs) {
       stop('timed_out');
-    } else if (rootExited && group !== 'absent') {
+    } else if (rootExited && group === 'present') {
       stop('descendants_remaining');
     }
 
