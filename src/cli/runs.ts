@@ -101,79 +101,89 @@ export function wireRunCommands(program: Command) {
     )
     .requiredOption('--key <key>', 'Stable report acceptance key')
     .requiredOption('--file <path>', 'Bounded JSON proposal or {proposal, artifacts} envelope')
+    .option(
+      '--accept-historical-review',
+      'Explicitly retain reviewed findings if the remote review scope moved; never grants publication or readiness',
+    )
     .option('--json')
-    .action(async (jobId: string, options: { key: string; file: string; json?: boolean }) => {
-      await execute(options.json, async (state) => {
-        try {
-          const path = resolve(process.cwd(), options.file);
-          const info = await lstat(path, { bigint: true });
-
-          if (!info.isFile() || info.isSymbolicLink() || info.size > 48000n) {
-            return rejected('invalid_request', 'Select a regular bounded report JSON file.');
-          }
-
-          const file = await open(
-            path,
-            constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-          );
-          let content: Buffer;
-
+    .action(
+      async (
+        jobId: string,
+        options: { key: string; file: string; json?: boolean; acceptHistoricalReview?: boolean },
+      ) => {
+        await execute(options.json, async (state) => {
           try {
-            const bytes = Buffer.alloc(48001);
-            let size = 0;
+            const path = resolve(process.cwd(), options.file);
+            const info = await lstat(path, { bigint: true });
 
-            while (size < bytes.length) {
-              const { bytesRead } = await file.read(bytes, size, bytes.length - size, size);
+            if (!info.isFile() || info.isSymbolicLink() || info.size > 48000n) {
+              return rejected('invalid_request', 'Select a regular bounded report JSON file.');
+            }
 
-              if (bytesRead === 0) {
-                break;
+            const file = await open(
+              path,
+              constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+            );
+            let content: Buffer;
+
+            try {
+              const bytes = Buffer.alloc(48001);
+              let size = 0;
+
+              while (size < bytes.length) {
+                const { bytesRead } = await file.read(bytes, size, bytes.length - size, size);
+
+                if (bytesRead === 0) {
+                  break;
+                }
+
+                size += bytesRead;
               }
 
-              size += bytesRead;
+              const after = await file.stat({ bigint: true });
+
+              if (
+                size > 48000 ||
+                after.dev !== info.dev ||
+                after.ino !== info.ino ||
+                after.size !== info.size ||
+                after.mtimeNs !== info.mtimeNs ||
+                after.ctimeNs !== info.ctimeNs
+              ) {
+                return rejected(
+                  'invalid_request',
+                  'Report changed or exceeded the bounded input contract.',
+                );
+              }
+
+              content = bytes.subarray(0, size);
+            } finally {
+              await file.close();
             }
 
-            const after = await file.stat({ bigint: true });
+            const value: unknown = JSON.parse(
+              new TextDecoder('utf8', { fatal: true }).decode(content),
+            );
+            const envelope =
+              value && typeof value === 'object' && 'proposal' in value
+                ? (value as { proposal: unknown; artifacts?: unknown })
+                : { proposal: value };
 
-            if (
-              size > 48000 ||
-              after.dev !== info.dev ||
-              after.ino !== info.ino ||
-              after.size !== info.size ||
-              after.mtimeNs !== info.mtimeNs ||
-              after.ctimeNs !== info.ctimeNs
-            ) {
-              return rejected(
-                'invalid_request',
-                'Report changed or exceeded the bounded input contract.',
-              );
-            }
-
-            content = bytes.subarray(0, size);
-          } finally {
-            await file.close();
+            return requestLocalService(state.stateDirectory, {
+              schemaVersion: 1,
+              operation: 'run_report',
+              jobId,
+              key: options.key,
+              proposal: envelope.proposal,
+              artifacts: envelope.artifacts ?? [],
+              ...(options.acceptHistoricalReview ? { acceptHistoricalReview: true } : {}),
+            });
+          } catch {
+            return rejected('invalid_request', 'Report file could not be read as bounded JSON.');
           }
-
-          const value: unknown = JSON.parse(
-            new TextDecoder('utf8', { fatal: true }).decode(content),
-          );
-          const envelope =
-            value && typeof value === 'object' && 'proposal' in value
-              ? (value as { proposal: unknown; artifacts?: unknown })
-              : { proposal: value };
-
-          return requestLocalService(state.stateDirectory, {
-            schemaVersion: 1,
-            operation: 'run_report',
-            jobId,
-            key: options.key,
-            proposal: envelope.proposal,
-            artifacts: envelope.artifacts ?? [],
-          });
-        } catch {
-          return rejected('invalid_request', 'Report file could not be read as bounded JSON.');
-        }
-      });
-    });
+        });
+      },
+    );
   run
     .command('collect-report <job-id>')
     .description(

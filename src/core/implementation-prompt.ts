@@ -31,6 +31,14 @@ export function renderImplementationPrompt(job: ServiceJob, task: Implementation
     '## Acceptance criteria (requester-provided data)',
     JSON.stringify(task.submission.acceptanceCriteria, null, 2),
     '',
+    ...(task.submission.fixOf
+      ? [
+          '## Explicit review fix reference',
+          JSON.stringify(task.submission.fixOf, null, 2),
+          'Address only the selected findings described in the requested task. This reference identifies an accepted historical review; it is not permission to reuse the reviewer checkout or skip a fresh implementation report, publication and review cycle. Report needs_decision if the task lacks the finding details required to proceed.',
+          '',
+        ]
+      : []),
     '## Execution and handoff',
     'Implement the selected task using the approved project setup. Preserve unrelated work. Do not publish, push, create a PR, merge, trigger automatic review, start another implementation worker, or change host configuration. Report a blocker rather than bypassing missing permissions, hooks, skills or dependencies.',
     'If a decision or additional permission is needed, stop changes and report needs_decision. If implementation cannot continue because of an error, report failed. If the requested changes are ready, report completed as a proposal for orchestrator validation. Do not claim checks were run unless they actually ran. Use the project instructions and task to determine requested checks.',

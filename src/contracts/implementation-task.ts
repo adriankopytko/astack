@@ -19,6 +19,17 @@ export const instructionPathSchema = z
       value.endsWith('.md') &&
       !/[\r\n]/u.test(value),
   );
+export const reviewFixReferenceSchema = z
+  .strictObject({
+    jobId: stateIdSchema,
+    attemptId: stateIdSchema,
+    reportId: stateIdSchema,
+    reportKey: stateIdSchema,
+    reportDigest: configurationDigestSchema,
+    commit: worktreePrepareRequestSchema.shape.baseCommit,
+    findingIndexes: z.array(z.number().int().min(0).max(31)).min(1).max(32),
+  })
+  .refine((v) => new Set(v.findingIndexes).size === v.findingIndexes.length);
 export const implementationSubmitRequestSchema = z
   .strictObject({
     schemaVersion: z.literal(1),
@@ -27,6 +38,7 @@ export const implementationSubmitRequestSchema = z
     key: stateIdSchema,
     branch: worktreePrepareRequestSchema.shape.branch,
     commit: worktreePrepareRequestSchema.shape.baseCommit,
+    fixOf: reviewFixReferenceSchema.optional(),
     description: workerInputTextSchema.refine((value) => Buffer.byteLength(value) <= 6000),
     acceptanceCriteria: z
       .array(workerInputTextSchema.refine((value) => Buffer.byteLength(value) <= 512))

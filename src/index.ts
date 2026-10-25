@@ -498,3 +498,14 @@ export {
   type ReviewAutomation,
   type FollowUpPlan,
 } from './contracts/automatic-review.js';
+
+export * from './contracts/review-results.js';
+export type { ReviewResultStore } from './ports/review-results.js';
+export {
+  inspectReviewResult,
+  observeReviewResult,
+  inspectReviewPublication,
+  publishReviewResult,
+  reconcileReviewPublication,
+  type ReviewResultDependencies,
+} from './application/review-results.js';

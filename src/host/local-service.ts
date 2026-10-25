@@ -155,6 +155,7 @@ export async function startLocalService(
     };
     const implementationDependencies: ImplementationDependencies = {
       ...dependencies,
+      runs: opened.runs,
       worktrees: opened.worktrees,
       files: createNodeWorktreeFiles(join(opened.stateDirectory, 'worktrees')),
       instructions: nodeImplementationContextReader,

@@ -33,6 +33,7 @@ export const runReportRequestSchema = runReadRequestSchema
   .extend({
     key: stateIdSchema,
     proposal: z.union([implementationWorkerReportSchema, reviewWorkerReportSchema]),
+    acceptHistoricalReview: z.literal(true).optional(),
     artifacts: z.array(artifactReferenceSchema).max(8).default([]),
   })
   .refine(
@@ -40,19 +41,23 @@ export const runReportRequestSchema = runReadRequestSchema
       Buffer.byteLength(JSON.stringify(v)) <= 48000 &&
       new Set(v.artifacts.map((a) => a.path)).size === v.artifacts.length,
   );
-export const acceptedRunReportSchema = z.strictObject({
-  id: stateIdSchema,
-  jobId: stateIdSchema,
-  attemptId: stateIdSchema,
-  key: stateIdSchema,
-  request: runReportRequestSchema,
-  validatedAt: offset,
-  evidence: z.strictObject({
-    commit: z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/),
-    inputDigest: z.string().regex(/^[0-9a-f]{64}$/),
-    reviewSnapshot: reviewSnapshotSchema.nullable(),
-  }),
-});
+export const acceptedRunReportMaxBytes = 96 * 1024;
+export const acceptedRunReportSchema = z
+  .strictObject({
+    id: stateIdSchema,
+    jobId: stateIdSchema,
+    attemptId: stateIdSchema,
+    key: stateIdSchema,
+    request: runReportRequestSchema,
+    validatedAt: offset,
+    evidence: z.strictObject({
+      commit: z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/),
+      inputDigest: z.string().regex(/^[0-9a-f]{64}$/),
+      reviewSnapshot: reviewSnapshotSchema.nullable(),
+      historicalReview: z.literal(true).optional(),
+    }),
+  })
+  .refine((value) => Buffer.byteLength(JSON.stringify(value)) <= acceptedRunReportMaxBytes);
 export const runResponseRequestSchema = runReadRequestSchema.extend({
   key: stateIdSchema,
   decisionId: stateIdSchema,
@@ -152,6 +157,9 @@ export const runEventSchema = z.strictObject({
     'follow_up_controlled',
     'follow_up_dispatched',
     'handoff_abandoned',
+    'review_result_observed',
+    'review_publication_prepared',
+    'review_fix_accepted',
   ]),
   createdAt: offset,
   detail: stateEffectIntentSchema.shape.payload,

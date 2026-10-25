@@ -1,3 +1,4 @@
+import { wireReviewResultCommands } from './review-results.js';
 import { wireAutomaticReviewCommands } from './automatic-review.js';
 import { resolve } from 'node:path';
 import { Command } from 'commander';
@@ -39,6 +40,7 @@ export function wireReviewCommands(program: Command) {
     .command('review')
     .description('Delegate explicit review work with separately controlled follow-up automation');
   wireAutomaticReviewCommands(program, review);
+  wireReviewResultCommands(program, review);
   async function execute(
     json: boolean | undefined,
     action: (

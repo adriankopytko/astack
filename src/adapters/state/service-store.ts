@@ -1,3 +1,4 @@
+import { assertReviewFix } from './review-fix-evidence.js';
 import {
   assertFollowUpSubmission,
   linkFollowUpJob,
@@ -195,6 +196,7 @@ export function createSqliteServiceStore(
           }
         }
 
+        const fix = assertReviewFix(db, job, required);
         const accepted = acceptJobTransaction(db, job);
 
         if (accepted.disposition === 'existing') {
@@ -292,6 +294,13 @@ export function createSqliteServiceStore(
 
         const created = required(job.id);
         appendRunEvent(db, created, 'accepted', now(), { role: entry.role });
+
+        if (fix) {
+          appendRunEvent(db, required(fix.reviewJobId), 'review_fix_accepted', now(), {
+            reportId: fix.reportId,
+            implementationJobId: job.id,
+          });
+        }
 
         if (review.success) {
           linkFollowUpJob(db, review.data, created.job, now());

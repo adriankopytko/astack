@@ -154,12 +154,12 @@ export class StateDatabase {
     return statement;
   }
 
-  data<T extends z.ZodType>(schema: T, row: unknown): z.output<T> | null {
+  data<T extends z.ZodType>(schema: T, row: unknown, maxCharacters = 32_768): z.output<T> | null {
     if (row === undefined) {
       return null;
     }
 
-    const wrapper = z.object({ data: z.string().max(32_768) }).safeParse(row);
+    const wrapper = z.object({ data: z.string().max(maxCharacters) }).safeParse(row);
 
     if (!wrapper.success) {
       return stateFailure('state_invalid_data');

@@ -1,3 +1,4 @@
+import { readAcceptedRunReport } from './run-report-codec.js';
 import { persistedRunReconciliationSchema } from './run-reconciliation-codec.js';
 import { runReconciliationSchema } from '../../contracts/run-reconciliation.js';
 import { serviceEntrySchema } from '../../contracts/service.js';
@@ -66,7 +67,7 @@ export function createSqliteRunStore(db: StateDatabase, now: () => number): RunS
     const selected = job(jobId);
     const control = runControl(db, jobId);
     const report = control.reportId
-      ? db.get(acceptedRunReportSchema, 'SELECT data FROM run_reports WHERE id=?', control.reportId)
+      ? readAcceptedRunReport(db, 'SELECT data FROM run_reports WHERE id=?', control.reportId)
       : null;
     const responses = db
       .statement('SELECT data FROM run_responses WHERE job_id=? ORDER BY rowid DESC LIMIT 10')
@@ -338,8 +339,8 @@ export function createSqliteRunStore(db: StateDatabase, now: () => number): RunS
       }),
     report: (id, key) =>
       db.read(() =>
-        db.get(
-          acceptedRunReportSchema,
+        readAcceptedRunReport(
+          db,
           'SELECT data FROM run_reports WHERE job_id=? AND report_key=?',
           id,
           key,
@@ -349,8 +350,8 @@ export function createSqliteRunStore(db: StateDatabase, now: () => number): RunS
       return db.write(() => {
         const report = acceptedRunReportSchema.parse(candidate);
         const selected = job(report.jobId);
-        const existing = db.get(
-          acceptedRunReportSchema,
+        const existing = readAcceptedRunReport(
+          db,
           'SELECT data FROM run_reports WHERE job_id=? AND report_key=?',
           report.jobId,
           report.key,

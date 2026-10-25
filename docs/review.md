@@ -2,7 +2,7 @@
 
 ## Implemented scope
 
-An orchestrator requests a review for an explicit registered project, base repository host/name, PR number and full head SHA. No implementation job or claim is required. Automatic initiation is absent. The reviewer uses its own existing Astack-owned checkout, branch, role configuration, durable job and attempt. Static review starts no services. Requested integration resources remain durable blockers until isolated provisioning is implemented.
+An orchestrator requests a review for an explicit registered project, base repository host/name, PR number and full head SHA. No implementation job or claim is required. Manual initiation is the default; after-handoff initiation is separately opted in. The reviewer uses its own existing Astack-owned checkout, branch, role configuration, durable job and attempt. Static review starts no services. Requested integration resources remain durable blockers until isolated provisioning is implemented.
 
 Worktree preparation stays explicit. The requested commit must already exist locally; this workflow never fetches, checks out remote refs, creates a worktree implicitly, discovers unrelated PRs, edits fixes, publishes GitHub reviews/comments, pushes or merges. Fork PRs are supported through their base repository/PR and verified head SHA, with source repository attribution recorded separately. Obtaining an external commit locally is a separate authorized operation.
 
@@ -53,7 +53,7 @@ To review before checks pass, the host policy must contain:
 
 This is a fragment of the existing private host policy, not a complete configuration. Submit with `--override-gate 'Reason to review while CI is pending'`. The command is the manual authorization; the host setting permits its CI override. Repository proposals cannot grant permission. The override is recorded in the task and report proposal, preserves pending/failing/missing checks, and cannot bypass a changed target, unsafe checkout, draft/closed PR, unavailable provider, revoked configuration, capacity or integration-resource blocker. The optional host field has no default materialization, preserving existing policy digests when absent.
 
-No background PR scanner, cron or automatic review hook is installed. The explicit [CI observer](ci.md) can wait on this saved review job when enrolled with `ci watch --review <job-id>` and enabled with `service run --observe-ci`. It does not launch a worker; `service wake` reconsiders authorized queued jobs using fresh target/readiness checks. The separately opted-in [after-handoff dispatcher](automatic-review.md) can queue provenance-bound reviews using the same fresh gates. Manual submissions stay independent of its settings.
+No broad PR scanner or cron is installed. The explicit [CI observer](ci.md) can wait on this saved review job when enrolled with `ci watch --review <job-id>` and enabled with `service run --observe-ci`. It does not launch a worker; `service wake` reconsiders authorized queued jobs using fresh target/readiness checks. The separately opted-in [after-handoff dispatcher](automatic-review.md) can queue provenance-bound reviews using the same fresh gates. Manual submissions stay independent of its settings.
 
 ## Delivery, results and retry
 
@@ -74,3 +74,5 @@ See [run operations](runs.md) for report validation and accepted outcomes, expli
 ## Automatic provenance
 
 The after-handoff consumer validates an accepted explicit follow-up and a dedicated owned reviewer checkout, then accepts `authorization: after-handoff` with an immutable plan reference and prompt version 4. Queue acceptance and plan linking are atomic; project controls are rechecked at worker claim and native initial effect boundaries. Manual `submitReview` remains `manual-request` with version 3, and version 1/2/3 reconstruction is unchanged. Automatic acceptance additionally requires the fresh gate to pass, while manual acceptance can remain queued/blocked waiting for checks. See [the automatic review contract](automatic-review.md).
+
+Accepted findings, opt-in historical report acceptance, exact-commit publication and explicit linked fix delegation are described in [review results](review-results.md). These host operations are separate from reviewer launch and do not enable automatic remediation.

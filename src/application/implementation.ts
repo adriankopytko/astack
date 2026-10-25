@@ -1,3 +1,6 @@
+import type { RunStore } from '../ports/runs.js';
+import { acceptedReviewResult } from '../core/review-result.js';
+import { configurationDigest } from '../core/configuration.js';
 import { isDeepStrictEqual } from 'node:util';
 import {
   implementationSubmitRequestSchema,
@@ -23,7 +26,9 @@ import {
   type TaskDeliveryDependencies,
 } from './task-delivery.js';
 
-export interface ImplementationDependencies extends TaskDeliveryDependencies {}
+export interface ImplementationDependencies extends TaskDeliveryDependencies {
+  runs?: Pick<RunStore, 'inspect' | 'report'>;
+}
 class ImplementationFailure extends Error {
   constructor(readonly result: ReturnType<typeof rejected>) {
     super('Implementation operation blocked');
@@ -99,6 +104,34 @@ export async function submitImplementation(
         disposition: 'existing',
         value: implementationView(previous),
       };
+    }
+
+    if (value.fixOf) {
+      const reference = value.fixOf;
+      const report = deps.runs
+        ? read(deps.runs.report(reference.jobId, reference.reportKey))
+        : null;
+      const run = deps.runs ? read(deps.runs.inspect(reference.jobId)) : null;
+      const source = run && report ? acceptedReviewResult(run.job, report) : null;
+
+      if (
+        !source ||
+        !run ||
+        !report ||
+        report.id !== reference.reportId ||
+        report.attemptId !== reference.attemptId ||
+        configurationDigest(report) !== reference.reportDigest ||
+        value.projectId !== run.job.job.projectId ||
+        value.commit !== reference.commit ||
+        reference.commit !== source.proposal.target.sha ||
+        reference.findingIndexes.some((index) => !source.proposal.findings[index]) ||
+        value.checkoutId === run.job.job.checkoutId
+      ) {
+        return rejected(
+          'run_report_invalid',
+          'Fix delegation requires an accepted same-project review result, exact commit, valid findings and a separate owned checkout.',
+        );
+      }
     }
 
     const owned = await inspectOwnedAssignment(value, deps, signal);

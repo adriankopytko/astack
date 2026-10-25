@@ -1,3 +1,5 @@
+import { readRequestFile } from './request-file.js';
+import { rejected } from '../contracts/operation-result.js';
 import { resolve } from 'node:path';
 import { Command } from 'commander';
 import { requestLocalService } from '../adapters/local/service-client.js';
@@ -84,6 +86,10 @@ export function wireImplementationCommands(program: Command) {
       'Repository Markdown instructions; repeatable, replaces default AGENTS paths',
       append,
     )
+    .option(
+      '--fix-of <path>',
+      'Bounded accepted review fix reference JSON; requires a fresh owned checkout',
+    )
     .option('--json', 'Print durable identity and saved workflow state')
     .action(
       async (options: {
@@ -93,14 +99,30 @@ export function wireImplementationCommands(program: Command) {
         branch: string;
         commit: string;
         task: string;
+        fixOf?: string;
         criterion: string[];
         instruction?: string[];
         json?: boolean;
       }) => {
+        let fixOf: unknown;
+
+        try {
+          fixOf =
+            options.fixOf === undefined ? undefined : await readRequestFile(options.fixOf, 4000);
+        } catch {
+          render(
+            rejected('invalid_request', 'Select a bounded stable JSON review fix reference.'),
+            options.json,
+          );
+
+          return;
+        }
+
         await execute(options.json, (state) =>
           requestLocalService(state.stateDirectory, {
             schemaVersion: 1,
             operation: 'implement_submit',
+            ...(fixOf === undefined ? {} : { fixOf }),
             projectId: options.project,
             checkoutId: options.checkout,
             key: options.key,

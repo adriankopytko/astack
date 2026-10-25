@@ -370,4 +370,27 @@ CREATE TABLE review_follow_ups (
 CREATE INDEX automatic_review_queue ON review_follow_ups(phase,id);
 `,
   },
+  {
+    version: 14,
+    sql: `
+CREATE TABLE review_result_observations (
+ report_id TEXT PRIMARY KEY REFERENCES run_reports(id),
+ data TEXT NOT NULL CHECK(json_valid(data)) CHECK(json_extract(data,'$.reportId') IS report_id)
+) STRICT;
+CREATE TABLE review_result_publications (
+ id TEXT PRIMARY KEY,
+ job_id TEXT NOT NULL REFERENCES service_entries(job_id),
+ report_key TEXT NOT NULL,
+ report_id TEXT NOT NULL UNIQUE REFERENCES run_reports(id),
+ request_key TEXT NOT NULL,
+ data TEXT NOT NULL CHECK(json_valid(data)) CHECK(json_extract(data,'$.id') IS id)
+ CHECK(json_extract(data,'$.request.jobId') IS job_id)
+ CHECK(json_extract(data,'$.request.reportKey') IS report_key)
+ CHECK(json_extract(data,'$.request.reportId') IS report_id)
+ CHECK(json_extract(data,'$.request.key') IS request_key),
+ UNIQUE(job_id,report_key,request_key),
+ FOREIGN KEY(job_id,report_key) REFERENCES run_reports(job_id,report_key)
+) STRICT;
+`,
+  },
 ] as const;

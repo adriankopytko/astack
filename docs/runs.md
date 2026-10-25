@@ -114,3 +114,7 @@ Disposable repositories/state, private sockets and injected runtimes exercise du
 ## Implementation publication events
 
 The explicit [handoff workflow](handoff.md) appends `handoff_prepared`, `handoff_abandoned` and `handoff_accepted` events transactionally with the corresponding publication journal mutations. Acceptance includes the exact target and nullable follow-up review ID. These events do not change the accepted implementation outcome, prove worker shutdown or release resources. A saved requested review remains distinct from a submitted/dispatched review job.
+
+## Explicit historical review acceptance
+
+`run report --accept-historical-review` can retain a reviewed commit-bound proposal after a positively identified remote head/base change. Normal acceptance stays strict. All assignment, acknowledged delivery, clean local SHA, artifact and transaction checks remain required; provider failures do not grant historical acceptance. The optional request flag and `evidence.historicalReview: true` preserve older saved bytes when absent. Historical findings grant neither current readiness nor publication. See [review results](review-results.md).

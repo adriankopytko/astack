@@ -1,3 +1,5 @@
+import type { ReviewResultStore } from '../../ports/review-results.js';
+import { createSqliteReviewResultStore } from './review-result-store.js';
 import { stateOpenRequestSchema } from '../../contracts/state.js';
 import { rejected, type RejectedResult } from '../../contracts/operation-result.js';
 import { parseOperationRequest } from '../../core/parse-operation-request.js';
@@ -43,6 +45,7 @@ export type StateOpenResult =
       herdr: HerdrStore;
       runtime: RuntimeStore;
       runs: RunStore;
+      reviewResults: ReviewResultStore;
       handoffs: HandoffStore;
       ci: CiStore;
       automaticReviews: AutomaticReviewStore;
@@ -88,6 +91,7 @@ export async function openSqliteState(
         handoffs: createSqliteHandoffStore(database, dependencies.now ?? Date.now),
         ci: createSqliteCiStore(database, dependencies.now ?? Date.now),
         automaticReviews: createSqliteAutomaticReviewStore(database),
+        reviewResults: createSqliteReviewResultStore(database, dependencies.now ?? Date.now),
         runs: createSqliteRunStore(database, dependencies.now ?? Date.now),
         herdr: createSqliteHerdrStore(database, dependencies.now ?? Date.now),
         runtime: createSqliteRuntimeStore(database, dependencies.now ?? Date.now),

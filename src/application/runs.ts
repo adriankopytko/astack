@@ -212,6 +212,14 @@ export async function acceptRunReport(
     }
 
     let snapshot = null;
+    let historicalReview = false;
+
+    if (request.acceptHistoricalReview && (!review || proposal.outcome !== 'reviewed')) {
+      return rejected(
+        'run_report_invalid',
+        'Historical acceptance is only available for reviewed commit-bound results.',
+      );
+    }
 
     if (review && 'target' in proposal) {
       if (
@@ -225,20 +233,44 @@ export async function acceptRunReport(
         );
       }
 
-      snapshot = reviewSnapshotSchema.parse(
-        read(
-          await deps.targets.read({ target: review.submission.target, root: review.root }, signal),
-        ),
+      const observed = await deps.targets.read(
+        { target: review.submission.target, root: review.root },
+        signal,
       );
 
-      if (
-        !sameReviewTarget(snapshot.target, review.submission.target) ||
-        snapshot.baseSha !== review.initialSnapshot.baseSha
-      ) {
-        return rejected(
-          'review_target_changed',
-          'Review scope changed; do not accept it as a current result.',
-        );
+      if (observed.outcome === 'rejected') {
+        if (!request.acceptHistoricalReview || observed.error.code !== 'review_target_changed') {
+          return observed;
+        }
+
+        historicalReview = true;
+      } else {
+        snapshot = reviewSnapshotSchema.parse(observed.value);
+
+        if (
+          snapshot.target.host !== review.submission.target.host ||
+          snapshot.target.repository !== review.submission.target.repository ||
+          snapshot.target.number !== review.submission.target.number
+        ) {
+          return rejected(
+            'github_invalid_output',
+            'Provider returned a different PR while validating the report.',
+          );
+        }
+
+        if (
+          !sameReviewTarget(snapshot.target, review.submission.target) ||
+          snapshot.baseSha !== review.initialSnapshot.baseSha
+        ) {
+          if (!request.acceptHistoricalReview) {
+            return rejected(
+              'review_target_changed',
+              'Review scope changed; do not accept it as a current result.',
+            );
+          }
+
+          historicalReview = true;
+        }
       }
     }
 
@@ -265,7 +297,12 @@ export async function acceptRunReport(
       key: request.key,
       request,
       validatedAt: deps.now(),
-      evidence: { commit, inputDigest: receipt.digest, reviewSnapshot: snapshot },
+      evidence: {
+        commit,
+        inputDigest: receipt.digest,
+        reviewSnapshot: snapshot,
+        ...(historicalReview ? { historicalReview: true } : {}),
+      },
     });
 
     return deps.runs.acceptReport({ report, expectedRevision: run.control.revision });
