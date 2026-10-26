@@ -641,7 +641,7 @@ await test(
 
       try {
         raw.exec(
-          'DROP TABLE review_result_publications; DROP TABLE review_result_observations; DROP TABLE review_follow_ups; DROP TABLE review_automation; DROP TABLE ci_requests; DROP TABLE ci_targets; DROP TABLE ci_budgets; DROP TABLE implementation_handoffs; DELETE FROM state_migrations WHERE version>=11; PRAGMA user_version=10;',
+          'DROP TABLE cleanup_plans; DROP TABLE review_result_publications; DROP TABLE review_result_observations; DROP TABLE review_follow_ups; DROP TABLE review_automation; DROP TABLE ci_requests; DROP TABLE ci_targets; DROP TABLE ci_budgets; DROP TABLE implementation_handoffs; DELETE FROM state_migrations WHERE version>=11; PRAGMA user_version=10;',
         );
       } finally {
         raw.close();

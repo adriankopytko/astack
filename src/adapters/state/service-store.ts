@@ -196,6 +196,24 @@ export function createSqliteServiceStore(
           }
         }
 
+        // Serialize new assignments against durable cleanup claims and worktree removal.
+        // Existing idempotent submissions remain inspectable after cleanup.
+        if (
+          !db.statement('SELECT id FROM jobs WHERE id=?').get(job.id) &&
+          (db
+            .statement(
+              "SELECT job_id FROM cleanup_plans WHERE checkout_id=? AND phase!='cancelled'",
+            )
+            .get(job.checkoutId) ||
+            db
+              .statement(
+                "SELECT id FROM managed_worktrees WHERE json_extract(data,'$.intent.checkoutId')=? AND phase!='ready'",
+              )
+              .get(job.checkoutId))
+        ) {
+          stateFailure('state_conflict');
+        }
+
         const fix = assertReviewFix(db, job, required);
         const accepted = acceptJobTransaction(db, job);
 

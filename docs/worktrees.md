@@ -102,3 +102,7 @@ Disposable verification covers preparation/reuse, concurrent reservation, automa
 Git mechanisms follow [git-worktree](https://git-scm.com/docs/git-worktree) and the [ignored-file listing interface](https://git-scm.com/docs/git-ls-files). See also [ADR 0004](adr/0004-owned-worktree-intent-and-recovery.md).
 
 Removal checks retained resources for every job associated with the checkout, even when the worktree intent originally had no bound attempt. A completed worker result or completed host publication attempt does not clear worker holds. After publication and explicit worker shutdown reconciliation are settled, normal removal can proceed; branches and historical reports remain preserved.
+
+## Cleanup orchestration
+
+[Durable cleanup](cleanup.md) wraps this primitive with frozen run/report/SHA authority, retention, publication policy, shutdown verification and a nonexpiring cleanup claim. Its optional internal authority argument to `WorktreeStore.beginRemoval` is checked transactionally with removal intent against the observed HEAD. Ordinary manual worktree commands keep their existing contract. Cleanup never broadens this primitive's ownership, cleanliness or recovery rules.

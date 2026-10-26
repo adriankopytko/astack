@@ -118,3 +118,7 @@ The explicit [handoff workflow](handoff.md) appends `handoff_prepared`, `handoff
 ## Explicit historical review acceptance
 
 `run report --accept-historical-review` can retain a reviewed commit-bound proposal after a positively identified remote head/base change. Normal acceptance stays strict. All assignment, acknowledged delivery, clean local SHA, artifact and transaction checks remain required; provider failures do not grant historical acceptance. The optional request flag and `evidence.historicalReview: true` preserve older saved bytes when absent. Historical findings grant neither current readiness nor publication. See [review results](review-results.md).
+
+## Durable cleanup requests
+
+After shutdown reconciliation, the explicit [cleanup operation](cleanup.md) can persist retention and removal evidence independently of the run outcome and review readiness. Opt-in automatic execution consumes the same checks and never creates shutdown attestations. `run.cleanup.state=reconciled` continues to mean lifecycle holds were settled, not that a checkout was removed. Inspect the separate cleanup plan for removal state.

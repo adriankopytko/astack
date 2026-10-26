@@ -6,6 +6,8 @@ One orchestrator selects work and decides what happens next. Astack prepares own
 
 ## Status
 
+Durable cleanup requests and opt-in automatic checkout removal are implemented. Use `cleanup request/inspect/execute/reconcile/suspend/resume/cancel` to retain resources deliberately and recover interrupted removal. `service run --cleanup` executes only explicitly opted-in plans after retention and verified shutdown; it never infers shutdown or automatically closes workers/services. See [cleanup contracts and commands](docs/cleanup.md).
+
 The development scaffold is ready: a compiled CLI/library, strict TypeScript, typed Oxlint rules, Oxfmt, dependency checks, isolated tests, and Linux/macOS CI. The CLI provides help, version, package information, `--skill` guidance, project registration/listing, context/doctor diagnostics, owned worktree lifecycle commands, and trusted configuration inspection. The local service foundation and explicit Herdr project/worker layout integration are implemented; an opt-in Herdr-owned interactive Codex runtime is implemented. Worker controls verify unique attempt names and owned layouts; native session IDs are supplementary when available at binding. Explicit implementation and manual PR/SHA review handoff to dedicated owned checkouts are implemented; durable run reports, events, explicit resume and cancellation are implemented.
 
 The library now provides versioned read results and explicit project/checkout context resolution through an injected reader. See [operation contracts](docs/operation-contracts.md) for the executable APIs and the separate durable v1 design.

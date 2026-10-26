@@ -393,4 +393,21 @@ CREATE TABLE review_result_publications (
 ) STRICT;
 `,
   },
+  {
+    version: 15,
+    sql: `
+CREATE TABLE cleanup_plans (
+ job_id TEXT PRIMARY KEY REFERENCES service_entries(job_id),
+ id TEXT NOT NULL UNIQUE,
+ checkout_id TEXT NOT NULL,
+ phase TEXT NOT NULL CHECK(phase IN ('requested','started','blocked','suspended','completed','cancelled')),
+ data TEXT NOT NULL CHECK(json_valid(data)) CHECK(json_extract(data,'$.id') IS id)
+ CHECK(json_extract(data,'$.request.jobId') IS job_id)
+ CHECK(json_extract(data,'$.checkoutId') IS checkout_id)
+ CHECK(json_extract(data,'$.phase') IS phase)
+) STRICT;
+CREATE UNIQUE INDEX cleanup_one_checkout ON cleanup_plans(checkout_id);
+CREATE INDEX cleanup_queue ON cleanup_plans(phase,job_id);
+`,
+  },
 ] as const;

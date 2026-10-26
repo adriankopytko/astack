@@ -74,7 +74,11 @@ export interface RunReportReader {
   ): Promise<OperationResult<unknown>>;
 }
 
-/** Host must stop coordinator writers before checking; absence is supplemented by explicit shutdown attestation. */
+/**
+ * Host excludes competing controllers; provider absence supplements explicit shutdown attestations.
+ * Cleanup may reverify a saved reconciliation with its original request after the run revision advanced.
+ * Reverification grants no new shutdown attestation or resource-release authority.
+ */
 export interface RunShutdownVerifier {
   verify(
     input: { run: RunView; request: RunReconcileRequest },

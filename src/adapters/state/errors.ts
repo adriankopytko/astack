@@ -28,6 +28,8 @@ export function sqliteCode(error: unknown): number | null {
 }
 
 const messages: Partial<Record<OperationErrorCode, string>> = {
+  cleanup_blocked:
+    'Cleanup prerequisites or publication evidence are incomplete; inspect the retained resources.',
   runtime_conflict:
     'Runtime assignment or action conflicts with saved intent; inspect before continuing.',
   herdr_conflict:

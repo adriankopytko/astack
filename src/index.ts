@@ -509,3 +509,16 @@ export {
   reconcileReviewPublication,
   type ReviewResultDependencies,
 } from './application/review-results.js';
+
+export * from './contracts/cleanup.js';
+export type { CleanupStore } from './ports/cleanup.js';
+export {
+  requestCleanup,
+  inspectCleanup,
+  controlCleanup,
+  executeCleanup,
+  reconcileCleanup,
+  type CleanupDependencies,
+} from './application/cleanup.js';
+export { createCleanupExecutor } from './application/automatic-cleanup.js';
+export { executeLocalCleanup } from './host/cleanup.js';

@@ -19,6 +19,29 @@ interface Scenario {
 
 const scenarios: Scenario[] = [
   {
+    name: 'allow the explicit offline cleanup host entry',
+    files: {
+      'src/cli/cleanup.ts': "export { value } from '../host/cleanup.js';",
+      'src/host/cleanup.ts': 'export const value = 1;',
+    },
+  },
+  {
+    name: 'reject other host imports from cleanup CLI',
+    files: {
+      'src/cli/cleanup.ts': "export { value } from '../host/local-service.js';",
+      'src/host/local-service.ts': 'export const value = 1;',
+    },
+    violation: 'cleanup-cli-host-entry-only',
+  },
+  {
+    name: 'reject cleanup host imports from run CLI',
+    files: {
+      'src/cli/runs.ts': "export { value } from '../host/cleanup.js';",
+      'src/host/cleanup.ts': 'export const value = 1;',
+    },
+    violation: 'run-cli-host-entry-only',
+  },
+  {
     name: 'allow the explicit offline run reconciliation host entry',
     files: {
       'src/cli/runs.ts': "export { value } from '../host/reconcile-run.js';",

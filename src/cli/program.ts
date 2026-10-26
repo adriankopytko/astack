@@ -1,3 +1,4 @@
+import { wireCleanupCommands } from './cleanup.js';
 import { readFile } from 'node:fs/promises';
 import { Command } from 'commander';
 import { getApplicationInfo } from '../application/get-application-info.js';
@@ -70,6 +71,7 @@ export function createProgram(version: string): Command {
   wireRunCommands(program);
   wireHandoffCommands(program);
   wireCiCommands(program);
+  wireCleanupCommands(program);
 
   return program;
 }

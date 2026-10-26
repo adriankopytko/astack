@@ -59,6 +59,7 @@ export function wireServiceCommands(program: Command): void {
   service
     .command('run')
     .description('Run the coordinator in the foreground with explicitly enabled runtimes')
+    .option('--cleanup', 'Execute explicitly opted-in cleanup after verified shutdown')
     .option(
       '--after-handoff-review',
       'Enable the project-controlled follow-up executor; requires --observe-ci',
@@ -79,6 +80,7 @@ export function wireServiceCommands(program: Command): void {
         codexHerdr?: boolean;
         observeCi?: boolean;
         afterHandoffReview?: boolean;
+        cleanup?: boolean;
         codexExecutable?: string;
         json?: boolean;
       }) => {
@@ -99,6 +101,8 @@ export function wireServiceCommands(program: Command): void {
           {
             ...(options.observeCi ? { ci: {} } : {}),
             afterHandoffReview: options.afterHandoffReview ?? false,
+            cleanup: options.cleanup ?? false,
+            ...(host.herdrExecutable ? { cleanupHerdrExecutable: host.herdrExecutable } : {}),
             ...(options.codexHerdr
               ? {
                   codexHerdr: {
@@ -129,7 +133,7 @@ export function wireServiceCommands(program: Command): void {
         process.stdout.write(
           options.json
             ? `${JSON.stringify({ schemaVersion: 1, outcome: 'listening', sessionId: started.sessionId, socketPath: started.socketPath })}\n`
-            : `Service listening at ${started.socketPath}\nRuntimes: ${options.codexHerdr ? 'codex-herdr' : 'none enabled'}.\nCI observations: ${options.observeCi ? 'enabled' : 'disabled'}.\nAfter-handoff executor: ${options.afterHandoffReview ? 'enabled' : 'disabled'}.\n`,
+            : `Service listening at ${started.socketPath}\nRuntimes: ${options.codexHerdr ? 'codex-herdr' : 'none enabled'}.\nCI observations: ${options.observeCi ? 'enabled' : 'disabled'}.\nAfter-handoff executor: ${options.afterHandoffReview ? 'enabled' : 'disabled'}.\nCleanup executor: ${options.cleanup ? 'enabled' : 'disabled'}.\n`,
         );
 
         try {

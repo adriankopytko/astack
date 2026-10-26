@@ -17,6 +17,7 @@ export interface WorktreeStore {
     record: WorktreeRecord,
     operationId: string,
     head: string,
+    cleanup?: { jobId: string; revision: number },
   ): StateWriteResult<WorktreeRecord>;
   finish(
     record: WorktreeRecord,

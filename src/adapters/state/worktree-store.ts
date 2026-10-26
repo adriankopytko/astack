@@ -1,3 +1,4 @@
+import { assertCleanupRemoval } from './cleanup-evidence.js';
 import { checkoutRecordSchema } from '../../contracts/project-context.js';
 import {
   worktreeRecordSchema,
@@ -150,9 +151,13 @@ export function createSqliteWorktreeStore(db: StateDatabase, now: () => number):
         return { value: record, disposition: 'created' };
       });
     },
-    beginRemoval(record, operationId, head) {
+    beginRemoval(record, operationId, head, cleanup) {
       return db.write(() => {
         const saved = current(record);
+
+        if (cleanup) {
+          assertCleanupRemoval(db, cleanup, saved, head, now());
+        }
 
         if (saved.phase !== 'ready') {
           stateFailure('worktree_conflict');

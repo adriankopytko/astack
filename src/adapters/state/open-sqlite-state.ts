@@ -1,3 +1,5 @@
+import type { CleanupStore } from '../../ports/cleanup.js';
+import { createSqliteCleanupStore } from './cleanup-store.js';
 import type { ReviewResultStore } from '../../ports/review-results.js';
 import { createSqliteReviewResultStore } from './review-result-store.js';
 import { stateOpenRequestSchema } from '../../contracts/state.js';
@@ -46,6 +48,7 @@ export type StateOpenResult =
       runtime: RuntimeStore;
       runs: RunStore;
       reviewResults: ReviewResultStore;
+      cleanups: CleanupStore;
       handoffs: HandoffStore;
       ci: CiStore;
       automaticReviews: AutomaticReviewStore;
@@ -86,6 +89,7 @@ export async function openSqliteState(
         stateDirectory: root.path,
         store: createStateStore(database, dependencies.now ?? Date.now),
         registry: createSqliteProjectRegistry(database),
+        cleanups: createSqliteCleanupStore(database),
         worktrees: createSqliteWorktreeStore(database, dependencies.now ?? Date.now),
         service: createSqliteServiceStore(database, dependencies.now ?? Date.now),
         handoffs: createSqliteHandoffStore(database, dependencies.now ?? Date.now),

@@ -121,3 +121,7 @@ Run RPC operations add host report acceptance, responses, explicit continuation,
 ## After-handoff executor
 
 `service run --observe-ci --after-handoff-review` enables [explicit follow-up dispatch](automatic-review.md), independent of the worker runtime flag. Project controls default to disabled and checkout binding is explicit. CI progress wakes the dispatcher; queue readiness and capacity remain fresh. Starting without the executor suspends eligible saved plans before coordinator startup. Shutdown drains both schedulers before state/ownership release. Running/claimed jobs use explicit run cancellation, never an implicit automation-stop signal.
+
+## Opt-in cleanup executor
+
+`service run --cleanup` enables the [durable cleanup executor](cleanup.md) for explicit automatic requests only. It shares coordinator ownership, uses the same application cleanup operation as the offline host, and drains on shutdown. Without the flag, automatic requests are suspended; restoring it requires explicit resume. Local wakes and retention timers trigger inspection; no GitHub polling, historical enrollment, worker/service teardown or invented shutdown evidence is installed. Library hosts can inject `cleanupShutdown: RunShutdownVerifier`; the bundled host uses exact Codex/Herdr absence verification. Request/control/inspect RPCs expose the same versioned cleanup contracts. Execute/reconcile stay offline.

@@ -1,3 +1,6 @@
+import { requestCleanup, controlCleanup, inspectCleanup } from '../application/cleanup.js';
+import { createCleanupExecutor, suspendCleanupExecutor } from '../application/automatic-cleanup.js';
+import { composeCleanupDependencies } from './cleanup.js';
 import {
   inspectReviewAutomation,
   configureReviewAutomation,
@@ -35,7 +38,7 @@ import {
 import { nodeRunArtifactReader } from '../adapters/filesystem/run-artifacts.js';
 import { nodeRunEventWaiter } from '../adapters/local/run-waiter.js';
 import type { ImplementationWorkerInput } from '../ports/implementation.js';
-import type { RunWorkerControl } from '../ports/runs.js';
+import type { RunShutdownVerifier, RunWorkerControl } from '../ports/runs.js';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { serviceRpcRequestSchema, type ServiceRpcResponse } from '../contracts/service-rpc.js';
@@ -81,6 +84,9 @@ export async function startLocalService(
     runtimes?: readonly ServiceWorkerRuntime[];
     ci?: { policy?: unknown; reader?: CiReader };
     afterHandoffReview?: boolean;
+    cleanup?: boolean;
+    cleanupHerdrExecutable?: string;
+    cleanupShutdown?: RunShutdownVerifier;
     reviewTargets?: ReviewTargetReader;
     githubExecutable?: string;
     runWorkerInput?: ImplementationWorkerInput;
@@ -153,6 +159,32 @@ export async function startLocalService(
       now: Date.now,
       nextId: (kind) => `${kind}-${randomUUID()}`,
     };
+    const cleanupDependencies = composeCleanupDependencies(
+      opened,
+      executable,
+      options.cleanup
+        ? await hostExecutable(
+            'herdr',
+            options.cleanupHerdrExecutable ?? options.codexHerdr?.herdrExecutable,
+          )
+        : null,
+    );
+
+    if (options.cleanupShutdown) {
+      cleanupDependencies.shutdown = options.cleanupShutdown;
+    }
+
+    if (!options.cleanup) {
+      const suspended = suspendCleanupExecutor(opened.cleanups, Date.now);
+
+      if (suspended.outcome !== 'completed') {
+        ownership.release();
+        opened.store.close();
+
+        return suspended;
+      }
+    }
+
     const implementationDependencies: ImplementationDependencies = {
       ...dependencies,
       runs: opened.runs,
@@ -292,6 +324,12 @@ export async function startLocalService(
         void close();
       },
     });
+    const cleanupExecutor = options.cleanup
+      ? createCleanupExecutor(cleanupDependencies, () => {
+          fatal = true;
+          void close();
+        })
+      : null;
     const ciDependencies: CiDependencies = {
       ...dependencies,
       ci: opened.ci,
@@ -384,6 +422,7 @@ export async function startLocalService(
             const { operation: _operation, ...value } = request;
             const result = await configureReviewAutomation(value, automaticDependencies, signal);
             automaticDispatcher?.wake();
+            cleanupExecutor?.wake();
             ciObserver?.wake();
 
             return result;
@@ -407,6 +446,7 @@ export async function startLocalService(
 
             if (result.outcome === 'persisted') {
               automaticDispatcher?.wake();
+              cleanupExecutor?.wake();
             }
 
             return result;
@@ -418,6 +458,7 @@ export async function startLocalService(
 
             if (result.outcome === 'persisted') {
               automaticDispatcher?.wake();
+              cleanupExecutor?.wake();
               ciObserver?.wake();
               coordinator.wake();
             }
@@ -525,6 +566,7 @@ export async function startLocalService(
           case 'wake':
             coordinator.wake();
             automaticDispatcher?.wake();
+            cleanupExecutor?.wake();
 
             return coordinator.status();
           case 'inspect':
@@ -558,6 +600,67 @@ export async function startLocalService(
             return result;
           }
 
+          case 'cleanup_inspect': {
+            const { operation: _operation, ...input } = request;
+
+            return inspectCleanup(input, cleanupDependencies);
+          }
+
+          case 'cleanup_request': {
+            const { operation: _operation, ...input } = request;
+            let result = requestCleanup(input, cleanupDependencies);
+
+            if (
+              !cleanupExecutor &&
+              result.outcome === 'persisted' &&
+              result.value.request.automatic &&
+              ['requested', 'blocked'].includes(result.value.phase)
+            ) {
+              result = controlCleanup(
+                {
+                  schemaVersion: 1,
+                  jobId: result.value.request.jobId,
+                  expectedRevision: result.value.revision,
+                  action: 'suspend',
+                },
+                cleanupDependencies,
+              );
+            }
+
+            if (result.outcome === 'persisted') {
+              cleanupExecutor?.wake();
+            }
+
+            return result;
+          }
+
+          case 'cleanup_control': {
+            const { operation: _operation, ...input } = request;
+
+            if (!cleanupExecutor && input.action === 'resume') {
+              const plan = opened.cleanups.read(input.jobId);
+
+              if (plan.outcome === 'rejected') {
+                return plan;
+              }
+
+              if (plan.value?.request.automatic) {
+                return rejected(
+                  'cleanup_blocked',
+                  'Start the service with --cleanup before resuming automatic plans.',
+                );
+              }
+            }
+
+            const result = controlCleanup(input, cleanupDependencies);
+
+            if (result.outcome === 'persisted') {
+              cleanupExecutor?.wake();
+            }
+
+            return result;
+          }
+
           case 'submit': {
             const { operation: _operation, ...submission } = request;
             const result = await submitServiceJob(submission, dependencies);
@@ -583,6 +686,7 @@ export async function startLocalService(
               coordinator.stop(),
               ciObserver?.stop(),
               automaticDispatcher?.stop(),
+              cleanupExecutor?.stop(),
             ]);
 
             if (drained.some((result) => result.status === 'rejected')) {
@@ -614,6 +718,7 @@ export async function startLocalService(
     coordinator.start();
     ciObserver?.start();
     automaticDispatcher?.start();
+    cleanupExecutor?.start();
 
     return {
       schemaVersion: 1 as const,

@@ -1,4 +1,11 @@
 import {
+  cleanupRequestSchema,
+  cleanupControlSchema,
+  cleanupReadSchema,
+  cleanupReadResultSchema,
+  cleanupWriteResultSchema,
+} from './cleanup.js';
+import {
   reviewAutomationReadSchema,
   reviewAutomationSetSchema,
   followUpEnqueueSchema,
@@ -60,6 +67,9 @@ import { createOperationResultSchema } from './operation-result.js';
 import { createStateWriteResultSchema } from './state.js';
 
 export const serviceRpcRequestSchema = z.discriminatedUnion('operation', [
+  cleanupRequestSchema.extend({ operation: z.literal('cleanup_request') }),
+  cleanupControlSchema.extend({ operation: z.literal('cleanup_control') }),
+  cleanupReadSchema.extend({ operation: z.literal('cleanup_inspect') }),
   reviewAutomationReadSchema.extend({ operation: z.literal('review_automation_inspect') }),
   reviewAutomationSetSchema.extend({ operation: z.literal('review_automation_configure') }),
   followUpEnqueueSchema.extend({ operation: z.literal('follow_up_enqueue') }),
@@ -89,6 +99,8 @@ export const serviceRpcRequestSchema = z.discriminatedUnion('operation', [
   runCursorRequestSchema.extend({ operation: z.literal('run_checkpoint') }),
 ]);
 export const serviceRpcResponseSchema = z.union([
+  cleanupReadResultSchema,
+  cleanupWriteResultSchema,
   reviewAutomationReadResultSchema,
   reviewAutomationWriteResultSchema,
   followUpReadResultSchema,

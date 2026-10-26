@@ -27,7 +27,10 @@ module.exports = {
     {
       name: 'cli-host-wiring-only',
       severity: 'error',
-      from: { path: '^src/cli/', pathNot: '^src/cli/(service|runs|handoff|review-results)\\.ts$' },
+      from: {
+        path: '^src/cli/',
+        pathNot: '^src/cli/(service|runs|handoff|review-results|cleanup)\\.ts$',
+      },
       to: { path: '^src/host/' },
     },
     {
@@ -36,7 +39,7 @@ module.exports = {
       from: { path: '^src/cli/' },
       to: {
         path: '^src/host/',
-        pathNot: '^src/host/(local-service|reconcile-run|handoff|review-results)\\.ts$',
+        pathNot: '^src/host/(local-service|reconcile-run|handoff|review-results|cleanup)\\.ts$',
       },
     },
     {
@@ -62,6 +65,12 @@ module.exports = {
       severity: 'error',
       from: { path: '^src/cli/service\\.ts$' },
       to: { path: '^src/host/', pathNot: '^src/host/local-service\\.ts$' },
+    },
+    {
+      name: 'cleanup-cli-host-entry-only',
+      severity: 'error',
+      from: { path: '^src/cli/cleanup\\.ts$' },
+      to: { path: '^src/host/', pathNot: '^src/host/cleanup\\.ts$' },
     },
     {
       name: 'ports-core-types-only',
