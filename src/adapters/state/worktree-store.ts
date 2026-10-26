@@ -173,6 +173,16 @@ export function createSqliteWorktreeStore(db: StateDatabase, now: () => number):
           stateFailure('state_reconciliation_required');
         }
 
+        if (
+          db
+            .statement(
+              'SELECT r.id FROM resources r JOIN attempts a ON a.id=r.attempt_id JOIN jobs j ON j.id=a.job_id WHERE j.checkout_id=? AND r.released_at IS NULL AND r.id<>? LIMIT 1',
+            )
+            .get(saved.intent.checkoutId, saved.intent.id)
+        ) {
+          stateFailure('state_reconciliation_required');
+        }
+
         if (saved.intent.run) {
           const attempt = db
             .statement('SELECT resolved_at FROM attempts WHERE id=?')

@@ -199,6 +199,15 @@ async function execute(
     return result;
   }
 
+  if (result.value.state === 'confirmed') {
+    return deps.results.complete({
+      schemaVersion: 1,
+      jobId: record.request.jobId,
+      reportKey: record.request.reportKey,
+      key: record.request.key,
+    });
+  }
+
   const view = take(deps.results.find(record.request));
 
   if (!view) {

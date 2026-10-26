@@ -615,3 +615,163 @@ await test(
     });
   },
 );
+
+await test(
+  'review publication finalization rolls back locally and retries a confirmed receipt without another POST',
+  options,
+  async () => {
+    await fixture(async (c) => {
+      const report = persisted(await c.acceptReport()).report!;
+      const request = c.publishRequest(report.id);
+      const raw = new DatabaseSync(join(c.f.f.context.context.state, 'state.sqlite'));
+
+      try {
+        raw.exec(
+          "CREATE TRIGGER reject_review_completion BEFORE INSERT ON run_events WHEN json_extract(NEW.data,'$.kind')='publication_finalized' BEGIN SELECT RAISE(ABORT,'fixture completion rollback'); END;",
+        );
+
+        assert.equal((await publishReviewResult(request, c.deps)).outcome, 'rejected');
+
+        const source = { ...c.source, key: request.request.key };
+        const saved = c.deps.results.find(source);
+
+        assert.ok(saved.outcome === 'completed' && saved.value);
+        assert.equal(saved.value.effect.state, 'confirmed');
+
+        const attemptId = saved.value.record.publicationAttemptId;
+
+        assert.equal(
+          raw.prepare('SELECT resolved_at FROM attempts WHERE id=?').get(attemptId)?.resolved_at,
+          null,
+        );
+        assert.equal(
+          raw.prepare('SELECT COUNT(*) AS count FROM results WHERE attempt_id=?').get(attemptId)
+            ?.count,
+          0,
+        );
+        assert.equal(c.writes, 1);
+
+        raw.exec('DROP TRIGGER reject_review_completion');
+        const deps = {
+          ...c.deps,
+          github: {
+            ...c.deps.github,
+            inspectPullRequest: async () => assert.fail('No remote preflight for confirmed retry'),
+            publish: async () => assert.fail('No POST'),
+            findPublication: async () => assert.fail('No receipt read for confirmed retry'),
+          },
+        };
+        const recovered = persisted(await publishReviewResult(request, deps));
+
+        assert.equal(recovered.effect.state, 'confirmed');
+        assert.notEqual(
+          raw.prepare('SELECT resolved_at FROM attempts WHERE id=?').get(attemptId)?.resolved_at,
+          null,
+        );
+
+        const watermark = raw.prepare('SELECT MAX(id) AS id FROM run_events').get()?.id;
+        persisted(await publishReviewResult(request, deps));
+
+        assert.equal(raw.prepare('SELECT MAX(id) AS id FROM run_events').get()?.id, watermark);
+        assert.equal(
+          raw.prepare('SELECT COUNT(*) AS count FROM results WHERE attempt_id=?').get(attemptId)
+            ?.count,
+          1,
+        );
+        assert.equal(c.writes, 1);
+      } finally {
+        raw.close();
+      }
+    });
+  },
+);
+
+await test(
+  'explicit review reconciliation seals legacy confirmed attempts while unknown publication remains unresolved',
+  options,
+  async () => {
+    await fixture(async (c) => {
+      const report = persisted(await c.acceptReport()).report!;
+      const request = c.publishRequest(report.id);
+      c.loseResponse = true;
+      const unknown = persisted(await publishReviewResult(request, c.deps));
+      const source = { ...c.source, key: request.request.key };
+      const attemptId = unknown.record.publicationAttemptId;
+      const raw = new DatabaseSync(join(c.f.f.context.context.state, 'state.sqlite'));
+
+      try {
+        assert.equal(unknown.effect.state, 'unknown');
+        assert.equal(c.deps.results.complete(source).outcome, 'rejected');
+        assert.equal(
+          raw.prepare('SELECT resolved_at FROM attempts WHERE id=?').get(attemptId)?.resolved_at,
+          null,
+        );
+
+        persisted(await reconcileReviewPublication({ ...source, writersStopped: true }, c.deps));
+
+        assert.notEqual(
+          raw.prepare('SELECT resolved_at FROM attempts WHERE id=?').get(attemptId)?.resolved_at,
+          null,
+        );
+
+        raw.prepare('DELETE FROM results WHERE attempt_id=?').run(attemptId);
+        raw.prepare('UPDATE attempts SET resolved_at=NULL WHERE id=?').run(attemptId);
+        raw
+          .prepare(
+            "DELETE FROM run_events WHERE job_id=? AND json_extract(data,'$.kind')='publication_finalized'",
+          )
+          .run(c.job.job.id);
+        const inspected = c.deps.results.find(source);
+
+        assert.ok(inspected.outcome === 'completed' && inspected.value);
+        assert.equal(
+          raw.prepare('SELECT resolved_at FROM attempts WHERE id=?').get(attemptId)?.resolved_at,
+          null,
+        );
+
+        const opened = await openSqliteState({
+          schemaVersion: 1,
+          stateDirectory: c.f.f.context.context.state,
+        });
+
+        assert.ok(opened.outcome === 'opened');
+
+        try {
+          const deps = {
+            ...c.deps,
+            runs: opened.runs,
+            state: opened.store,
+            results: opened.reviewResults,
+            github: {
+              ...c.deps.github,
+              inspectPullRequest: async () =>
+                assert.fail('Historical settlement does not inspect scope'),
+              publish: async () => assert.fail('Historical settlement does not POST'),
+              findPublication: async () => assert.fail('Confirmed receipt already saved'),
+            },
+          };
+
+          assert.equal(
+            (await reconcileReviewPublication({ ...source, writersStopped: false }, deps)).outcome,
+            'rejected',
+          );
+
+          const recovered = persisted(
+            await reconcileReviewPublication({ ...source, writersStopped: true }, deps),
+          );
+
+          assert.equal(recovered.effect.state, 'confirmed');
+          assert.notEqual(
+            raw.prepare('SELECT resolved_at FROM attempts WHERE id=?').get(attemptId)?.resolved_at,
+            null,
+          );
+          assert.equal(c.writes, 1);
+        } finally {
+          opened.store.close();
+        }
+      } finally {
+        raw.close();
+      }
+    });
+  },
+);

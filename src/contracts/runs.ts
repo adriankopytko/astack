@@ -160,6 +160,7 @@ export const runEventSchema = z.strictObject({
     'review_result_observed',
     'review_publication_prepared',
     'review_fix_accepted',
+    'publication_finalized',
   ]),
   createdAt: offset,
   detail: stateEffectIntentSchema.shape.payload,

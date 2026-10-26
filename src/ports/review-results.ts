@@ -17,5 +17,8 @@ export interface ReviewResultStore {
   find(
     source: ReviewResultRead & { key: string },
   ): OperationResult<ReviewResultPublicationView | null>;
+  complete(
+    source: ReviewResultRead & { key: string },
+  ): StateWriteResult<ReviewResultPublicationView>;
   reserve(record: ReviewResultPublication): StateWriteResult<ReviewResultPublicationView>;
 }

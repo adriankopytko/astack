@@ -679,3 +679,196 @@ await test(
     });
   },
 );
+
+await test(
+  'confirmed host publication completes independently while unbound checkout cleanup still respects worker holds',
+  options,
+  async () => {
+    await fixture(async (f) => {
+      const value = persisted(await finishImplementation(f.input, f.deps));
+      const raw = new DatabaseSync(join(f.context.context.state, 'state.sqlite'));
+
+      try {
+        assert.notEqual(
+          raw
+            .prepare('SELECT resolved_at FROM attempts WHERE id=?')
+            .get(value.record.publicationAttemptId)?.resolved_at,
+          null,
+        );
+        assert.equal(
+          raw
+            .prepare('SELECT COUNT(*) AS count FROM results WHERE attempt_id=?')
+            .get(value.record.publicationAttemptId)?.count,
+          1,
+        );
+
+        const owned = f.context.context.opened.worktrees.forCheckout(f.job.job.checkoutId);
+
+        assert.ok(owned.outcome === 'completed' && owned.value);
+        assert.equal(owned.value.intent.run, null);
+
+        const removing = f.context.context.opened.worktrees.beginRemoval(
+          owned.value,
+          'must-not-remove-active-worker',
+          f.head,
+        );
+
+        assert.equal(removing.outcome, 'rejected');
+
+        if (removing.outcome === 'rejected') {
+          assert.equal(removing.error.code, 'state_reconciliation_required');
+        }
+
+        const run = f.deps.runs.inspect(f.job.job.id);
+
+        assert.ok(run.outcome === 'completed' && run.value);
+        assert.ok(run.value.cleanup.retainedResourceCount > 0);
+
+        for (const resource of run.value.cleanup.resources.filter((r) => r.releasedAt === null)) {
+          const released = f.deps.state.releaseResource({
+            schemaVersion: 1,
+            resourceId: resource.id,
+            attemptId: f.job.attempt.id,
+            evidence: { source: 'controlled-fixture', workerNeverSpawned: true },
+          });
+
+          assert.equal(released.outcome, 'persisted');
+        }
+
+        const { unlink } = await import('node:fs/promises');
+        await unlink(join(f.root, f.artifact.path));
+        const cli = spawnSync(
+          process.execPath,
+          [
+            fileURLToPath(new URL('../dist/cli/main.js', import.meta.url)),
+            '--state-directory',
+            f.context.context.state,
+            'worktree',
+            'remove',
+            owned.value.intent.id,
+            '--json',
+          ],
+          { encoding: 'utf8', cwd: f.context.context.root },
+        );
+
+        assert.equal(cli.status, 0, cli.stdout || cli.stderr);
+        assert.equal(JSON.parse(cli.stdout).outcome, 'removed');
+        assert.equal(git(f.context.context.sources[0]!, 'rev-parse', f.job.entry.branch), f.head);
+
+        const retried = persisted(
+          await reconcileImplementationHandoff(f.reconcile, {
+            ...f.deps,
+            git: {
+              inspect: async () =>
+                assert.fail('Historical settlement does not inspect removed checkout'),
+            },
+          }),
+        );
+
+        assert.equal(retried.record.phase, 'accepted');
+        assert.equal(f.remote.pushCalls, 1);
+        assert.equal(f.remote.postCalls, 1);
+      } finally {
+        raw.close();
+      }
+    });
+  },
+);
+
+await test(
+  'historical handoff reconciliation seals legacy host attempts once without repeating provider effects',
+  options,
+  async () => {
+    await fixture(async (f) => {
+      const accepted = persisted(await finishImplementation(f.input, f.deps));
+      const raw = new DatabaseSync(join(f.context.context.state, 'state.sqlite'));
+
+      try {
+        raw
+          .prepare('DELETE FROM results WHERE attempt_id=?')
+          .run(accepted.record.publicationAttemptId);
+        raw
+          .prepare('UPDATE attempts SET resolved_at=NULL WHERE id=?')
+          .run(accepted.record.publicationAttemptId);
+        raw
+          .prepare(
+            "DELETE FROM run_events WHERE job_id=? AND json_extract(data,'$.kind')='publication_finalized'",
+          )
+          .run(f.job.job.id);
+        const recovered = persisted(
+          await reconcileImplementationHandoff(f.reconcile, {
+            ...f.deps,
+            publisher: {
+              inspect: async () => assert.fail('No Git reads'),
+              push: async () => assert.fail('No push'),
+            },
+            github: {
+              ...f.deps.github,
+              findPublication: async () => assert.fail('No GitHub reads'),
+              publish: async () => assert.fail('No POST'),
+            },
+          }),
+        );
+
+        assert.equal(recovered.record.phase, 'accepted');
+        assert.notEqual(
+          raw
+            .prepare('SELECT resolved_at FROM attempts WHERE id=?')
+            .get(accepted.record.publicationAttemptId)?.resolved_at,
+          null,
+        );
+
+        const watermark = raw.prepare('SELECT MAX(id) AS id FROM run_events').get()?.id;
+        persisted(await finishImplementation(f.input, f.deps));
+
+        assert.equal(raw.prepare('SELECT MAX(id) AS id FROM run_events').get()?.id, watermark);
+        assert.equal(
+          raw
+            .prepare(
+              "SELECT COUNT(*) AS count FROM run_events WHERE job_id=? AND json_extract(data,'$.kind')='publication_finalized'",
+            )
+            .get(f.job.job.id)?.count,
+          1,
+        );
+        assert.equal(f.remote.pushCalls, 1);
+        assert.equal(f.remote.postCalls, 1);
+      } finally {
+        raw.close();
+      }
+    });
+  },
+);
+
+await test(
+  'unknown handoff effects keep their host attempt unresolved and cannot clear the cleanup guard',
+  options,
+  async () => {
+    await fixture(async (f) => {
+      f.remote.pushMode = 'lost';
+      const saved = persisted(await finishImplementation(f.input, f.deps));
+
+      assert.equal(saved.push.state, 'unknown');
+
+      const raw = new DatabaseSync(join(f.context.context.state, 'state.sqlite'), {
+        readOnly: true,
+      });
+
+      try {
+        assert.equal(
+          raw
+            .prepare('SELECT resolved_at FROM attempts WHERE id=?')
+            .get(saved.record.publicationAttemptId)?.resolved_at,
+          null,
+        );
+        assert.equal(
+          raw
+            .prepare('SELECT COUNT(*) AS count FROM results WHERE attempt_id=?')
+            .get(saved.record.publicationAttemptId)?.count,
+          0,
+        );
+      } finally {
+        raw.close();
+      }
+    });
+  },
+);

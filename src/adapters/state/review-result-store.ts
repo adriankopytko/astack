@@ -1,3 +1,6 @@
+import { completePublicationAttempt } from './publication-completion.js';
+import { githubPublicationReceiptSchema, githubPublicationSchema } from '../../contracts/github.js';
+import { githubPublicationMarker } from '../../core/github-publication.js';
 import { readAcceptedRunReport } from './run-report-codec.js';
 import { isDeepStrictEqual } from 'node:util';
 import {
@@ -112,6 +115,77 @@ export function createSqliteReviewResultStore(
         );
 
         return record ? view(record) : null;
+      });
+    },
+    complete(input) {
+      return db.write(() => {
+        const record = db.get(
+          reviewResultPublicationSchema,
+          'SELECT data FROM review_result_publications WHERE job_id=? AND report_key=? AND request_key=?',
+          input.jobId,
+          input.reportKey,
+          input.key,
+        );
+
+        if (!record) {
+          return stateFailure('state_not_found');
+        }
+
+        const selected = source(record.request, record.request.reportId);
+        const saved = view(record);
+        const effect = saved.effect;
+        const receipt = githubPublicationReceiptSchema.safeParse(effect.evidence?.receipt);
+        const publication = githubPublicationSchema.safeParse(effect.intent.payload.publication);
+        const marker = githubPublicationMarker({
+          projectId: record.projectId,
+          jobId: record.publicationJobId,
+          attemptId: record.publicationAttemptId,
+          effectId: record.effectId,
+          key: 'review-result',
+          publication: record.publication,
+        });
+
+        if (
+          effect.state !== 'confirmed' ||
+          effect.intent.kind !== 'github-publication:v1' ||
+          effect.intent.attemptId !== record.publicationAttemptId ||
+          effect.intent.key !== 'review-result' ||
+          !publication.success ||
+          !isDeepStrictEqual(publication.data, record.publication) ||
+          !receipt.success ||
+          receipt.data.kind !== record.publication.kind ||
+          receipt.data.marker !== marker ||
+          !isDeepStrictEqual(receipt.data.target, record.target) ||
+          receipt.data.actor.toLowerCase() !== record.publication.actor.toLowerCase() ||
+          configurationDigest(selected.report) !== record.reportDigest
+        ) {
+          return stateFailure('state_reconciliation_required');
+        }
+
+        const finalized = completePublicationAttempt(db, {
+          jobId: record.publicationJobId,
+          attemptId: record.publicationAttemptId,
+          operation: 'review-result-publication',
+          projectId: record.projectId,
+          repositoryId: record.repositoryId,
+          checkoutId: record.checkoutId,
+          commit: record.target.sha,
+          branch: record.branch,
+          effectIds: [record.effectId],
+          createdAt: receipt.data.observedAt,
+          sourceJobId: record.request.jobId,
+          sourceReportId: record.request.reportId,
+        });
+
+        if (finalized) {
+          appendRunEvent(db, selected.job, 'publication_finalized', now(), {
+            operation: 'review-result-publication',
+            publicationId: record.id,
+            attemptId: record.publicationAttemptId,
+          });
+        }
+
+        return { value: saved, disposition: finalized ? 'updated' : 'existing' };
       });
     },
     reserve(input) {

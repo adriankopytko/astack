@@ -1,3 +1,4 @@
+import { completePublicationAttempt } from './publication-completion.js';
 import { isDeepStrictEqual } from 'node:util';
 import {
   handoffRecordSchema,
@@ -262,15 +263,11 @@ export function createSqliteHandoffStore(db: StateDatabase, now: () => number): 
             input.id,
           ) ?? stateFailure('handoff_not_found');
 
-        if (record.phase === 'accepted') {
-          if (!isDeepStrictEqual(record.receipt, input.receipt)) {
-            stateFailure('state_conflict');
-          }
-
-          return { value: view(record), disposition: 'existing' };
+        if (record.phase === 'accepted' && !isDeepStrictEqual(record.receipt, input.receipt)) {
+          stateFailure('state_conflict');
         }
 
-        if (record.phase !== 'prepared') {
+        if (record.phase !== 'prepared' && record.phase !== 'accepted') {
           stateFailure('state_conflict');
         }
 
@@ -304,6 +301,33 @@ export function createSqliteHandoffStore(db: StateDatabase, now: () => number): 
           receipt.actor.toLowerCase() !== p.actor.toLowerCase()
         ) {
           stateFailure('handoff_target_changed');
+        }
+
+        const finalized = completePublicationAttempt(db, {
+          jobId: record.publicationJobId,
+          attemptId: record.publicationAttemptId,
+          operation: 'implementation-handoff',
+          projectId: record.source.projectId,
+          repositoryId: record.source.repositoryId,
+          checkoutId: record.source.checkoutId,
+          commit: record.source.headCommit,
+          branch: record.source.branch,
+          effectIds: [record.pushEffectId, record.publicationEffectId],
+          createdAt: record.acceptedAt ?? input.acceptedAt,
+          sourceJobId: record.request.jobId,
+          sourceReportId: record.request.reportId,
+        });
+
+        if (finalized) {
+          appendRunEvent(db, run.job, 'publication_finalized', now(), {
+            operation: 'implementation-handoff',
+            publicationId: record.id,
+            attemptId: record.publicationAttemptId,
+          });
+        }
+
+        if (record.phase === 'accepted') {
+          return { value: observed, disposition: finalized ? 'updated' : 'existing' };
         }
 
         const review = record.request.review;

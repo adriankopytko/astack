@@ -15,6 +15,7 @@ import {
   type StateJob,
   type StateRecord,
   type StateResource,
+  type StateResult,
 } from '../../contracts/state.js';
 import { sha256 } from '../../core/file-paths.js';
 import type { StateStore } from '../../ports/state-store.js';
@@ -100,6 +101,52 @@ export function acceptJobTransaction(
   );
 
   return { value: job, disposition: 'created' };
+}
+
+/** Caller must hold a StateDatabase.write transaction; no provider effects occur here. */
+export function recordResultTransaction(
+  db: StateDatabase,
+  result: StateResult,
+): { value: StateResult; disposition: 'created' | 'existing' } {
+  const existing = db.get(
+    stateResultSchema,
+    'SELECT data FROM results WHERE attempt_id=?',
+    result.attemptId,
+  );
+
+  if (existing) {
+    if (!same(existing, result)) {
+      stateFailure('state_conflict');
+    }
+
+    return { value: existing, disposition: 'existing' };
+  }
+
+  if (!db.statement('SELECT id FROM attempts WHERE id=?').get(result.attemptId)) {
+    stateFailure('state_not_found');
+  }
+
+  if (
+    db
+      .statement(
+        "SELECT id FROM effects WHERE attempt_id=? AND state IN ('pending', 'unknown') LIMIT 1",
+      )
+      .get(result.attemptId)
+  ) {
+    stateFailure('state_reconciliation_required');
+  }
+
+  db.statement('INSERT INTO results(id, attempt_id, data) VALUES (?, ?, ?)').run(
+    result.id,
+    result.attemptId,
+    canonicalJson(result),
+  );
+  db.statement('UPDATE attempts SET resolved_at=? WHERE id=?').run(
+    result.createdAt,
+    result.attemptId,
+  );
+
+  return { value: result, disposition: 'created' };
 }
 
 export function createStateStore(db: StateDatabase, clock: () => number): StateStore {
@@ -372,47 +419,7 @@ export function createStateStore(db: StateDatabase, clock: () => number): StateS
       });
     },
     recordResult({ result }) {
-      return db.write(() => {
-        const existing = db.get(
-          stateResultSchema,
-          'SELECT data FROM results WHERE attempt_id=?',
-          result.attemptId,
-        );
-
-        if (existing) {
-          if (!same(existing, result)) {
-            stateFailure('state_conflict');
-          }
-
-          return { value: existing, disposition: 'existing' };
-        }
-
-        if (!db.statement('SELECT id FROM attempts WHERE id=?').get(result.attemptId)) {
-          stateFailure('state_not_found');
-        }
-
-        if (
-          db
-            .statement(
-              "SELECT id FROM effects WHERE attempt_id=? AND state IN ('pending', 'unknown') LIMIT 1",
-            )
-            .get(result.attemptId)
-        ) {
-          stateFailure('state_reconciliation_required');
-        }
-
-        db.statement('INSERT INTO results(id, attempt_id, data) VALUES (?, ?, ?)').run(
-          result.id,
-          result.attemptId,
-          canonicalJson(result),
-        );
-        db.statement('UPDATE attempts SET resolved_at=? WHERE id=?').run(
-          result.createdAt,
-          result.attemptId,
-        );
-
-        return { value: result, disposition: 'created' };
-      });
+      return db.write(() => recordResultTransaction(db, result));
     },
     retainResource({ resource }) {
       return db.write(() => {

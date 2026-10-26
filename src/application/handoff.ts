@@ -489,6 +489,14 @@ export async function finishImplementation(
         );
       }
 
+      if (previous.record.phase === 'accepted') {
+        return deps.handoffs.accept({
+          id: previous.record.id,
+          receipt: previous.record.receipt!,
+          acceptedAt: previous.record.acceptedAt!,
+        });
+      }
+
       if (previous.record.phase !== 'prepared') {
         return { schemaVersion: 1, outcome: 'persisted', disposition: 'existing', value: previous };
       }
@@ -547,6 +555,14 @@ export async function reconcileImplementationHandoff(
 
     if (!record) {
       return rejected('handoff_not_found', 'Handoff not found.');
+    }
+
+    if (record.record.phase === 'accepted') {
+      return deps.handoffs.accept({
+        id: record.record.id,
+        receipt: record.record.receipt!,
+        acceptedAt: record.record.acceptedAt!,
+      });
     }
 
     return record.record.phase === 'prepared'
