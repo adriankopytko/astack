@@ -33,7 +33,8 @@
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "test": "pnpm build && node --import tsx --test tests/*.test.ts",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm check:boundaries && pnpm test"
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm check:boundaries && pnpm test",
+    "skills:manifest": "node --import tsx tools/update-skill-manifest.ts"
   },
   "dependencies": {
     "commander": "15.0.0",

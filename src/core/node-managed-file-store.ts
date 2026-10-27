@@ -368,7 +368,15 @@ export function createNodeManagedFileStore(
         };
       }
 
-      const current = await readRegularFile(root, request.path, maximumManagedFileBytes);
+      const current = await readRegularFile(root, request.path, maximumManagedFileBytes).catch(
+        (error: unknown) => {
+          if (error instanceof FileSafetyError && error.reason === 'missing_parent') {
+            return null;
+          }
+
+          throw error;
+        },
+      );
       let state: 'missing' | 'unowned' | 'managed' | 'modified';
 
       if (record) {

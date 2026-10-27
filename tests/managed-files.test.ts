@@ -533,3 +533,26 @@ await test('artifact files cannot follow symlinks or a replaced ownership marker
     assert.equal(await readFile(outside, 'utf8'), 'private-user-content');
   });
 });
+
+await test('inspection retains ownership evidence when an owned target parent was deleted and creates no replacement directories', async () => {
+  await temporary(async (root) => {
+    await mkdir(join(root, 'nested'));
+    const request = { ...input(root), path: 'nested/config.json' };
+    const written = await writeManagedFile(request, nodeManagedFileStore);
+
+    assert.equal(written.outcome, 'written');
+
+    await rm(join(root, 'nested'), { recursive: true });
+    const inspected = await inspectManagedFile(
+      { schemaVersion: 1, root, path: request.path },
+      nodeManagedFileStore,
+    );
+
+    assert.ok(inspected.outcome === 'inspected');
+    assert.equal(inspected.state, 'modified');
+    assert.equal(inspected.observation, 'missing');
+    assert.equal(inspected.record?.owner, request.owner);
+
+    await assert.rejects(stat(join(root, 'nested')), { code: 'ENOENT' });
+  });
+});

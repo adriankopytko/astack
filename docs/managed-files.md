@@ -1,6 +1,6 @@
 # Managed files and private artifacts
 
-Issue #9 adds two library operations and shared internal artifact helpers. Project initialization and service recovery can compose these operations later; no new CLI command is introduced.
+Issue #9 adds two library operations and shared internal artifact helpers. The [role skill installer](skills.md) now consumes these primitives; project initialization and service recovery can compose them separately.
 
 ## Write and inspect
 
@@ -88,7 +88,7 @@ An already aborted signal causes no file work. Cancellation is checked before se
 `inspectManagedFile` performs no setup or cleanup. It returns record/pending metadata, a management state, and an observation:
 
 - `matches-record` or `matches-intent`: current bytes/mode match that metadata.
-- `missing`, `unowned`, or `modified`: current target differs or has no record.
+- `missing`, `unowned`, or `modified`: current target differs or has no record. A missing parent is observed as a missing target; an existing ownership record then yields `modified`, preserving evidence of an intentionally deleted owned path without recreating directories.
 - `unverified`: a pending transaction exists but the target cannot safely be read, including an in-flight hard-link interval.
 
 Observations do not prove which writer is alive or whether a rename occurred when old/new bytes are identical. Inspection is not an atomic filesystem snapshot or a cleanup lease.

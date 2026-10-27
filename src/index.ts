@@ -522,3 +522,19 @@ export {
 } from './application/cleanup.js';
 export { createCleanupExecutor } from './application/automatic-cleanup.js';
 export { executeLocalCleanup } from './host/cleanup.js';
+
+export * from './contracts/skills.js';
+export type {
+  SkillBundleReader,
+  SkillDirectories,
+  SkillDirectoryObservation,
+} from './ports/skills.js';
+export {
+  listSkills,
+  showSkill,
+  inspectSkills,
+  installSkills,
+  type SkillsDependencies,
+} from './application/skills.js';
+export { createBundledSkillReader } from './adapters/filesystem/skill-bundle.js';
+export { nodeSkillDirectories } from './adapters/filesystem/skill-directories.js';

@@ -11,6 +11,14 @@ description: Use the astack CLI to register projects, manage owned worktrees, in
 
 From the astack source repository use `pnpm dev` instead of `astack`; after building use `pnpm start`. An installed binary resolves this guide independently of cwd.
 
+## Focused roles and user setup
+
+`astack skills show orchestrator`, `astack skills show implementer` and `astack skills show reviewer` print narrower SKILL.md guides. Workers consume an explicit assignment and return proposals; the orchestrator chooses host follow-ups. Installation never grants worker publication/cleanup authority or changes saved runtime prompts.
+
+`astack skills list --json` shows packaged versions/digests. `astack skills inspect --json` reports availability without creating files. Explicit `astack skills install --json` installs all three at `$CODEX_HOME/skills` or `~/.codex/skills`; select `--root <directory>` for another user/profile skills root and repeat `--role <orchestrator|implementer|reviewer>` to select roles. The root must exist or have a trusted existing immediate parent. Authored, edited, deleted-owned, foreign and pending targets are preserved; there is no force/adopt option. Versions/digests and owners are recorded through managed-file metadata. The global `--skill` still prints this command guide; role filtering uses `--role`.
+
+A blocked installation can preserve existing files; pending means publication may have partially completed. Inspect the exact root/role and retain its journal rather than deleting claims or retrying by age. No agent settings/project files are rewritten, and repository context is not needed. Project initialization and automatic role binding remain later operations. See the packaged role guides for assignment-specific instructions; source contributors can consult `docs/skills.md` for installation/recovery contracts.
+
 ## Commands available now
 
 | Command                                                                                           | Result                                                                                      |

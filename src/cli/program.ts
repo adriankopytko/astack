@@ -1,3 +1,4 @@
+import { wireSkillCommands } from './skills.js';
 import { wireCleanupCommands } from './cleanup.js';
 import { readFile } from 'node:fs/promises';
 import { Command } from 'commander';
@@ -72,6 +73,7 @@ export function createProgram(version: string): Command {
   wireHandoffCommands(program);
   wireCiCommands(program);
   wireCleanupCommands(program);
+  wireSkillCommands(program);
 
   return program;
 }
