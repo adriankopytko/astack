@@ -470,6 +470,21 @@ await test(
 
       assert.equal(cancelled.status, 'cancelled');
       assert.equal(cancelled.cancellation?.interruptState, 'not_needed');
+      assert.equal(cancelled.job.entry.claim, null);
+      assert.equal(cancelled.job.effect.state, 'cancelled');
+      assert.equal(cancelled.job.effect.claim?.owner, 'local-cancellation');
+
+      const resolved = context.context.opened.store.inspectRecord({
+        schemaVersion: 1,
+        entity: 'attempt',
+        id: job.attempt.id,
+      });
+
+      assert.ok(
+        resolved.outcome === 'completed' &&
+          resolved.value?.entity === 'attempt' &&
+          resolved.value.resolvedAt !== null,
+      );
 
       coordinator.start();
       await coordinator.idle();

@@ -49,9 +49,7 @@ export function createSqliteServiceStore(
       'SELECT data FROM attempts WHERE id=?',
       entry.attemptId,
     );
-    const row = db
-      .statement('SELECT data, state, evidence FROM effects WHERE id=?')
-      .get(entry.effectId);
+    const row = db.statement('SELECT * FROM effects WHERE id=?').get(entry.effectId);
     const parsed = serviceJobSchema.safeParse({
       job,
       entry,
@@ -60,7 +58,15 @@ export function createSqliteServiceStore(
         ? {
             intent: db.data(stateEffectSchema.shape.intent, row),
             state: row.state,
-            claim: entry.claim,
+            claim:
+              row.claim_token === null
+                ? null
+                : {
+                    owner: row.claim_owner,
+                    token: row.claim_token,
+                    claimedAt: row.claimed_at,
+                    expiresAt: row.expires_at,
+                  },
             evidence: row.evidence === null ? null : (JSON.parse(String(row.evidence)) as unknown),
           }
         : null,
@@ -402,6 +408,8 @@ export function createSqliteServiceStore(
           db.statement('SELECT id FROM results WHERE attempt_id=?').get(current.attempt.id) !==
             undefined ||
           current.entry.claim !== null ||
+          current.effect.claim !== null ||
+          current.effect.state !== 'pending' ||
           !['queued', 'blocked'].includes(current.entry.state)
         ) {
           return { value: null, disposition: 'existing' };

@@ -1,3 +1,4 @@
+import { settleUnclaimedCancellation } from './unclaimed-cancellation.js';
 import { readAcceptedRunReport } from './run-report-codec.js';
 import { persistedRunReconciliationSchema } from './run-reconciliation-codec.js';
 import { runReconciliationSchema } from '../../contracts/run-reconciliation.js';
@@ -636,12 +637,25 @@ export function createSqliteRunStore(db: StateDatabase, now: () => number): RunS
             stateFailure('state_conflict');
           }
 
-          return { value: view(input.jobId), disposition: 'existing' };
+          const settled = settleUnclaimedCancellation(db, selected, existing);
+
+          if (settled) {
+            appendRunEvent(db, selected, 'cancelled', now(), {
+              key: input.key,
+              proof: 'unclaimed-launch',
+              attemptSettled: true,
+            });
+          }
+
+          return { value: view(input.jobId), disposition: settled ? 'updated' : 'existing' };
         }
 
         const control = runControl(db, input.jobId);
         const stopped =
-          selected.entry.claim === null ||
+          (selected.entry.claim === null &&
+            (selected.effect.claim === null ||
+              (selected.effect.state === 'cancelled' &&
+                selected.effect.evidence?.source === 'unclaimed-run-cancellation'))) ||
           selected.entry.observation?.state === 'quiescent' ||
           selected.entry.observation?.state === 'not_started';
         const requestedCancellation = runCancellationSchema.parse({
@@ -663,6 +677,8 @@ export function createSqliteRunStore(db: StateDatabase, now: () => number): RunS
             revision: control.revision + 1,
           });
         }
+
+        settleUnclaimedCancellation(db, selected, requestedCancellation);
 
         appendRunEvent(db, selected, stopped ? 'cancelled' : 'cancel_requested', now(), {
           key: input.key,
