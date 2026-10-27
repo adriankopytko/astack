@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const operationErrorSchema = z.strictObject({
   code: z.enum([
     'invalid_request',
+    'initialization_unavailable',
     'skill_bundle_invalid',
     'skills_unavailable',
     'unsupported_contract_version',

@@ -169,13 +169,17 @@ await test('owned versions update through managed writes, while edits and delete
   await fixture(async (root, deps, original) => {
     installed(await installSkills({ schemaVersion: 1, root }, deps));
     const bundle = structuredClone(original);
-    bundle.catalog.version = '1.0.1';
+    const nextVersion = `${Number(original.catalog.version.split('.')[0]) + 1}.0.0`;
+    bundle.catalog.version = nextVersion;
 
     for (const asset of bundle.catalog.skills) {
       const file = bundle.contents.find((item) => item.id === asset.id)!;
       file.content =
-        file.content.replaceAll('1.0.0', '1.0.1') + '\nA versioned fixture clarification.\n';
-      asset.version = '1.0.1';
+        file.content.replace(
+          `asset-version: '${asset.version}'`,
+          `asset-version: '${nextVersion}'`,
+        ) + '\nA versioned fixture clarification.\n';
+      asset.version = nextVersion;
       asset.sha256 = hash(file.content);
     }
 
@@ -187,8 +191,8 @@ await test('owned versions update through managed writes, while edits and delete
 
     const upgraded = installed(await installSkills({ schemaVersion: 1, root }, update));
 
-    assert.equal(upgraded.view.catalogVersion, '1.0.1');
-    assert.ok(upgraded.view.skills.every((entry) => entry.record?.assetVersion === '1.0.1'));
+    assert.equal(upgraded.view.catalogVersion, nextVersion);
+    assert.ok(upgraded.view.skills.every((entry) => entry.record?.assetVersion === nextVersion));
 
     await writeFile(join(root, 'astack-implementer', 'SKILL.md'), 'User edits must survive\n');
     const blocked = await installSkills({ schemaVersion: 1, root }, update);

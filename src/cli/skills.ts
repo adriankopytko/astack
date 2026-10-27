@@ -17,7 +17,7 @@ function skill(value: string): SkillId {
   return parsed.data;
 }
 
-function root(selected?: string) {
+export function userSkillsRoot(selected?: string) {
   return selected === undefined
     ? join(
         process.env.CODEX_HOME ? resolve(process.env.CODEX_HOME) : join(homedir(), '.codex'),
@@ -91,35 +91,47 @@ export function wireSkillCommands(program: Command) {
         (value: string, previous: SkillId[]) => [...previous, skill(value)],
         [],
       )
+      .option(
+        '--project-scope',
+        'Use Git-trackable project mode 0644 instead of private user mode 0600',
+      )
       .option('--json')
-      .action(async (options: { root?: string; role: SkillId[]; json?: boolean }) => {
-        const input = {
-          schemaVersion: 1,
-          root: root(options.root),
-          ...(options.role.length > 0 ? { skills: options.role } : {}),
-        };
-        const result = install
-          ? await installSkills(input, deps)
-          : await inspectSkills(input, deps);
+      .action(
+        async (options: {
+          root?: string;
+          role: SkillId[];
+          projectScope?: boolean;
+          json?: boolean;
+        }) => {
+          const input = {
+            schemaVersion: 1,
+            root: userSkillsRoot(options.root),
+            mode: options.projectScope ? 0o644 : 0o600,
+            ...(options.role.length > 0 ? { skills: options.role } : {}),
+          };
+          const result = install
+            ? await installSkills(input, deps)
+            : await inspectSkills(input, deps);
 
-        if (options.json) {
-          process.stdout.write(`${JSON.stringify(result)}\n`);
-        } else if (result.outcome === 'rejected') {
-          process.stdout.write(`${result.error.code}: ${result.error.message}\n`);
-        } else {
-          const view = 'view' in result ? result.view : result.value;
-          process.stdout.write(`Skills root: ${view.root}\nOutcome: ${result.outcome}\n`);
+          if (options.json) {
+            process.stdout.write(`${JSON.stringify(result)}\n`);
+          } else if (result.outcome === 'rejected') {
+            process.stdout.write(`${result.error.code}: ${result.error.message}\n`);
+          } else {
+            const view = 'view' in result ? result.view : result.value;
+            process.stdout.write(`Skills root: ${view.root}\nOutcome: ${result.outcome}\n`);
 
-          for (const entry of view.skills) {
-            process.stdout.write(
-              `${entry.asset.id}: ${entry.state}${entry.reason ? ` (${entry.reason})` : ''}\n`,
-            );
+            for (const entry of view.skills) {
+              process.stdout.write(
+                `${entry.asset.id}: ${entry.state}${entry.reason ? ` (${entry.reason})` : ''}\n`,
+              );
+            }
           }
-        }
 
-        if (!['completed', 'installed', 'unchanged'].includes(result.outcome)) {
-          process.exitCode = 1;
-        }
-      });
+          if (!['completed', 'installed', 'unchanged'].includes(result.outcome)) {
+            process.exitCode = 1;
+          }
+        },
+      );
   }
 }

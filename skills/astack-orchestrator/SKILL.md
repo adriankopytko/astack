@@ -2,7 +2,7 @@
 name: astack-orchestrator
 description: Delegate implementation and code review through Astack, inspect accepted results, and choose explicit follow-up or recovery actions across registered projects.
 metadata:
-  asset-version: '1.0.0'
+  asset-version: '1.0.1'
 ---
 
 # Orchestrate with Astack
@@ -47,3 +47,7 @@ Inspect accepted findings with `astack review result inspect <review-job-id> --r
 - `astack cleanup request <job-id> --key <cleanup-key> --not-before <unix-ms> --json` saves retention policy. Only explicitly automatic requests plus `service run --cleanup` can execute automatically, and they still need established shutdown evidence. Preserve dirty/untracked/ignored files and unknown service holds. A started uncertain cleanup requires writer-excluded reconciliation, not retry by a new key.
 
 Report concrete job/attempt/checkout/commit identities, accepted outcomes, blockers and next authorized action. Keep worker shutdown, service/resource stop, publication and cleanup evidence distinct. Preserve task branches and primary project spaces.
+
+## Bootstrap a project deliberately
+
+For a new project, inspect `astack init <path> --preview --json`. Apply with `astack init <path> --non-interactive --json` only within authorized setup scope. Optional repeated `--role implementer --role reviewer` installs project-local guides; user-level orchestrator availability is read-only and never installed implicitly. Initialization preserves authored setup and creates disabled host policy; it is separate from execution approval and delegation readiness. Herdr setup needs explicit session/socket or saved target. No detected scripts, dependencies or agents run. Preserve partial registration and pending writer intents; inspect their component recovery contracts before retrying. See `astack init --help` and the canonical `astack --skill` guide.

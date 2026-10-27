@@ -538,3 +538,11 @@ export {
 } from './application/skills.js';
 export { createBundledSkillReader } from './adapters/filesystem/skill-bundle.js';
 export { nodeSkillDirectories } from './adapters/filesystem/skill-directories.js';
+
+export * from './contracts/initialization.js';
+export {
+  initializeProject,
+  type InitializationDependencies,
+} from './application/initialization.js';
+export type { InitializationFiles } from './ports/initialization.js';
+export { nodeInitializationFiles } from './adapters/filesystem/initialization.js';

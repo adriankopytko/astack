@@ -49,6 +49,7 @@ export const skillShowSchema = skillsReadSchema.extend({ id: skillIdSchema });
 export const skillsInspectSchema = skillsReadSchema
   .extend({
     root: absoluteFilePathSchema,
+    mode: z.union([z.literal(0o600), z.literal(0o644)]).default(0o600),
     skills: z
       .array(skillIdSchema)
       .min(1)

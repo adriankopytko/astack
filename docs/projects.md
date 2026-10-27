@@ -69,3 +69,7 @@ New project errors include `project_context_required`, `project_selector_conflic
 Validation precedes cancellation. Cancellation is checked between reads and before persistence, and forwarded to Git execution. Filesystem identity reads and SQLite lock waits are cooperative/bounded by their existing mechanisms. Once the synchronous registration transaction runs, its committed/uncertain outcome is retained rather than relabeled cancelled. A thrown storage implementation at that boundary produces `uncertain`; reopen/inspect instead of assuming nothing was stored.
 
 Completed context is an observation across Git, filesystem, and database reads, not an atomic snapshot, owned-resource lease, or durable job acceptance. Freshly recheck identity, branch/SHA, effective execution policy, and ownership immediately before any effect. No source files, agents, ports, workspaces, or GitHub objects are changed by context resolution.
+
+## Project setup
+
+Use [explicit initialization](initialization.md) to compose registration with conservative managed configuration, optional project skills and an explicitly selected primary Herdr space. `project register` retains its state-only behavior. `init --preview` is read-only; applying setup preserves authored files and reports delegation readiness separately.

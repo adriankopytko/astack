@@ -91,6 +91,7 @@ function classify(
   asset: SkillAsset,
   inspection: ManagedFileInspection | null,
   directory: 'missing' | 'empty' | 'present',
+  mode: 0o600 | 0o644,
 ): SkillInstallation {
   const record = inspection?.outcome === 'inspected' ? inspection.record : null;
   const base = { asset, record, inspection };
@@ -141,7 +142,7 @@ function classify(
     state:
       record.assetVersion === asset.version &&
       record.sha256 === asset.sha256 &&
-      record.mode === 0o600
+      record.mode === mode
         ? 'current'
         : 'outdated',
     reason: null,
@@ -153,6 +154,7 @@ async function observeInstallation(
   root: string,
   selected: SkillId[],
   deps: SkillsDependencies,
+  mode: 0o600 | 0o644,
 ): Promise<OperationResult<SkillsInstallationView>> {
   try {
     const assets = selected.map((id) => bundle.catalog.skills.find((asset) => asset.id === id)!);
@@ -180,7 +182,7 @@ async function observeInstallation(
             deps.files,
           )
         : null;
-      skills.push(classify(asset, inspection, directory.state));
+      skills.push(classify(asset, inspection, directory.state, mode));
     }
 
     return completed({
@@ -209,7 +211,13 @@ export async function inspectSkills(input: unknown, deps: SkillsDependencies) {
 
   return result.outcome === 'rejected'
     ? result
-    : observeInstallation(result.value, request.value.root, request.value.skills, deps);
+    : observeInstallation(
+        result.value,
+        request.value.root,
+        request.value.skills,
+        deps,
+        request.value.mode,
+      );
 }
 
 export async function installSkills(
@@ -234,7 +242,13 @@ export async function installSkills(
   }
 
   const bundle = result.value;
-  let observed = await observeInstallation(bundle, request.value.root, request.value.skills, deps);
+  let observed = await observeInstallation(
+    bundle,
+    request.value.root,
+    request.value.skills,
+    deps,
+    request.value.mode,
+  );
 
   if (observed.outcome === 'rejected') {
     return observed;
@@ -277,7 +291,13 @@ export async function installSkills(
     return prepared;
   }
 
-  observed = await observeInstallation(bundle, prepared.value.root, request.value.skills, deps);
+  observed = await observeInstallation(
+    bundle,
+    prepared.value.root,
+    request.value.skills,
+    deps,
+    request.value.mode,
+  );
 
   if (observed.outcome === 'rejected') {
     return observed;
@@ -301,7 +321,7 @@ export async function installSkills(
           path: skill.asset.path,
           owner: owner(skill.asset.id),
           assetVersion: skill.asset.version,
-          mode: 0o600,
+          mode: request.value.mode,
           content,
         },
         deps.files,
@@ -314,6 +334,7 @@ export async function installSkills(
         observed.value.root,
         request.value.skills,
         deps,
+        request.value.mode,
       );
 
       return {
@@ -332,6 +353,7 @@ export async function installSkills(
         observed.value.root,
         request.value.skills,
         deps,
+        request.value.mode,
       );
 
       return {
@@ -343,7 +365,13 @@ export async function installSkills(
     }
   }
 
-  const latest = await observeInstallation(bundle, observed.value.root, request.value.skills, deps);
+  const latest = await observeInstallation(
+    bundle,
+    observed.value.root,
+    request.value.skills,
+    deps,
+    request.value.mode,
+  );
 
   if (latest.outcome === 'rejected') {
     // Completed per-file writes are preserved even when the final observation fails.

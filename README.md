@@ -16,7 +16,7 @@ The library now provides versioned read results and explicit project/checkout co
 
 The library also provides `executeProcess(request, runner, signal?)` and `nodeProcessRunner`: explicit argv/cwd/environment, bounded output and optional private artifacts, timeout/cancellation, and observed Linux/macOS process-group teardown. See [the process runner contract](docs/process-runner.md). It does not add a general execution CLI command or establish service shutdown from a process exit.
 
-Managed-file operations can create or upgrade owned generated assets, preserve detected edits/collisions, and inspect interrupted publication. Ownership/version/digest records and pending intents live with the selected root; large process output uses separate private artifacts. See [managed files](docs/managed-files.md) for path policy, concurrency limits, and recovery boundaries. Project initialization and automatic reconciliation are later operations.
+Managed-file operations can create or upgrade owned generated assets, preserve detected edits/collisions, and inspect interrupted publication. Ownership/version/digest records and pending intents live with the selected root; large process output uses separate private artifacts. See [managed files](docs/managed-files.md) for path policy, concurrency limits, and recovery boundaries. Automatic pending-write reconciliation remains later work.
 
 `inspectGitRepository(request, inspector, signal?)` now reads canonical repository/checkout identity, full refs and commit targets, worktree registration, remote endpoint summaries, and tracked/untracked status through an injected Git adapter and process runner. It performs no registration or ownership claim. See [Git inspection](docs/git-inspection.md) for supported selectors, execution controls, and consistency limits. Context and registration consume this API through the CLI.
 
@@ -56,9 +56,18 @@ Local planning material is intentionally ignored. Durable contributor requiremen
 - Project selection from an explicit target or an unambiguous registered repository.
 - A primary Herdr workspace per enabled project, with grouped worker workspaces.
 - Shared port and service-name allocation across managed projects.
-- Idempotent project initialization, project-owned setup/verification hooks, and focused skills.
+- Project-owned setup/verification hooks.
 
 Next, connect remaining project setup and runtime integrations to these run contracts; keep automation and cleanup explicit. Broader task scheduling, automatic fix loops, additional providers, remote execution, and public hosting follow concrete usage.
+
+## Initialize a project
+
+```sh
+astack init /absolute/project --preview --json
+astack init /absolute/project --non-interactive --role implementer --role reviewer --json
+```
+
+`init` registers one repository, creates conservative proposal and disabled private host-policy starters where safe, and optionally installs selected project skills. Existing authored or edited setup is preserved. User-level skill availability is inspected without changing global setup. Add explicit `--herdr-session <session> --herdr-socket <path>` to prepare the project primary space, or `--herdr` to use saved settings. No workers, project scripts or dependency installation run. Initialization success is separate from delegation readiness; see [initialization and recovery](docs/initialization.md).
 
 ## Development stack
 

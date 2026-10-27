@@ -130,7 +130,7 @@ Requests validate before reads. Cancellation before persistence rejects without 
 
 Stable errors are `configuration_invalid`, `configuration_unsafe`, `configuration_unavailable`, and `configuration_blocked`, plus existing request/context/state errors. Missing prerequisites are a completed resolution with `status: blocked`, diagnostics and, when possible, a non-authoritative snapshot. Missing state is a state error. No partial settings are accepted after invalid input.
 
-The [generic local service](service.md) consumes these contracts. Real runtime adapters, credential injection, hook execution, project initialization, cross-project user profile loading and automatic approval remain later work.
+The [generic local service](service.md) consumes these contracts. Runtime adapters and explicit [project initialization](initialization.md) now consume these contracts separately. Credential injection, hook execution, cross-project user profile loading and automatic approval remain later work.
 
 ## Explicit no-CI permission
 
