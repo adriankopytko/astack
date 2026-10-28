@@ -28,6 +28,9 @@ export function sqliteCode(error: unknown): number | null {
 }
 
 const messages: Partial<Record<OperationErrorCode, string>> = {
+  hook_blocked:
+    'Hook source, lifecycle prerequisites or resource evidence changed; inspect the exact saved invocation before continuing.',
+
   resource_conflict:
     'Selected resources conflict with retained allocations; inspect them or select an explicitly permitted alternative.',
   resource_blocked:

@@ -130,8 +130,10 @@ Requests validate before reads. Cancellation before persistence rejects without 
 
 Stable errors are `configuration_invalid`, `configuration_unsafe`, `configuration_unavailable`, and `configuration_blocked`, plus existing request/context/state errors. Missing prerequisites are a completed resolution with `status: blocked`, diagnostics and, when possible, a non-authoritative snapshot. Missing state is a state error. No partial settings are accepted after invalid input.
 
-The [generic local service](service.md) consumes these contracts. Runtime adapters and explicit [project initialization](initialization.md) now consume these contracts separately. Credential injection, hook execution, cross-project user profile loading and automatic approval remain later work.
+The [generic local service](service.md) consumes these contracts. Runtime adapters and explicit [project initialization](initialization.md) now consume these contracts separately. Explicit [hook execution](hooks.md) consumes private execution.hooks command/deadline/environment/resource bindings without changing repository authority. General credential injection, cross-project user profile loading and automatic approval remain later work.
 
 ## Explicit no-CI permission
 
 The optional private `execution.review.allowNoChecks` flag permits a reviewer gate that explicitly requests `allowNoChecks: true` to accept a wholly empty check set with no selected required names. It defaults through absence to no permission, preserves existing policy digests when absent, and is independent of `allowGateOverride`. Repository proposals cannot grant it. Normal observed failing/pending/skipped/cancelled checks do not pass. See [CI observation](ci.md) and [review gates](review.md).
+
+Optional `hooks.start` and `execution.requiredHooks.start` are additive; omission preserves historical merged defaults and snapshot bytes. Private `execution.hooks` defines selected setup/verify/start/teardown command names, bounded timeouts, approved environment names and explicit resource-field inputs. Matching repository names alone never authorize execution. Configuration inspection still launches nothing; accepted jobs with selected setup/start hooks wait for exact invocation evidence at dispatch. See [hook policy and recovery](hooks.md).

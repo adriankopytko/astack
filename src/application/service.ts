@@ -1,3 +1,4 @@
+import type { HookStore } from '../ports/hooks.js';
 import type { AutomaticReviewStore } from '../ports/automatic-review.js';
 import { reviewTaskSchema } from '../contracts/review-task.js';
 import {
@@ -28,6 +29,7 @@ import {
 import { selectProjectContext } from './select-project-context.js';
 
 export interface ServiceDependencies extends ConfigurationDependencies {
+  hooks?: Pick<HookStore, 'prerequisitesReady' | 'integrationReady'>;
   automaticReviews?: Pick<AutomaticReviewStore, 'authorize'>;
   queue: ServiceStore;
   now: () => number;
@@ -310,6 +312,27 @@ export function createServiceCoordinator(input: {
         written(dependencies.queue.block(job.job.id, 'configuration_blocked'));
 
         return;
+      }
+
+      const staticReview = reviewTaskSchema.safeParse(job.job.intent.task);
+      const needsHooks =
+        !(staticReview.success && staticReview.data.submission.resources.length === 0) &&
+        (job.job.configuration?.effective.hooks.setup != null ||
+          job.job.configuration?.effective.hooks.start != null);
+
+      if (needsHooks || dependencies.hooks) {
+        const ready = dependencies.hooks?.prerequisitesReady(job.job.id);
+
+        if (!ready || ready.outcome !== 'completed' || !ready.value) {
+          written(
+            dependencies.queue.block(job.job.id, 'workflow_blocked', {
+              code: 'hook_blocked',
+              message: 'Execute and verify the declared setup/start hooks before dispatch.',
+            }),
+          );
+
+          return;
+        }
       }
 
       if (!runtime(job)) {

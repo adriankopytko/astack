@@ -1,3 +1,4 @@
+import { hookPrerequisitesReady } from './hook-evidence.js';
 import { assertReviewFix } from './review-fix-evidence.js';
 import {
   assertFollowUpSubmission,
@@ -415,7 +416,7 @@ export function createSqliteServiceStore(
           return { value: null, disposition: 'existing' };
         }
 
-        if (!automaticReviewAllowed(db, jobId)) {
+        if (!automaticReviewAllowed(db, jobId) || !hookPrerequisitesReady(db, jobId)) {
           return { value: null, disposition: 'existing' };
         }
 

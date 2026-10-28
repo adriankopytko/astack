@@ -32,6 +32,7 @@ const hooks = z.strictObject({
   setup: name.nullable(),
   verify: name.nullable(),
   teardown: name.nullable(),
+  start: name.nullable().optional(),
 });
 const rolePatch = configurationRoleSchema.partial();
 export const configurationPatchSchema = z.strictObject({
@@ -49,6 +50,20 @@ export const effectiveConfigurationSchema = z.strictObject({
   roles: z.record(name, configurationRoleSchema).refine((value) => Object.keys(value).length <= 32),
   hooks,
 });
+export const lifecycleHookPolicySchema = z.strictObject({
+  command: name,
+  timeoutMs: z.number().int().min(10).max(86_400_000),
+  environment,
+  resources: z
+    .record(
+      z.string().regex(/^[A-Za-z_][A-Za-z0-9_]{0,127}$/),
+      z.strictObject({
+        key: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/),
+        field: z.enum(['port', 'host', 'protocol', 'name']),
+      }),
+    )
+    .refine((value) => Object.keys(value).length <= 32),
+});
 export const hostConfigurationPolicySchema = z
   .strictObject({
     schemaVersion: z.literal(1),
@@ -60,6 +75,14 @@ export const hostConfigurationPolicySchema = z
     local: configurationPatchSchema.default({}),
     execution: z.strictObject({
       enabled: z.boolean(),
+      hooks: z
+        .strictObject({
+          setup: lifecycleHookPolicySchema.optional(),
+          verify: lifecycleHookPolicySchema.optional(),
+          start: lifecycleHookPolicySchema.optional(),
+          teardown: lifecycleHookPolicySchema.optional(),
+        })
+        .optional(),
       review: z
         .strictObject({ allowGateOverride: z.boolean(), allowNoChecks: z.boolean().optional() })
         .optional(),

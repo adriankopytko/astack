@@ -56,7 +56,7 @@ Local planning material is intentionally ignored. Durable contributor requiremen
 - Project selection from an explicit target or an unambiguous registered repository.
 - A primary Herdr workspace per enabled project, with grouped worker workspaces.
 - Shared port and service-name allocation across managed projects.
-- Project-owned setup/verification hooks.
+- Explicit host-approved setup, verification and service-controller hooks.
 
 Next, connect remaining project setup and runtime integrations to these run contracts; keep automation and cleanup explicit. Broader task scheduling, automatic fix loops, additional providers, remote execution, and public hosting follow concrete usage.
 
@@ -169,4 +169,8 @@ Explicit host recovery for proven input refusals is available through `runtime a
 
 ## Shared host resources
 
-`astack resources reserve --file <request.json> --json` reserves a port or service/container/cache name for an accepted implementation attempt. All projects use one shared host state directory. Explicit startup receipts, running verification, retention and shutdown-verified release keep allocation separate from actual service execution. Fixed ports serialize; managed port lists allow bounded fallback before startup. No services are launched or authored environments rewritten. See [resource allocation](docs/resources.md) and `astack resources --help`. Lifecycle hook execution remains separate work.
+`astack resources reserve --file <request.json> --json` reserves a port or service/container/cache name for an accepted implementation attempt. All projects use one shared host state directory. Explicit startup receipts, running verification, retention and shutdown-verified release keep allocation separate from actual service execution. Fixed ports serialize; managed port lists allow bounded fallback before startup. No services are launched or authored environments rewritten. See [resource allocation](docs/resources.md) and `astack resources --help`. Explicit [lifecycle hooks](docs/hooks.md) consume these reservations separately.
+
+## Explicit lifecycle hooks
+
+`astack hooks execute --file <request.json> --json` runs a selected `setup`, `verify`, `start` or `teardown` command under private host policy in an exact owned checkout. Invocations are saved before effects; unknown/claimed commands never replay. Declared setup/start evidence gates worker dispatch, and integration reviews use independently reserved and verified resources. `hooks inspect`, `exclude-writer` and `reconcile` preserve partial setup and separate controller exclusion from service shutdown. No hooks run implicitly during initialization or service startup. See [policy, requests and recovery](docs/hooks.md).

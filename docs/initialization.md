@@ -38,7 +38,7 @@ Codex's documented project skill location is `.agents/skills`; see [official ski
 
 ## Detection, provider and readiness
 
-Detection reads bounded `package.json` data and presence of recognized manifests/lockfiles. Output includes known script names and package-manager candidates, never script bodies or environment contents. Only declared test/lint/typecheck scripts with an unambiguous manager become verification suggestions. Rust/Python/Go manifest presence supplies stack hints without invented commands. Ambiguous or unreadable inputs produce diagnostics. No project code runs. Hook execution remains issue #22; starters keep all hook bindings null.
+Detection reads bounded `package.json` data and presence of recognized manifests/lockfiles. Output includes known script names and package-manager candidates, never script bodies or environment contents. Only declared test/lint/typecheck scripts with an unambiguous manager become verification suggestions. Rust/Python/Go manifest presence supplies stack hints without invented commands. Ambiguous or unreadable inputs produce diagnostics. No project code runs. Hook execution is available through explicit [owned-checkout lifecycle operations](hooks.md); initialization never invokes it and starters keep hook bindings null.
 
 Herdr is opt-in. `--herdr` uses saved settings; a new target requires both `--herdr-session` and `--herdr-socket`. `--herdr-label` labels new settings. Existing settings are preserved on conflict; deliberate retargeting uses existing explicit Herdr operations. Space creation uses the registered primary and existing durable provider intent. It creates no worker layouts, terminals or agents. Preview reports the requested plan without validating live provider readiness.
 

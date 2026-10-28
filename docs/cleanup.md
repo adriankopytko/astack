@@ -41,7 +41,7 @@ astack cleanup execute <job-id> --revision <cleanup-revision> \
 
 All shutdown fields and truthful host attestations are required together. Obtain independent host evidence first; idle/done, Escape, age and PID absence are insufficient. A mismatched job/attempt/launch/revision or unavailable provider blocks execution. Automatic execution never invents these attestations. Without saved shutdown evidence it remains blocked, with no recurring provider polling; after offline reconciliation, restart/wake the enabled executor.
 
-Service/port provisioning and lifecycle hooks (#21/#22) are not implemented. Consequently cleanup does not stop arbitrary services, terminate workers, close Herdr layouts, reclaim ports or remove retained integration environments. Unknown resource holds block removal. A future owner-aware shutdown adapter must establish service/process shutdown before releasing matching holds; it can then feed this same cleanup operation. Do not release a hold or pass a shutdown flag just to make cleanup proceed.
+Shared resource allocation and explicit [lifecycle hooks](hooks.md) are implemented separately. Cleanup does not automatically invoke them, stop arbitrary services, terminate workers, close Herdr layouts, reclaim ports or remove retained integration environments. Unknown resource holds block removal. A future owner-aware shutdown adapter must establish service/process shutdown before releasing matching holds; it can then feed this same cleanup operation. Do not release a hold or pass a shutdown flag just to make cleanup proceed.
 
 ## Removal gates and effects
 
@@ -66,3 +66,5 @@ A run cancelled before its launch was ever claimed can clean up without native s
 ## Allocated application resources
 
 Shared [port/name allocations](resources.md) retain ordinary attempt resource holds. Checkout cleanup and generic worker reconciliation cannot bypass those holds. Independently stop/verify the owned application services and original startup controllers, then explicitly release the exact allocation revision/startup receipt with fresh endpoint evidence. Native worker reconciliation and worktree removal remain separate; retained environments keep both their allocation and cleanup blocker.
+
+Hook invocations retain their own guarded cleanup holds even after a successful command exit. Exclude a crashed original hook writer explicitly if needed, run approved teardown, independently verify shutdown, release its referenced allocations, then reconcile its exact hook revision. Neither command success nor original-process-group absence proves escaped services stopped. Existing native worker reconciliation and worktree removal remain separate.

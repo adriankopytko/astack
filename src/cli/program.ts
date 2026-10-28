@@ -1,3 +1,4 @@
+import { wireHookCommands } from './hooks.js';
 import { wireResourceCommands } from './resources.js';
 import { wireInitializationCommand } from './initialization.js';
 import { wireSkillCommands } from './skills.js';
@@ -78,6 +79,7 @@ export function createProgram(version: string): Command {
   wireSkillCommands(program);
   wireInitializationCommand(program);
   wireResourceCommands(program);
+  wireHookCommands(program);
 
   return program;
 }

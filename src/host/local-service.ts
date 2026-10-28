@@ -149,6 +149,7 @@ export async function startLocalService(
     const dependencies: ServiceDependencies = {
       registry: opened.registry,
       queue: opened.service,
+      hooks: opened.hooks,
       ...(options.afterHandoffReview ? { automaticReviews: opened.automaticReviews } : {}),
       git: createGitInspector({ executable, runner: nodeProcessRunner }),
       identity: nodeCheckoutIdentityReader,
@@ -226,6 +227,7 @@ export async function startLocalService(
 
     const reviewDependencies: ReviewDependencies = {
       ...implementationDependencies,
+      hooks: opened.hooks,
       targets:
         options.reviewTargets ??
         (gh

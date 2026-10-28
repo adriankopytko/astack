@@ -92,10 +92,10 @@ function prerequisites(
     );
   }
 
-  for (const hook of ['setup', 'verify', 'teardown'] as const) {
+  for (const hook of ['setup', 'verify', 'teardown', 'start'] as const) {
     const required = policy.execution.requiredHooks[hook];
 
-    if (required !== null && snapshot.effective.hooks[hook] !== required) {
+    if (required != null && snapshot.effective.hooks[hook] !== required) {
       diagnostics.push(
         diagnostic(
           'required_hook_changed',
@@ -109,7 +109,7 @@ function prerequisites(
   const commandIds = new Set([role.command, ...Object.values(snapshot.effective.hooks)]);
 
   for (const id of commandIds) {
-    if (id === null) {
+    if (id == null) {
       continue;
     }
 

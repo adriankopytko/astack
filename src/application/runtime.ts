@@ -202,16 +202,11 @@ async function approved(job: ServiceJob, deps: RuntimeDependencies, signal?: Abo
     );
   }
 
-  if (
-    role.environment.length ||
-    role.skills.length ||
-    Object.values(effective.hooks).some((hook) => hook !== null) ||
-    role.timeoutMs < 5000
-  ) {
+  if (role.environment.length || role.skills.length || role.timeoutMs < 5000) {
     throw new RuntimeFailure(
       rejected(
         'runtime_capability_missing',
-        'This runtime cannot provision explicit environment, pinned skills or hooks; control timeouts must be at least five seconds.',
+        'This runtime cannot provision explicit environment or pinned skills; control timeouts must be at least five seconds.',
       ),
     );
   }
@@ -386,6 +381,21 @@ export async function launchRuntime(
     const job = await jobFor(attemptId, deps);
     checkAutomaticReview(job, deps);
     const command = await approved(job, deps, signal);
+
+    if (
+      deps.runtime.checkHookPrerequisites ||
+      job.job.configuration?.effective.hooks.setup != null ||
+      job.job.configuration?.effective.hooks.start != null
+    ) {
+      read(
+        deps.runtime.checkHookPrerequisites?.(job.job.id) ??
+          rejected(
+            'hook_blocked',
+            'This runtime cannot validate completed lifecycle prerequisites.',
+          ),
+      );
+    }
+
     const layout = await prepareHerdrWorker(input, deps, signal);
 
     if (

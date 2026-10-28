@@ -344,10 +344,14 @@ export function createReviewRuntime(input: {
         }
 
         if (task.submission.resources.length > 0) {
-          return rejected(
-            'review_blocked',
-            'Isolated integration resources are requested; provisioning is not implemented.',
-          );
+          const provisioned = input.dependencies.hooks?.integrationReady(job.job.id);
+
+          if (!provisioned || provisioned.outcome !== 'completed' || !provisioned.value) {
+            return rejected(
+              'review_blocked',
+              'Integration provisioning requires this review attempt’s independent resources to be prepared and verified through explicit lifecycle hooks before dispatch.',
+            );
+          }
         }
 
         const snapshot = await target(task, input.dependencies, signal);

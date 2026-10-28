@@ -212,8 +212,8 @@ async function readiness(
   if (hooksRequested) {
     diagnostic(
       view,
-      'hooks_not_implemented',
-      'Lifecycle hook execution remains unavailable; declared scripts are suggestions only.',
+      'hooks_require_explicit_execution',
+      'Declared hooks require explicit host-approved execution in an owned task checkout; detected scripts remain suggestions.',
     );
   }
 

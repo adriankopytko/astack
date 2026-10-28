@@ -1,3 +1,4 @@
+import { reviewTaskSchema } from '../../contracts/review-task.js';
 import { isDeepStrictEqual } from 'node:util';
 import {
   allocationRecordSchema,
@@ -34,9 +35,15 @@ export function createSqliteAllocationStore(db: StateDatabase, now: () => number
       stateFailure('state_conflict');
     }
 
+    const review = reviewTaskSchema.safeParse(job.intent.task);
+    const integration =
+      job.operation === 'delegate:reviewer' &&
+      review.success &&
+      review.data.submission.resources.length > 0;
+
     if (
       active &&
-      (job.operation !== 'delegate:implementer' ||
+      ((!integration && job.operation !== 'delegate:implementer') ||
         runControl(db, jobId).phase !== 'active' ||
         db.statement('SELECT resolved_at FROM attempts WHERE id=?').get(attemptId)?.resolved_at !==
           null)
@@ -126,6 +133,15 @@ export function createSqliteAllocationStore(db: StateDatabase, now: () => number
         }
 
         const current = source(request.jobId, request.attemptId, true);
+
+        if (current.job.operation === 'delegate:reviewer') {
+          const review = reviewTaskSchema.safeParse(current.job.intent.task);
+
+          if (!review.success || !review.data.submission.resources.includes(request.key)) {
+            stateFailure('resource_blocked');
+          }
+        }
+
         const selection = candidate(request, id, 0);
         const timestamp = now();
         const record = allocationRecordSchema.parse({

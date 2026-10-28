@@ -485,7 +485,7 @@ await test(
   'unsupported native arguments and required hooks block instead of being silently ignored',
   options,
   async () => {
-    await fixture(async ({ prepare, deps, policy, calls }) => {
+    await fixture(async ({ prepare, deps, policy, calls, context }) => {
       await policy((value) => {
         value.execution.commands['fixture-worker'].args = [
           '--dangerously-bypass-approvals-and-sandbox',
@@ -502,10 +502,20 @@ await test(
         value.execution.commands['fixture-worker'].args = nativeArgs;
         value.project.hooks = { setup: 'fixture-worker' };
       });
-      const second = await prepare('required-hook');
-      const hook = await launchRuntime({ schemaVersion: 1, attemptId: second.attempt.id }, deps);
+      const second = await context.worker('required-hook');
+      const claim = context.opened.service.claim({
+        jobId: second.job.id,
+        owner: 'fixture-service',
+        token: 'required-hook-claim',
+        now: 1000,
+        limits: { global: 4, defaultRole: 4, perRole: {} },
+      });
 
-      assert.ok(hook.outcome === 'rejected' && hook.error.code === 'runtime_capability_missing');
+      assert.ok(claim.outcome === 'persisted' && claim.value === null);
+
+      const prerequisites = context.opened.hooks.prerequisitesReady(second.job.id);
+
+      assert.ok(prerequisites.outcome === 'completed' && !prerequisites.value);
       assert.equal(calls.length, 0);
     });
   },

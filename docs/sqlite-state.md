@@ -151,3 +151,7 @@ Successful handoff/review publication now records the separate host attempt's te
 ## Shared host allocations
 
 Migration 16 adds `resource_allocations`, exposed through `openSqliteState().allocations`. Short transactions claim globally normalized protocol/port or namespaced name keys, bind accepted source assignments, create cleanup holds, and append events atomically. Socket probing happens outside transactions. Startup receipts and retained claims never expire by age. A release guard prevents generic resource APIs from freeing an active allocator hold; exact shutdown-verified allocation release settles both records together. See [resource allocation](resources.md) for host attestations, retry and cancellation requirements.
+
+## Hook invocation intent
+
+Migration 17 adds `hook_invocations`, exposed through `openSqliteState().hooks`. Preparation, a retained cleanup hold and local event are atomic; the claim never expires or replays by age. Conditional completion preserves process evidence independently from service shutdown. A separate writer-exclusion receipt marks interrupted execution unknown while retaining resources; shutdown reconciliation releases only the matching hook hold after referenced allocations are released. A trigger prevents generic release from bypassing that contract. Dispatch capacity/native launch/initial-input transactions recheck declared lifecycle prerequisites and active hook writers. See [lifecycle hooks](hooks.md).

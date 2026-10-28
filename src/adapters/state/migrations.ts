@@ -438,4 +438,30 @@ CREATE TRIGGER allocation_release_guard BEFORE UPDATE OF released_at ON resource
  BEGIN SELECT RAISE(ABORT, 'allocation requires verified release'); END;
 `,
   },
+  {
+    version: 17,
+    sql: `
+CREATE TABLE hook_invocations (
+ id TEXT PRIMARY KEY REFERENCES resources(id),
+ job_id TEXT NOT NULL REFERENCES service_entries(job_id),
+ attempt_id TEXT NOT NULL REFERENCES attempts(id),
+ checkout_id TEXT NOT NULL REFERENCES checkouts(id),
+ request_key TEXT NOT NULL,
+ status TEXT NOT NULL CHECK(status IN ('prepared','executing','succeeded','failed','cancelled','unknown')),
+ revision INTEGER NOT NULL CHECK(revision>=0),
+ data TEXT NOT NULL CHECK(json_valid(data)) CHECK(json_extract(data,'$.id') IS id)
+ CHECK(json_extract(data,'$.request.jobId') IS job_id)
+ CHECK(json_extract(data,'$.request.attemptId') IS attempt_id)
+ CHECK(json_extract(data,'$.binding.checkoutId') IS checkout_id)
+ CHECK(json_extract(data,'$.request.key') IS request_key)
+ CHECK(json_extract(data,'$.status') IS status)
+ CHECK(json_extract(data,'$.revision') IS revision),
+ UNIQUE(attempt_id,request_key)
+) STRICT;
+CREATE UNIQUE INDEX one_hook_writer ON hook_invocations(checkout_id) WHERE status IN ('prepared','executing');
+CREATE TRIGGER hook_release_guard BEFORE UPDATE OF released_at ON resources
+ WHEN NEW.released_at IS NOT NULL AND EXISTS(SELECT 1 FROM hook_invocations WHERE id=NEW.id AND json_extract(data,'$.shutdown') IS NULL)
+ BEGIN SELECT RAISE(ABORT, 'hook requires verified shutdown'); END;
+`,
+  },
 ] as const;
