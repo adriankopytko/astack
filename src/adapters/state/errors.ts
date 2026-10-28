@@ -28,6 +28,11 @@ export function sqliteCode(error: unknown): number | null {
 }
 
 const messages: Partial<Record<OperationErrorCode, string>> = {
+  resource_conflict:
+    'Selected resources conflict with retained allocations; inspect them or select an explicitly permitted alternative.',
+  resource_blocked:
+    'Allocation source or lifecycle prerequisites are blocked; inspect its exact revision, startup receipt and retained resources.',
+
   cleanup_blocked:
     'Cleanup prerequisites or publication evidence are incomplete; inspect the retained resources.',
   runtime_conflict:

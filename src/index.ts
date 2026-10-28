@@ -546,3 +546,8 @@ export {
 } from './application/initialization.js';
 export type { InitializationFiles } from './ports/initialization.js';
 export { nodeInitializationFiles } from './adapters/filesystem/initialization.js';
+
+export * from './contracts/resources.js';
+export * from './ports/resources.js';
+export * from './application/resources.js';
+export { nodePortProbe } from './adapters/network/port-probe.js';

@@ -1,3 +1,4 @@
+import { wireResourceCommands } from './resources.js';
 import { wireInitializationCommand } from './initialization.js';
 import { wireSkillCommands } from './skills.js';
 import { wireCleanupCommands } from './cleanup.js';
@@ -76,6 +77,7 @@ export function createProgram(version: string): Command {
   wireCleanupCommands(program);
   wireSkillCommands(program);
   wireInitializationCommand(program);
+  wireResourceCommands(program);
 
   return program;
 }

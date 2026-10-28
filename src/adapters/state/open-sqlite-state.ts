@@ -1,3 +1,5 @@
+import { createSqliteAllocationStore } from './allocation-store.js';
+import type { AllocationStore } from '../../ports/resources.js';
 import type { CleanupStore } from '../../ports/cleanup.js';
 import { createSqliteCleanupStore } from './cleanup-store.js';
 import type { ReviewResultStore } from '../../ports/review-results.js';
@@ -49,6 +51,7 @@ export type StateOpenResult =
       runs: RunStore;
       reviewResults: ReviewResultStore;
       cleanups: CleanupStore;
+      allocations: AllocationStore;
       handoffs: HandoffStore;
       ci: CiStore;
       automaticReviews: AutomaticReviewStore;
@@ -90,6 +93,7 @@ export async function openSqliteState(
         store: createStateStore(database, dependencies.now ?? Date.now),
         registry: createSqliteProjectRegistry(database),
         cleanups: createSqliteCleanupStore(database),
+        allocations: createSqliteAllocationStore(database, dependencies.now ?? Date.now),
         worktrees: createSqliteWorktreeStore(database, dependencies.now ?? Date.now),
         service: createSqliteServiceStore(database, dependencies.now ?? Date.now),
         handoffs: createSqliteHandoffStore(database, dependencies.now ?? Date.now),

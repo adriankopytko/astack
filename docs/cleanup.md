@@ -62,3 +62,7 @@ Cancellation before a claim performs no removal; after a claim the worktree prim
 ## Never-launched cancellations
 
 A run cancelled before its launch was ever claimed can clean up without native shutdown evidence. Its cancellation operation must still close the exact unclaimed launch effect and terminalize the attempt; cancelled run status alone is insufficient. If a legacy cancellation leaves `resource_in_use`, explicitly repeat its original `run cancel <job-id> --key <same-key>` through the owning service. Only a never-claimed, single pending initial launch qualifies; unknown/claimed/additional effects remain blocked. This performs no provider effects or resource release. See [run cancellation](runs.md).
+
+## Allocated application resources
+
+Shared [port/name allocations](resources.md) retain ordinary attempt resource holds. Checkout cleanup and generic worker reconciliation cannot bypass those holds. Independently stop/verify the owned application services and original startup controllers, then explicitly release the exact allocation revision/startup receipt with fresh endpoint evidence. Native worker reconciliation and worktree removal remain separate; retained environments keep both their allocation and cleanup blocker.

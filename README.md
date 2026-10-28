@@ -166,3 +166,7 @@ See [the SQLite decision](docs/adr/0001-use-node-sqlite.md) for persistence cons
 [MIT](LICENSE).
 
 Explicit host recovery for proven input refusals is available through `runtime authorize-input-retry`; it requires stopped controllers and independently established non-delivery, preserves an audit record, and sends no input. See [runtime recovery](docs/runtime.md#explicit-recovery-after-proven-input-refusal). `pnpm check:herdr-cli /absolute/path/to/herdr` is an optional installed-CLI parser check using a nonexistent socket; default checks never contact live providers.
+
+## Shared host resources
+
+`astack resources reserve --file <request.json> --json` reserves a port or service/container/cache name for an accepted implementation attempt. All projects use one shared host state directory. Explicit startup receipts, running verification, retention and shutdown-verified release keep allocation separate from actual service execution. Fixed ports serialize; managed port lists allow bounded fallback before startup. No services are launched or authored environments rewritten. See [resource allocation](docs/resources.md) and `astack resources --help`. Lifecycle hook execution remains separate work.

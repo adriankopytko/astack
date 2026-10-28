@@ -410,4 +410,32 @@ CREATE UNIQUE INDEX cleanup_one_checkout ON cleanup_plans(checkout_id);
 CREATE INDEX cleanup_queue ON cleanup_plans(phase,job_id);
 `,
   },
+  {
+    version: 16,
+    sql: `
+CREATE TABLE resource_allocations (
+ id TEXT PRIMARY KEY REFERENCES resources(id),
+ job_id TEXT NOT NULL REFERENCES service_entries(job_id),
+ attempt_id TEXT NOT NULL REFERENCES attempts(id),
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ request_key TEXT NOT NULL,
+ allocation_key TEXT NOT NULL,
+ phase TEXT NOT NULL CHECK(phase IN ('probing','reserved','blocked','starting','running','retained','released')),
+ revision INTEGER NOT NULL CHECK(revision>=0),
+ data TEXT NOT NULL CHECK(json_valid(data)) CHECK(json_extract(data,'$.id') IS id)
+ CHECK(json_extract(data,'$.request.jobId') IS job_id)
+ CHECK(json_extract(data,'$.request.attemptId') IS attempt_id)
+ CHECK(json_extract(data,'$.binding.projectId') IS project_id)
+ CHECK(json_extract(data,'$.request.key') IS request_key)
+ CHECK(json_extract(data,'$.phase') IS phase)
+ CHECK(json_extract(data,'$.revision') IS revision),
+ UNIQUE(attempt_id,request_key)
+) STRICT;
+CREATE UNIQUE INDEX one_active_allocation ON resource_allocations(allocation_key) WHERE phase!='released';
+CREATE INDEX allocations_project ON resource_allocations(project_id,id);
+CREATE TRIGGER allocation_release_guard BEFORE UPDATE OF released_at ON resources
+ WHEN NEW.released_at IS NOT NULL AND EXISTS(SELECT 1 FROM resource_allocations WHERE id=NEW.id AND phase!='released')
+ BEGIN SELECT RAISE(ABORT, 'allocation requires verified release'); END;
+`,
+  },
 ] as const;
