@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {
   finishImplementation,
+  verifyImplementation,
   reconcileImplementationHandoff,
   openSqliteState,
   readRunEvents,
@@ -113,6 +114,7 @@ await test(
           ...f.deps,
           state: opened.store,
           handoffs: opened.handoffs,
+          verifications: opened.verifications,
           runs: opened.runs,
           git: { inspect: async () => assert.fail('Cached acceptance must not inspect Git') },
           artifacts: {
@@ -190,7 +192,16 @@ for (const change of [
         } else if (change === 'artifact') {
           await writeFile(join(f.root, f.artifact.path), 'Changed ignored artifact');
         } else if (change === 'verification-artifact') {
-          input.request.verification.checks[0]!.artifact!.digest = 'f'.repeat(64);
+          input.request.verification = {
+            source: 'host-attestation',
+            checks: [
+              {
+                name: 'forged',
+                outcome: 'passed',
+                artifact: { ...f.artifact, digest: 'f'.repeat(64) },
+              },
+            ],
+          };
         } else if (change === 'ownership') {
           deps = {
             ...deps,
@@ -244,6 +255,7 @@ for (const stage of ['push', 'pr'] as const) {
             state: opened.store,
             runs: opened.runs,
             handoffs: opened.handoffs,
+            verifications: opened.verifications,
             now: () => 999999999,
           };
           const reconciled = persisted(await reconcileImplementationHandoff(f.reconcile, deps));
@@ -641,7 +653,7 @@ await test(
 
       try {
         raw.exec(
-          'DROP TRIGGER hook_release_guard; DROP TABLE hook_invocations; DROP TRIGGER allocation_release_guard; DROP TABLE resource_allocations; DROP TABLE cleanup_plans; DROP TABLE review_result_publications; DROP TABLE review_result_observations; DROP TABLE review_follow_ups; DROP TABLE review_automation; DROP TABLE ci_requests; DROP TABLE ci_targets; DROP TABLE ci_budgets; DROP TABLE implementation_handoffs; DELETE FROM state_migrations WHERE version>=11; PRAGMA user_version=10;',
+          'DROP TABLE implementation_verifications; DROP TRIGGER hook_release_guard; DROP TABLE hook_invocations; DROP TRIGGER allocation_release_guard; DROP TABLE resource_allocations; DROP TABLE cleanup_plans; DROP TABLE review_result_publications; DROP TABLE review_result_observations; DROP TABLE review_follow_ups; DROP TABLE review_automation; DROP TABLE ci_requests; DROP TABLE ci_targets; DROP TABLE ci_budgets; DROP TABLE implementation_handoffs; DELETE FROM state_migrations WHERE version>=11; PRAGMA user_version=10;',
         );
       } finally {
         raw.close();
@@ -659,15 +671,44 @@ await test(
 
         assert.deepEqual(after, before);
 
-        const result = persisted(
-          await finishImplementation(f.input, {
-            ...f.deps,
+        const verification = await verifyImplementation(
+          { ...f.verification!.request, key: 'verification-after-upgrade' },
+          {
+            ...f.verificationDeps,
             registry: opened.registry,
             worktrees: opened.worktrees,
-            state: opened.store,
+            queue: opened.service,
+            hooks: opened.hooks,
+            verifications: opened.verifications,
             runs: opened.runs,
-            handoffs: opened.handoffs,
-          }),
+            allocations: opened.allocations,
+          },
+        );
+
+        assert.ok(
+          verification.outcome === 'persisted' && verification.value.status === 'passed',
+          JSON.stringify(verification),
+        );
+
+        const result = persisted(
+          await finishImplementation(
+            {
+              ...f.input,
+              request: {
+                ...f.request,
+                verification: { source: 'executed', id: verification.value.id },
+              },
+            },
+            {
+              ...f.deps,
+              registry: opened.registry,
+              worktrees: opened.worktrees,
+              state: opened.store,
+              runs: opened.runs,
+              handoffs: opened.handoffs,
+              verifications: opened.verifications,
+            },
+          ),
         );
 
         assert.equal(result.record.phase, 'accepted');

@@ -28,6 +28,8 @@ export function sqliteCode(error: unknown): number | null {
 }
 
 const messages: Partial<Record<OperationErrorCode, string>> = {
+  verification_blocked:
+    'Executed verification is missing, stale or does not match the completed report and approved checks; inspect before publication.',
   hook_blocked:
     'Hook source, lifecycle prerequisites or resource evidence changed; inspect the exact saved invocation before continuing.',
 

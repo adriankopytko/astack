@@ -64,6 +64,18 @@ export const lifecycleHookPolicySchema = z.strictObject({
     )
     .refine((value) => Object.keys(value).length <= 32),
 });
+export const verificationRolePolicySchema = z
+  .strictObject({
+    baseline: z.array(name).min(1).max(8),
+    checks: z.record(name, lifecycleHookPolicySchema).refine((v) => Object.keys(v).length <= 8),
+    lanes: z.record(name, z.array(name).min(1).max(8)).refine((v) => Object.keys(v).length <= 16),
+    maxAgeMs: z.number().int().min(1000).max(86_400_000),
+  })
+  .refine(
+    (v) =>
+      new Set(v.baseline).size === v.baseline.length &&
+      [...v.baseline, ...Object.values(v.lanes).flat()].every((id) => Object.hasOwn(v.checks, id)),
+  );
 export const hostConfigurationPolicySchema = z
   .strictObject({
     schemaVersion: z.literal(1),
@@ -75,6 +87,10 @@ export const hostConfigurationPolicySchema = z
     local: configurationPatchSchema.default({}),
     execution: z.strictObject({
       enabled: z.boolean(),
+      verification: z
+        .record(name, verificationRolePolicySchema)
+        .refine((v) => Object.keys(v).length <= 32)
+        .optional(),
       hooks: z
         .strictObject({
           setup: lifecycleHookPolicySchema.optional(),
@@ -117,6 +133,20 @@ export const configurationRequestSchema = z.strictObject({
   role: name,
   request: configurationPatchSchema.default({}),
 });
+export const verificationApprovalSchema = z.strictObject({
+  baseline: verificationRolePolicySchema.shape.baseline,
+  lanes: verificationRolePolicySchema.shape.lanes,
+  checks: z
+    .record(
+      name,
+      z.strictObject({
+        definitionDigest: configurationDigestSchema,
+        commandDigest: configurationDigestSchema,
+      }),
+    )
+    .refine((v) => Object.keys(v).length <= 8),
+  maxAgeMs: verificationRolePolicySchema.shape.maxAgeMs,
+});
 export const configurationSnapshotSchema = z
   .strictObject({
     schemaVersion: z.literal(1),
@@ -125,6 +155,7 @@ export const configurationSnapshotSchema = z
     checkoutId: checkoutIdSchema,
     role: name,
     policyRevision: name,
+    verification: verificationApprovalSchema.optional(),
     policyDigest: configurationDigestSchema,
     effectiveDigest: configurationDigestSchema,
     effective: effectiveConfigurationSchema,

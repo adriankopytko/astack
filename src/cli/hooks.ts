@@ -31,7 +31,7 @@ import { nodeProcessRunner } from '../core/node-process-runner.js';
 import { gitExecutable } from '../core/host-git.js';
 import { readRequestFile } from './request-file.js';
 type Opened = Extract<Awaited<ReturnType<typeof openSqliteState>>, { outcome: 'opened' }>;
-function dependencies(state: Opened, executable: string): HookDependencies {
+export function composeHookDependencies(state: Opened, executable: string): HookDependencies {
   return {
     hooks: state.hooks,
     queue: state.service,
@@ -176,7 +176,11 @@ export function wireHookCommands(program: Command) {
               }
 
               render(
-                await executeHook(input, dependencies(state, executable), controller.signal),
+                await executeHook(
+                  input,
+                  composeHookDependencies(state, executable),
+                  controller.signal,
+                ),
                 options.json,
                 true,
               );

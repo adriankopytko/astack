@@ -1,3 +1,4 @@
+import { assertHandoffVerificationClaim } from './verification-evidence.js';
 import { z } from 'zod';
 import { checkoutRecordSchema, projectRecordSchema } from '../../contracts/project-context.js';
 import {
@@ -372,6 +373,8 @@ export function createStateStore(db: StateDatabase, clock: () => number): StateS
 
           return { value: effect, disposition: 'existing' };
         }
+
+        assertHandoffVerificationClaim(db, effect.intent.attemptId, time);
 
         const claim = valid(stateClaimSchema, {
           owner: request.owner,

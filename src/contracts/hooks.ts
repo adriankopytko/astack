@@ -19,9 +19,17 @@ export const hookRequestSchema = z
       .array(z.strictObject({ id: stateIdSchema, expectedRevision: time }))
       .max(16)
       .default([]),
+    verificationCheck: z
+      .string()
+      .regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/)
+      .optional(),
     writersExcluded: z.literal(true),
   })
-  .refine((v) => new Set(v.allocations.map((a) => a.id)).size === v.allocations.length);
+  .refine(
+    (v) =>
+      new Set(v.allocations.map((a) => a.id)).size === v.allocations.length &&
+      (v.verificationCheck === undefined || v.phase === 'verify'),
+  );
 export const hookProcessEvidenceSchema = z.strictObject({
   outcome: processExecutionSchema.shape.outcome,
   exitCode: processExecutionSchema.shape.exitCode,

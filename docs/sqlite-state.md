@@ -155,3 +155,7 @@ Migration 16 adds `resource_allocations`, exposed through `openSqliteState().all
 ## Hook invocation intent
 
 Migration 17 adds `hook_invocations`, exposed through `openSqliteState().hooks`. Preparation, a retained cleanup hold and local event are atomic; the claim never expires or replays by age. Conditional completion preserves process evidence independently from service shutdown. A separate writer-exclusion receipt marks interrupted execution unknown while retaining resources; shutdown reconciliation releases only the matching hook hold after referenced allocations are released. A trigger prevents generic release from bypassing that contract. Dispatch capacity/native launch/initial-input transactions recheck declared lifecycle prerequisites and active hook writers. See [lifecycle hooks](hooks.md).
+
+## Executed verification
+
+Migration 18 adds `implementation_verifications`, exposed through `openSqliteState().verifications`. Aggregate intent/progress and local events are transactional; real hook journals authenticate successful named checks against the immutable accepted job's approved verification plan. A host-clock age limit, exact accepted report/source/artifacts and approved check digests govern new handoff reservation/effect claims. Read-only history and already-claimed publication reconciliation retain their no-replay behavior. Explicit aggregate reconciliation handles interrupted writers without releasing hook/services resources. See [verification contracts](verification.md).

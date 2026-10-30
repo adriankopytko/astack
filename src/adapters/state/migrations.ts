@@ -464,4 +464,25 @@ CREATE TRIGGER hook_release_guard BEFORE UPDATE OF released_at ON resources
  BEGIN SELECT RAISE(ABORT, 'hook requires verified shutdown'); END;
 `,
   },
+  {
+    version: 18,
+    sql: `
+CREATE TABLE implementation_verifications (
+ id TEXT PRIMARY KEY,
+ job_id TEXT NOT NULL REFERENCES service_entries(job_id),
+ report_id TEXT NOT NULL REFERENCES run_reports(id),
+ request_key TEXT NOT NULL,
+ status TEXT NOT NULL CHECK(status IN ('prepared','running','passed','failed','cancelled','unknown','invalidated')),
+ revision INTEGER NOT NULL CHECK(revision>=0),
+ data TEXT NOT NULL CHECK(json_valid(data)) CHECK(json_extract(data,'$.id') IS id)
+ CHECK(json_extract(data,'$.request.jobId') IS job_id)
+ CHECK(json_extract(data,'$.request.reportId') IS report_id)
+ CHECK(json_extract(data,'$.request.key') IS request_key)
+ CHECK(json_extract(data,'$.status') IS status)
+ CHECK(json_extract(data,'$.revision') IS revision),
+ UNIQUE(job_id,request_key)
+) STRICT;
+CREATE UNIQUE INDEX one_verification_writer ON implementation_verifications(job_id) WHERE status IN ('prepared','running');
+`,
+  },
 ] as const;

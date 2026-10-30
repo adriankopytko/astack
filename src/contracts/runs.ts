@@ -164,6 +164,7 @@ export const runEventSchema = z.strictObject({
     'cleanup_changed',
     'allocation_changed',
     'hook_changed',
+    'verification_changed',
   ]),
   createdAt: offset,
   detail: stateEffectIntentSchema.shape.payload,

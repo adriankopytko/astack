@@ -2,7 +2,7 @@
 name: astack-orchestrator
 description: Delegate implementation and code review through Astack, inspect accepted results, and choose explicit follow-up or recovery actions across registered projects.
 metadata:
-  asset-version: '1.0.1'
+  asset-version: '1.0.2'
 ---
 
 # Orchestrate with Astack
@@ -31,7 +31,7 @@ When a report needs a decision, inspect the request. Record the chosen answer wi
 
 ## Publish and review deliberately
 
-An accepted implementation does not push or request a reviewer automatically. Before publication, verify the exact completed clean commit and required checks. With coordinator/original writers excluded, `astack handoff finish --file <request.json> --writers-stopped --json` accepts the explicit host verification/publication request. Its optional review request is not reviewer dispatch. Astack currently accepts host verification attestations; it does not execute project verification hooks for you.
+An accepted implementation does not push or request a reviewer automatically. Before publication, verify the exact completed clean commit and required checks. With coordinator/original writers excluded, `astack handoff finish --file <request.json> --writers-stopped --json` accepts the explicit host verification/publication request. Its optional review request is not reviewer dispatch. First run `astack verification run --file <request.json> --json` for the accepted report under the role’s private approved baseline and optional lane/additional checks. Inspect its exact passed record and reference `{source:"executed",id:"verification-..."}` in handoff verification. New publication requires unchanged clean source/artifacts/policy and unexpired actual hook evidence. Finish never runs checks implicitly. Old accepted handoffs and already-claimed reconciliation remain historical; legacy attestations do not authorize new writes. Preserve failed/cancelled/unknown/not-run evidence, and never replay a verification key or bypass an uncertain hook with a new one.
 
 For manual review, prepare a separate owned checkout at the exact PR head and use `astack review submit --project <project-id> --checkout <review-checkout-id> --key <review-key> --branch <branch> --commit <head-sha> --host <host> --repo <owner/repo> --pr <number> --json`. Use help for gate/check options and explicit no-CI/override policy; missing or skipped checks do not mean passing. The reviewer is read-only and must not start integration services.
 

@@ -449,6 +449,7 @@ await test(
             ...f.ci,
             ci: opened.ci,
             handoffs: opened.handoffs,
+            verifications: opened.verifications,
             runs: opened.runs,
             automaticCi: opened.automaticReviews,
           },

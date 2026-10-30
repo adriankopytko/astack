@@ -11,7 +11,7 @@ This is an explicit trusted host operation. It does not launch reviewers, watch 
 Before publication, the host must:
 
 1. Accept a completed implementation report through normal run validation. A worker proposal or UI idle status is insufficient.
-2. Run and inspect the required project verification. The request records named passed checks as **host attestations**; Astack does not execute those checks or independently prove their assertions. Optional artifact references must exactly match accepted report artifacts; every accepted artifact is inspected again for current content/digest evidence.
+2. Run explicit [executed verification](verification.md) against the accepted completed report and select its passed record. New push/PR stages require the exact approved baseline/lane checks, unchanged source/artifacts/policy and unexpired hook evidence. Legacy attestations remain historical data, not new-write authority.
 3. Stop all original writers and descendants, keep them excluded, and stop the local coordinator. The CLI takes the same kernel ownership lock before writable state/migrations. `--writers-stopped` records the host's attestation; it neither kills workers nor detects their quiescence. Independent library callers must enforce equivalent exclusion across the whole operation, including reconciliation.
 4. Explicitly approve the destination host/source/base repositories, branches, full SHAs, expected authenticated actor, PR contents and optional review request. Neither repository configuration nor a worker report grants this write authority.
 
@@ -54,8 +54,8 @@ Example request (replace placeholders and SHAs with actual accepted evidence):
   },
   "expectedRemoteHead": null,
   "verification": {
-    "source": "host-attestation",
-    "checks": [{ "name": "project verification", "outcome": "passed", "artifact": null }]
+    "source": "executed",
+    "id": "verification-example"
   },
   "review": {
     "gate": { "requiredChecks": ["ci"], "overrideReason": null },
@@ -67,7 +67,7 @@ Example request (replace placeholders and SHAs with actual accepted evidence):
 
 Set `review: null` (also the default) to disable a follow-up request. The head branch must equal the assigned task branch without `refs/heads/`; `headSha` must equal the accepted completed commit. `baseSha` is an explicit current destination base, not necessarily the original assignment base. Fork source repositories must be explicitly approved and use the same GitHub host. `expectedRemoteHead: null` means create an absent branch; an existing branch can advance only from the supplied full SHA, with verified local fast-forward ancestry. An already identical remote head is observed without a push and grants no branch ownership.
 
-Up to eight unique named verification checks and eight unique instruction paths are accepted. A conservative handoff-record budget reserves room for the eventual receipt and duplicated review authorization before any remote write. Invalid or oversized requests reject locally.
+Executed verification supports up to eight selected checks; the handoff references its exact record. Up to eight unique instruction paths are accepted. A conservative handoff-record budget reserves room for the eventual receipt and duplicated review authorization before any remote write. Invalid or oversized requests reject locally.
 
 ## Durable stages and outcomes
 
@@ -121,10 +121,12 @@ Fault injection covers controller loss after claim persistence, lost local push/
 
 `tests/git-publication.test.ts` checks explicit destination/refspec/lease, fast-forward evidence, matching-ref observation without push, controlled credentials/environment, forbidden local configuration, malformed/wrong/incomplete remote evidence and uncertainty after the send boundary. A disposable executable at a path containing spaces exercises the real subprocess boundary: it records a ref update, exits unsuccessfully, and a fresh adapter recovers the matching observation without a second push.
 
-The full `pnpm check` command includes these suites alongside formatting, typed lint, TypeScript, resolved dependency boundaries, build and existing isolated tests. These fixtures establish controlled recovery behavior; they do not verify live GitHub transport, real credentials, hosted PR races or real-agent shutdown. A live disposable publication pilot still requires explicit opt-in. Executed project verification before publication is tracked separately in [issue #33](https://github.com/adriankopytko/astack/issues/33); the current command records host attestations.
+The full `pnpm check` command includes these suites alongside formatting, typed lint, TypeScript, resolved dependency boundaries, build and existing isolated tests. These fixtures establish controlled recovery behavior; they do not verify live GitHub transport, real credentials, hosted PR races or real-agent shutdown. A live disposable publication pilot still requires explicit opt-in. New publication now requires [executed verification](verification.md), using migration 18 and immutable approved plan digests in the accepted job snapshot. Already accepted historical handoffs and claimed effect reconciliation do not rerun checks.
 
 ## Host publication attempt completion
 
 Successful handoff acceptance records a separate terminal `completed` result for its host publication attempt in the same transaction as handoff acceptance and its events. Both exact expected effects must be confirmed, their receipts must match the saved intent, and project/repository/checkout/branch/SHA/source-report bindings must agree. This resolves the host attempt without completing a worker, releasing worker resources or removing its checkout.
 
 With coordinator exclusion and stopped original writers, repeating `handoff finish` or `handoff reconcile` also settles a missing terminal host result for an already accepted historical handoff. It uses saved confirmed evidence only: no provider access, push, POST, artifact read or live checkout is required. A `publication_finalized` source-run event is appended only when the terminal result is first created. Repeated settlement preserves result identity/time and adds no event. Inspection, startup and migrations remain read-only with respect to this recovery; pending/unknown effects do not qualify. Uncertain local completion must be reopened/inspected and retried through the same explicit command, never a new send key.
+
+Verification is checked before every never-claimed external stage, including when a prior push is confirmed. Stale evidence blocks a new PR without replaying the push. SQLite effect-claim checks validate the approved baseline and actual hook records as well. Finish/reconciliation never runs verification implicitly; use the separate explicit operation and existing safe replacement rules for a deliberately new proof.

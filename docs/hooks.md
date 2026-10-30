@@ -1,6 +1,6 @@
 # Explicit project lifecycle hooks
 
-Hooks execute selected private-host-approved commands in an exact owned checkout. They do not run during initialization, imports, inspection, service startup or ordinary worker dispatch. The orchestrator explicitly executes each hook; declared setup/start completion is then checked before worker dispatch. Publication verification remains a separate consumer (#33). See ADR 0024.
+Hooks execute selected private-host-approved commands in an exact owned checkout. They do not run during initialization, imports, inspection, service startup or ordinary worker dispatch. The orchestrator explicitly executes each hook; declared setup/start completion is then checked before worker dispatch. Publication verification uses the separate explicit [executed-verification consumer](verification.md). See ADR 0024.
 
 ## Phases and policy
 
@@ -114,3 +114,5 @@ CLI errors and unsuccessful/uncertain execute results exit nonzero. Successful c
 ## Verification
 
 Disposable owned repositories and controlled runners test two synthetic technology profiles, literal command/cwd/environment inputs, absence of output/credential retention, missing hooks, policy/target/resource drift, failed and cancelled commands, timeouts, unknown/lost execution, partial startup ownership, static/integration review isolation, endpoint evidence, retained cleanup holds, explicit controller exclusion/shutdown and neutral-directory CLI coordinator conflicts. No live user agents, application repositories, GitHub mutations or global configuration changes are required.
+
+Named verification requests may set `verificationCheck` in phase verify, selecting a private accepted-role check definition rather than the ordinary generic verify selection. The aggregate operation enforces the full approved baseline; a successful individual hook does not itself authorize publication. Snapshot/definition/command digests and actual hook receipts are checked again at handoff effect claims.

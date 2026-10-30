@@ -1,3 +1,4 @@
+import { verificationApproval, VerificationApprovalError } from '../core/verification.js';
 import { z } from 'zod';
 import {
   configurationRequestSchema,
@@ -269,6 +270,7 @@ export async function resolveConfiguration(
     const role = Object.hasOwn(merged.effective.roles, request.value.role)
       ? merged.effective.roles[request.value.role]
       : undefined;
+    const approvedVerification = verificationApproval(policy, request.value.role);
     const snapshot = configurationSnapshotSchema.parse({
       schemaVersion: 1,
       projectId: project.project.id,
@@ -276,6 +278,7 @@ export async function resolveConfiguration(
       checkoutId: checkout.checkout.id,
       role: request.value.role,
       policyRevision: policy.revision,
+      ...(approvedVerification ? { verification: approvedVerification } : {}),
       policyDigest: configurationDigest(policy),
       effectiveDigest: configurationDigest(merged.effective),
       ...merged,
@@ -324,6 +327,10 @@ export async function resolveConfiguration(
   } catch (error) {
     if (signal?.aborted) {
       return rejected('cancelled', 'Configuration inspection was cancelled.');
+    }
+
+    if (error instanceof VerificationApprovalError) {
+      return rejected('configuration_invalid', error.message);
     }
 
     if (error instanceof z.ZodError) {

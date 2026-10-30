@@ -119,8 +119,17 @@ async function preflight(
     blocked('Host hook policy changed during inspection.');
   }
 
-  const commandId = configuration.snapshot.effective.hooks[request.phase];
-  const settings = policy.execution.hooks?.[request.phase];
+  const roleVerification = policy.execution.verification?.[configuration.snapshot.role];
+  const named =
+    request.verificationCheck === undefined
+      ? undefined
+      : roleVerification?.checks[request.verificationCheck];
+  const commandId =
+    request.verificationCheck === undefined
+      ? configuration.snapshot.effective.hooks[request.phase]
+      : named?.command;
+  const settings =
+    request.verificationCheck === undefined ? policy.execution.hooks?.[request.phase] : named;
 
   if (!commandId || !settings || settings.command !== commandId) {
     blocked(

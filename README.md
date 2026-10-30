@@ -174,3 +174,7 @@ Explicit host recovery for proven input refusals is available through `runtime a
 ## Explicit lifecycle hooks
 
 `astack hooks execute --file <request.json> --json` runs a selected `setup`, `verify`, `start` or `teardown` command under private host policy in an exact owned checkout. Invocations are saved before effects; unknown/claimed commands never replay. Declared setup/start evidence gates worker dispatch, and integration reviews use independently reserved and verified resources. `hooks inspect`, `exclude-writer` and `reconcile` preserve partial setup and separate controller exclusion from service shutdown. No hooks run implicitly during initialization or service startup. See [policy, requests and recovery](docs/hooks.md).
+
+## Executed verification before publication
+
+`astack verification run --file <request.json> --json` executes the accepted role's baseline plus selected lane/additional checks through hooks. `verification inspect <id>` reads durable per-check evidence. New `handoff finish` requests reference `{ "source": "executed", "id": "verification-..." }`; missing, failed, changed or expired evidence blocks new push/PR stages. Accepted historical handoffs and claimed-effect recovery remain read-only. Configure private per-role verification before accepting work; see [verification policy and recovery](docs/verification.md).
