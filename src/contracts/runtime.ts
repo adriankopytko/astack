@@ -36,6 +36,25 @@ export const runtimeInputRetryRequestSchema = runtimeInterruptRequestSchema.exte
   notSubmitted: z.literal(true),
   writerStopped: z.literal(true),
 });
+export const runtimeLaunchValidationSchema = z
+  .strictObject({
+    invocationId: stateIdSchema,
+    profileDigest: z.string().regex(/^[0-9a-f]{64}$/),
+    state: z.enum(['pending', 'validated']),
+    contextDigest: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .nullable(),
+    argumentsDigest: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .nullable(),
+  })
+  .refine((v) =>
+    v.state === 'pending'
+      ? v.contextDigest === null && v.argumentsDigest === null
+      : v.contextDigest !== null && v.argumentsDigest !== null,
+  );
 export const runtimeSessionSchema = z
   .strictObject({
     schemaVersion: z.literal(1),
@@ -46,6 +65,7 @@ export const runtimeSessionSchema = z
     effectId: stateIdSchema,
     space: herdrSpaceSchema,
     phase: z.enum(['pending', 'ready']),
+    validation: runtimeLaunchValidationSchema.optional(),
     agent: herdrAgentSchema.nullable(),
   })
   .refine(
@@ -54,6 +74,9 @@ export const runtimeSessionSchema = z
       value.space.phase === 'ready' &&
       value.space.attemptId === value.attemptId &&
       value.space.handle !== null &&
+      (value.phase !== 'ready' ||
+        value.validation === undefined ||
+        value.validation.state === 'validated') &&
       (value.phase === 'pending'
         ? value.agent === null
         : value.agent?.kind === 'codex' && value.agent.name === value.space.expectedAgentName),

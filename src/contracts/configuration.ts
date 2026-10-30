@@ -76,6 +76,10 @@ export const verificationRolePolicySchema = z
       new Set(v.baseline).size === v.baseline.length &&
       [...v.baseline, ...Object.values(v.lanes).flat()].every((id) => Object.hasOwn(v.checks, id)),
   );
+export const runtimeLaunchProfileSchema = z.strictObject({
+  runtime: name,
+  settings: z.record(z.string().max(128), z.json()),
+});
 export const hostConfigurationPolicySchema = z
   .strictObject({
     schemaVersion: z.literal(1),
@@ -87,6 +91,10 @@ export const hostConfigurationPolicySchema = z
     local: configurationPatchSchema.default({}),
     execution: z.strictObject({
       enabled: z.boolean(),
+      launchProfiles: z
+        .record(name, runtimeLaunchProfileSchema)
+        .refine((value) => Object.keys(value).length <= 32)
+        .optional(),
       verification: z
         .record(name, verificationRolePolicySchema)
         .refine((v) => Object.keys(v).length <= 32)

@@ -15,6 +15,7 @@ interface FixturePolicy {
   };
   execution: {
     enabled: boolean;
+    launchProfiles?: Record<string, { runtime: string; settings: Record<string, string> }>;
     allowedRuntimes: string[];
     commands: { 'fixture-worker': { executable: string; args: string[] } };
   };
@@ -51,6 +52,9 @@ export async function fixture(
     await policy((value) => {
       value.project.roles.implementer = { runtime: 'codex-herdr', command: 'fixture-worker' };
       value.execution.allowedRuntimes = ['codex-herdr'];
+      value.execution.launchProfiles = {
+        implementer: { runtime: 'codex-herdr', settings: { model: 'fixture' } },
+      };
       value.execution.commands['fixture-worker'].args = nativeArgs;
     });
     const occupant = (space: HerdrSpace) => {
@@ -75,6 +79,14 @@ export async function fixture(
       runtime: context.opened.runtime,
       queue: context.opened.service,
       canonicalCodexExecutable: process.execPath,
+      launchValidator: {
+        async validate(input) {
+          return completed({ args: input.args, contextDigest: 'a'.repeat(64) });
+        },
+        async inspect(input) {
+          return completed({ args: input.args, contextDigest: 'a'.repeat(64) });
+        },
+      },
       worker: {
         async launch({ space, args }) {
           calls.push({ operation: 'launch' });

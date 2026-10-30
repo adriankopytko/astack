@@ -178,3 +178,5 @@ Explicit host recovery for proven input refusals is available through `runtime a
 ## Executed verification before publication
 
 `astack verification run --file <request.json> --json` executes the accepted role's baseline plus selected lane/additional checks through hooks. `verification inspect <id>` reads durable per-check evidence. New `handoff finish` requests reference `{ "source": "executed", "id": "verification-..." }`; missing, failed, changed or expired evidence blocks new push/PR stages. Accepted historical handoffs and claimed-effect recovery remain read-only. Configure private per-role verification before accepting work; see [verification policy and recovery](docs/verification.md).
+
+New Codex starts require a private host-approved role launch profile. [Launch validation](docs/launch-profiles.md) compares executable/version, configuration and environment provenance on the host and in the owned Herdr pane before starting the worker. It preserves authored settings and pending launches; model/reasoning choices come from approved role policy.

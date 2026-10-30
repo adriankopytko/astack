@@ -2,7 +2,7 @@
 name: astack-orchestrator
 description: Delegate implementation and code review through Astack, inspect accepted results, and choose explicit follow-up or recovery actions across registered projects.
 metadata:
-  asset-version: '1.0.2'
+  asset-version: '1.0.3'
 ---
 
 # Orchestrate with Astack
@@ -51,3 +51,5 @@ Report concrete job/attempt/checkout/commit identities, accepted outcomes, block
 ## Bootstrap a project deliberately
 
 For a new project, inspect `astack init <path> --preview --json`. Apply with `astack init <path> --non-interactive --json` only within authorized setup scope. Optional repeated `--role implementer --role reviewer` installs project-local guides; user-level orchestrator availability is read-only and never installed implicitly. Initialization preserves authored setup and creates disabled host policy; it is separate from execution approval and delegation readiness. Herdr setup needs explicit session/socket or saved target. No detected scripts, dependencies or agents run. Preserve partial registration and pending writer intents; inspect their component recovery contracts before retrying. See `astack init --help` and the canonical `astack --skill` guide.
+
+Before a new Codex worker starts, the host must approve its role launch profile, model/reasoning and exact executable/configuration/environment provenance. Host and owned-pane validation must agree. A pending/failed validation or changed profile blocks startup/reuse; do not repeat it or replace the worker automatically. Preserve the runtime record and resource holds for deliberate host recovery. Configuration parsing is not proof of sandbox enforcement or completed shutdown.

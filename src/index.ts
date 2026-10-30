@@ -560,3 +560,13 @@ export { nodeHookEnvironment } from './adapters/filesystem/hook-environment.js';
 export * from './contracts/verification.js';
 export * from './ports/verification.js';
 export * from './application/verification.js';
+
+export {
+  codexLaunchProfileSchema,
+  createCodexLaunchValidator,
+} from './adapters/codex/launch-profile.js';
+export type {
+  RuntimeLaunchValidator,
+  RuntimeLaunchValidationInput,
+  RuntimePaneProbe,
+} from './ports/runtime.js';

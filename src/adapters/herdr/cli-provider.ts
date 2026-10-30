@@ -1,4 +1,5 @@
 import { isAbsolute } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
 import { processRequestSchema, processResultSchema } from '../../contracts/process.js';
@@ -11,7 +12,7 @@ import {
 } from '../../contracts/herdr.js';
 import { completed, rejected, type OperationResult } from '../../contracts/operation-result.js';
 import type { HerdrProvider, HerdrEndpointReader } from '../../ports/herdr.js';
-import type { InteractiveWorkerProvider } from '../../ports/runtime.js';
+import type { RuntimePaneProbe, InteractiveWorkerProvider } from '../../ports/runtime.js';
 import type { ProcessRunner } from '../../ports/process-runner.js';
 import { herdrPromptArgs } from './prompt-args.js';
 
@@ -93,7 +94,7 @@ export function createHerdrCliProvider(options: {
   endpoint: HerdrEndpointReader;
   environment?: Readonly<Record<string, string>>;
   timeoutMs?: number;
-}): HerdrProvider & InteractiveWorkerProvider {
+}): HerdrProvider & InteractiveWorkerProvider & RuntimePaneProbe {
   async function invoke(
     target: HerdrTarget,
     cwd: string,
@@ -287,7 +288,135 @@ export function createHerdrCliProvider(options: {
       : rejected('herdr_invalid_output', 'Herdr did not acknowledge the requested runtime action.');
   }
 
-  const provider: HerdrProvider & InteractiveWorkerProvider = {
+  const provider: HerdrProvider & InteractiveWorkerProvider & RuntimePaneProbe = {
+    async probe(input, signal) {
+      const checked = await guard(input.space, true, signal);
+
+      if (checked.outcome === 'rejected') {
+        return checked;
+      }
+
+      if (
+        !isAbsolute(input.executable) ||
+        !input.space.handle ||
+        input.timeoutMs < 1000 ||
+        input.timeoutMs > 30_000
+      ) {
+        return rejected('runtime_capability_missing', 'Invalid pane validation bounds.');
+      }
+
+      // Only a trusted executable and a base64 program enter the shell; no raw policy/task interpolation.
+      const quote = (value: string) => "'" + value.replaceAll("'", "'\"'\"'") + "'";
+      const encoded = Buffer.from(input.program).toString('base64');
+      const loader = `eval(Buffer.from('${encoded}','base64').toString())`;
+      const exitMarker = `${input.marker}_EXIT`;
+      const encodedExit = Buffer.from(exitMarker).toString('base64');
+      const reporter = `process.stdout.write("\\n"+Buffer.from('${encodedExit}','base64').toString()+":"+process.argv[1]+"\\n")`;
+      // The second process reports the first process's shell exit status; neither marker appears in command echo.
+      const command = `${quote(input.executable)} -e ${quote(loader)}; ${quote(input.executable)} -e ${quote(reporter)} "$?"`;
+      const started = Date.now();
+      const deadline = AbortSignal.timeout(input.timeoutMs);
+      const bounded = signal ? AbortSignal.any([signal, deadline]) : deadline;
+      const sent = await invoke(
+        input.space.target,
+        input.space.root,
+        ['pane', 'run', input.space.handle.paneId, command],
+        bounded,
+        input.space.server,
+        input.timeoutMs,
+      );
+
+      if (sent.outcome === 'rejected') {
+        return sent;
+      }
+
+      while (!bounded.aborted && Date.now() - started < input.timeoutMs) {
+        const response = await invoke(
+          input.space.target,
+          input.space.root,
+          [
+            'pane',
+            'read',
+            input.space.handle.paneId,
+            '--source',
+            'recent-unwrapped',
+            '--format',
+            'text',
+          ],
+          bounded,
+          input.space.server,
+          input.timeoutMs,
+        );
+
+        if (response.outcome === 'rejected') {
+          return response;
+        }
+
+        const parsed = z
+          .object({
+            result: z.object({
+              type: z.literal('pane_read'),
+              read: z.object({
+                pane_id: z.string(),
+                tab_id: z.string(),
+                workspace_id: z.string(),
+                text: z.string().max(1_048_576),
+                truncated: z.literal(false),
+                source: z.literal('recent-unwrapped'),
+                format: z.literal('text'),
+              }),
+            }),
+          })
+          .safeParse(response.value.body);
+        const output = parsed.success ? parsed.data.result.read : null;
+        const handle = input.space.handle;
+
+        if (
+          !output ||
+          output.pane_id !== handle.paneId ||
+          output.tab_id !== handle.tabId ||
+          output.workspace_id !== handle.workspaceId
+        ) {
+          return rejected(
+            'runtime_conflict',
+            'Pane validation output does not match the owned terminal.',
+          );
+        }
+
+        const exitLines = output.text
+          .replaceAll('\r', '')
+          .split('\n')
+          .filter((line) => line.startsWith(exitMarker + ':'));
+
+        if (exitLines.length > 0) {
+          if (
+            exitLines.length !== 1 ||
+            exitLines[0] !== exitMarker + ':0' ||
+            output.text.split(exitMarker + ':').length !== 2
+          ) {
+            return rejected(
+              'runtime_unavailable',
+              'Pane validator exit evidence is failed or duplicated.',
+            );
+          }
+
+          const after = await guard(input.space, true, bounded);
+
+          return after.outcome === 'rejected' ? after : completed(output.text);
+        }
+
+        try {
+          await delay(100, undefined, { signal: bounded });
+        } catch {
+          break;
+        }
+      }
+
+      return rejected(
+        'runtime_unavailable',
+        'Pane validation timed out; its saved invocation must not replay.',
+      );
+    },
     async launch(input, signal) {
       return control(
         input.space,
