@@ -27,21 +27,6 @@ export const initializationRequestSchema = projectSelectionRequestSchema
       .optional(),
   })
   .refine((value) => new Set(value.skills).size === value.skills.length);
-export const initializationSignalsSchema = z.strictObject({
-  stacks: z.array(z.enum(['node', 'rust', 'python', 'go'])).max(4),
-  packageManager: z.enum(['pnpm', 'npm', 'yarn', 'bun']).nullable(),
-  scripts: z.array(z.enum(['test', 'lint', 'typecheck', 'build', 'dev'])).max(5),
-  suggestions: z
-    .array(
-      z.strictObject({
-        hook: z.enum(['verify', 'setup']),
-        manager: z.enum(['pnpm', 'npm', 'yarn', 'bun']),
-        script: z.enum(['test', 'lint', 'typecheck', 'build', 'dev']),
-      }),
-    )
-    .max(5),
-  diagnostics: z.array(z.string().min(1).max(128)).max(16),
-});
 export const initializationAssetSchema = z.strictObject({
   kind: z.enum(['proposal', 'host-policy', 'project-ignore', 'skills-ignore']),
   root: absoluteFilePathSchema,
@@ -72,7 +57,6 @@ export const initializationViewSchema = z.strictObject({
     checkoutId: z.string().nullable(),
   }),
   registration: z.enum(['required', 'registered', 'created', 'uncertain']),
-  signals: initializationSignalsSchema,
   assets: z.array(initializationAssetSchema).max(4),
   userSkills: skillsInspectResultSchema,
   projectSkills: z.union([skillsInspectResultSchema, skillsInstallResultSchema]).nullable(),
@@ -106,7 +90,6 @@ export const initializationResultSchema = z.union([
   }),
 ]);
 export type InitializationRequest = z.infer<typeof initializationRequestSchema>;
-export type InitializationSignals = z.infer<typeof initializationSignalsSchema>;
 export type InitializationAsset = z.infer<typeof initializationAssetSchema>;
 export type InitializationView = z.infer<typeof initializationViewSchema>;
 export type InitializationResult = z.infer<typeof initializationResultSchema>;

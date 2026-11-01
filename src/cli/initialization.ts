@@ -81,12 +81,6 @@ function render(result: InitializationResult, json?: boolean) {
         }
       }
     }
-
-    for (const candidate of view.signals.suggestions) {
-      process.stdout.write(
-        `Suggested ${candidate.hook}: ${candidate.manager} run ${candidate.script} (declared script; not executed or approved)\n`,
-      );
-    }
   }
 
   if (result.outcome === 'rejected' || result.outcome === 'partial') {
@@ -158,7 +152,7 @@ export function wireInitializationCommand(program: Command) {
   program
     .command('init [path]')
     .description(
-      'Initialize one explicit repository conservatively; never launch workers or execute detected scripts',
+      'Initialize one explicit repository conservatively; never launch workers or execute project scripts',
     )
     .option('--project <id>', 'Select an existing registered project from any caller directory')
     .option('--checkout <id>', 'Select an existing registered checkout; selectors must agree')

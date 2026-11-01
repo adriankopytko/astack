@@ -213,7 +213,7 @@ async function readiness(
     diagnostic(
       view,
       'hooks_require_explicit_execution',
-      'Declared hooks require explicit host-approved execution in an owned task checkout; detected scripts remain suggestions.',
+      'Declared hooks require explicit host-approved execution in an owned task checkout; project tooling must be configured deliberately.',
     );
   }
 
@@ -350,12 +350,6 @@ export async function initializeProject(
     }
 
     let selected = chosen.value;
-    const signals = await deps.layout.signals(selected.git.checkout.rootPath);
-
-    if (signals.outcome === 'rejected') {
-      return signals;
-    }
-
     const location = await locateCheckout(selected.git, deps, signal);
     const projectSkillsRoot = join(selected.git.checkout.rootPath, '.agents', 'skills');
     const projectSkillsDirectory = request.skills.length
@@ -365,7 +359,6 @@ export async function initializeProject(
     view = {
       target: target(selected, location),
       registration: selected.registration === 'registered' ? 'registered' : 'required',
-      signals: signals.value,
       assets: [],
       userSkills: await inspectSkills(
         { schemaVersion: 1, root: deps.userSkillsRoot, skills: ['orchestrator'] },
@@ -394,6 +387,11 @@ export async function initializeProject(
       diagnostics: [],
     };
     view.target.location = location;
+    diagnostic(
+      view,
+      'project_configuration',
+      `Fill in the project configuration at ${join(view.target.root, '.astack', 'project.json')} using the project's instructions and tooling.`,
+    );
 
     if (deps.herdr && selected.project) {
       const settings = deps.herdr.herdr.settings(selected.project.project.id);

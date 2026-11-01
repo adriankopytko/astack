@@ -125,7 +125,7 @@ async function fixture(
 }
 
 await test(
-  'preview is stable and read-only; fresh/repeated init keeps conservative policy and suggests only declared scripts',
+  'preview is stable and read-only; fresh/repeated init keeps conservative policy without detecting project tooling',
   options,
   async () => {
     await fixture(async (f) => {
@@ -155,11 +155,7 @@ await test(
       assert.deepEqual(await initializeProject({ ...request, preview: true }, f.deps), preview);
       assert.equal(first.target.root, f.source);
       assert.equal(first.registration, 'required');
-      assert.deepEqual(
-        first.signals.suggestions.map((item) => item.script),
-        ['test', 'lint'],
-      );
-      assert.equal(first.signals.packageManager, 'pnpm');
+      assert.ok(first.diagnostics.some((item) => item.code === 'project_configuration'));
       assert.equal(f.fake.calls.length, 0);
 
       await assert.rejects(access(join(f.source, '.astack')), { code: 'ENOENT' });

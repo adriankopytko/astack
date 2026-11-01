@@ -12,7 +12,7 @@ Add an explicit, noninteractive initialization operation and CLI with a read-onl
 
 Create conservative null repository proposals and a disabled private host-policy starter only where safe. Preserve existing authored/edited/deleted/foreign/pending setup. Existing authored private policy also preserves an absent repository proposal. Never copy private execution settings into source files. Selected project guides use mode 0644 under `.agents/skills`, preserving provenance across Git checkouts; user installation defaults remain separate. Inspect user orchestrator availability without modifying global setup.
 
-Herdr primary-space setup requires an explicit or saved target and retains existing settings on conflicts. Do not create workers. Detect manifests and declared script names as suggestions only; do not execute hooks, install dependencies, launch agents, mutate trackers or enable review automation.
+Herdr primary-space setup requires an explicit or saved target and retains existing settings on conflicts. Do not create workers. Project tool detection was removed: the agent or user determines project commands and fills the project configuration. Do not execute hooks, install dependencies, launch agents, mutate trackers or enable review automation.
 
 ## Consequences
 

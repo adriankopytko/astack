@@ -18,7 +18,7 @@ The primary checkout must be registered before initializing an unregistered link
 
 ## Preview and effects
 
-Preview inspects Git identity, bounded manifest signals, managed assets, selected skill availability and saved configuration. It creates no state, directories, registration, files or provider resources and does not contact Herdr. An absent state store is read through an empty registry. A new project's preview cannot allocate its eventual generated IDs; the private-policy target is consequently a placeholder until registration.
+Preview inspects Git identity, managed assets, selected skill availability and saved configuration. It creates no state, directories, registration, files or provider resources and does not contact Herdr. An absent state store is read through an empty registry. A new project's preview cannot allocate its eventual generated IDs; the private-policy target is consequently a placeholder until registration.
 
 Apply holds kernel-backed coordinator ownership before writable database migration and throughout setup; an active service/coordinator must be stopped first. It persists registration before file/provider effects. Setup writes are individually managed, not one atomic batch:
 
@@ -38,7 +38,7 @@ Codex's documented project skill location is `.agents/skills`; see [official ski
 
 ## Detection, provider and readiness
 
-Detection reads bounded `package.json` data and presence of recognized manifests/lockfiles. Output includes known script names and package-manager candidates, never script bodies or environment contents. Only declared test/lint/typecheck scripts with an unambiguous manager become verification suggestions. Rust/Python/Go manifest presence supplies stack hints without invented commands. Ambiguous or unreadable inputs produce diagnostics. No project code runs. Hook execution is available through explicit [owned-checkout lifecycle operations](hooks.md); initialization never invokes it and starters keep hook bindings null.
+Initialization does not inspect manifests, lockfiles or scripts to discover project tools. It points the user or agent to the project configuration; use project instructions and tooling to decide what to configure. Hook execution remains an explicit owned-checkout operation. No project code runs during initialization.
 
 Herdr is opt-in. `--herdr` uses saved settings; a new target requires both `--herdr-session` and `--herdr-socket`. `--herdr-label` labels new settings. Existing settings are preserved on conflict; deliberate retargeting uses existing explicit Herdr operations. Space creation uses the registered primary and existing durable provider intent. It creates no worker layouts, terminals or agents. Preview reports the requested plan without validating live provider readiness.
 
