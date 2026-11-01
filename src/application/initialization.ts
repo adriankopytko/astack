@@ -19,7 +19,6 @@ import { resolveConfiguration, type ConfigurationDependencies } from './configur
 import { inspectSkills, installSkills, type SkillsDependencies } from './skills.js';
 import { configureHerdrProject, ensureHerdrProject, type HerdrDependencies } from './herdr.js';
 import {
-  preserveEstablishedProposal,
   initializationAssets,
   inspectInitializationAsset,
   writeInitializationAsset,
@@ -31,7 +30,6 @@ export interface InitializationDependencies
   layout: InitializationFiles;
   skills: SkillsDependencies;
   userSkillsRoot: string;
-  hostRoot: string;
   herdr?: HerdrDependencies;
   worktrees?: WorktreeStore;
 }
@@ -205,7 +203,7 @@ async function readiness(
     diagnostic(
       view,
       'execution_policy_required',
-      'Review private host policy and prerequisites explicitly; registration and project proposals do not authorize execution.',
+      'Review and approve the project configuration and prerequisites; registration does not authorize execution.',
     );
   }
 
@@ -353,7 +351,7 @@ export async function initializeProject(
     const location = await locateCheckout(selected.git, deps, signal);
     const projectSkillsRoot = join(selected.git.checkout.rootPath, '.agents', 'skills');
     const projectSkillsDirectory = request.skills.length
-      ? await deps.layout.directory(projectSkillsRoot, false, selected.git.checkout.rootPath)
+      ? await deps.layout.directory(projectSkillsRoot, selected.git.checkout.rootPath)
       : null;
 
     view = {
@@ -390,7 +388,7 @@ export async function initializeProject(
     diagnostic(
       view,
       'project_configuration',
-      `Fill in the project configuration at ${join(view.target.root, '.astack', 'project.json')} using the project's instructions and tooling.`,
+      `Fill in the project configuration at ${join(view.target.root, '.astack', 'config.json')} using the project's instructions and tooling.`,
     );
 
     if (deps.herdr && selected.project) {
@@ -401,11 +399,32 @@ export async function initializeProject(
       }
     }
 
-    for (const plan of initializationAssets(selected, deps.hostRoot, request.skills.length > 0)) {
+    for (const plan of initializationAssets(selected, request.skills.length > 0)) {
       view.assets.push(await inspectInitializationAsset(plan, deps));
     }
 
-    preserveEstablishedProposal(view.assets);
+    if (
+      selected.project &&
+      view.assets.some(
+        (asset) => asset.kind === 'project-config' && ['planned', 'missing'].includes(asset.state),
+      )
+    ) {
+      const legacy = await deps.configuration.readPolicy(selected.project.project.id, signal);
+
+      if (legacy !== null) {
+        const proposal = view.assets.find((asset) => asset.kind === 'project-config');
+
+        if (proposal) {
+          proposal.state = 'preserved';
+          proposal.reason = 'legacy_host_setup';
+          diagnostic(
+            view,
+            'legacy_host_setup',
+            'Existing host configuration was preserved; migrate it deliberately before switching to .astack/config.json.',
+          );
+        }
+      }
+    }
 
     if (request.preview) {
       await readiness(view, deps, signal);
@@ -476,14 +495,22 @@ export async function initializeProject(
     selected = registered.value;
     view.target = target(selected);
     view.registration = registration.disposition === 'created' ? 'created' : 'registered';
-    const plans = initializationAssets(selected, deps.hostRoot, request.skills.length > 0);
+    const preserveLegacy = view.assets.some((asset) => asset.reason === 'legacy_host_setup');
+    const plans = initializationAssets(selected, request.skills.length > 0);
     view.assets = [];
 
     for (const plan of plans) {
       view.assets.push(await inspectInitializationAsset(plan, deps));
     }
 
-    preserveEstablishedProposal(view.assets);
+    if (preserveLegacy) {
+      const proposal = view.assets.find((asset) => asset.kind === 'project-config');
+
+      if (proposal) {
+        proposal.state = 'preserved';
+        proposal.reason = 'legacy_host_setup';
+      }
+    }
 
     if (view.assets.some((asset) => ['pending', 'blocked'].includes(asset.state))) {
       diagnostic(
@@ -500,7 +527,6 @@ export async function initializeProject(
         view.target.root,
         ['.astack', ...(request.skills.length ? ['.agents', '.agents/skills'] : [])],
       ],
-      [deps.hostRoot, ['config']],
     ] as const) {
       const ready = await sameTarget(selected, deps, signal);
 
@@ -529,7 +555,7 @@ export async function initializeProject(
       }
 
       const asset =
-        view.assets[index]?.reason === 'existing_host_setup'
+        view.assets[index]?.reason === 'legacy_host_setup'
           ? view.assets[index]!
           : await writeInitializationAsset(plan, deps, signal);
       view.assets[index] = asset;
@@ -540,7 +566,7 @@ export async function initializeProject(
           `preserved_${asset.kind}`,
           asset.kind.endsWith('ignore')
             ? 'Authored ignore rules were preserved; ensure pending journals and stages stay out of commits.'
-            : 'Authored or edited setup was preserved; compare the proposal and host policy deliberately.',
+            : 'Authored, edited or legacy setup was preserved; inspect it before changing configuration.',
         );
       }
 

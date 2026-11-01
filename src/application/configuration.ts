@@ -223,7 +223,7 @@ export async function resolveConfiguration(
         diagnostics: [
           diagnostic(
             'policy_missing',
-            'Create a private host policy for this registered project; registration alone grants no execution permission.',
+            'Fill .astack/config.json and approve its current contents with astack config approve; registration alone grants no execution permission.',
           ),
         ],
       });

@@ -42,7 +42,7 @@ export function composeHookDependencies(state: Opened, executable: string): Hook
     identity: nodeCheckoutIdentityReader,
     worktrees: state.worktrees,
     files: createNodeWorktreeFiles(join(state.stateDirectory, 'worktrees')),
-    configuration: createNodeConfigurationReader(state.stateDirectory),
+    configuration: createNodeConfigurationReader(state.stateDirectory, state.registry),
     prerequisites: createNodeConfigurationProbe(
       (name) => Object.hasOwn(process.env, name) && Boolean(process.env[name]),
     ),

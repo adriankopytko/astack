@@ -67,7 +67,7 @@ astack init /absolute/project --preview --json
 astack init /absolute/project --non-interactive --role implementer --role reviewer --json
 ```
 
-`init` registers one repository, creates conservative proposal and disabled private host-policy starters where safe, and optionally installs selected project skills. Existing authored or edited setup is preserved. User-level skill availability is inspected without changing global setup. Add explicit `--herdr-session <session> --herdr-socket <path>` to prepare the project primary space, or `--herdr` to use saved settings. No workers, project scripts or dependency installation run. Initialization success is separate from delegation readiness; see [initialization and recovery](docs/initialization.md).
+`init` registers one repository, creates a disabled `.astack/config.json` starter where safe, and optionally installs selected project skills. Existing authored or edited setup is preserved. User-level skill availability is inspected without changing global setup. Add explicit `--herdr-session <session> --herdr-socket <path>` to prepare the project primary space, or `--herdr` to use saved settings. No workers, project scripts or dependency installation run. Initialization success is separate from delegation readiness; see [initialization and recovery](docs/initialization.md).
 
 ## Development stack
 
@@ -173,10 +173,12 @@ Explicit host recovery for proven input refusals is available through `runtime a
 
 ## Explicit lifecycle hooks
 
-`astack hooks execute --file <request.json> --json` runs a selected `setup`, `verify`, `start` or `teardown` command under private host policy in an exact owned checkout. Invocations are saved before effects; unknown/claimed commands never replay. Declared setup/start evidence gates worker dispatch, and integration reviews use independently reserved and verified resources. `hooks inspect`, `exclude-writer` and `reconcile` preserve partial setup and separate controller exclusion from service shutdown. No hooks run implicitly during initialization or service startup. See [policy, requests and recovery](docs/hooks.md).
+`astack hooks execute --file <request.json> --json` runs a selected `setup`, `verify`, `start` or `teardown` command under host-approved project configuration in an exact owned checkout. Invocations are saved before effects; unknown/claimed commands never replay. Declared setup/start evidence gates worker dispatch, and integration reviews use independently reserved and verified resources. `hooks inspect`, `exclude-writer` and `reconcile` preserve partial setup and separate controller exclusion from service shutdown. No hooks run implicitly during initialization or service startup. See [policy, requests and recovery](docs/hooks.md).
 
 ## Executed verification before publication
 
 `astack verification run --file <request.json> --json` executes the accepted role's baseline plus selected lane/additional checks through hooks. `verification inspect <id>` reads durable per-check evidence. New `handoff finish` requests reference `{ "source": "executed", "id": "verification-..." }`; missing, failed, changed or expired evidence blocks new push/PR stages. Accepted historical handoffs and claimed-effect recovery remain read-only. Configure private per-role verification before accepting work; see [verification policy and recovery](docs/verification.md).
 
-New Codex starts require a private host-approved role launch profile. [Launch validation](docs/launch-profiles.md) compares executable/version, configuration and environment provenance on the host and in the owned Herdr pane before starting the worker. It preserves authored settings and pending launches; model/reasoning choices come from approved role policy.
+New Codex starts require a host-approved project role launch profile. [Launch validation](docs/launch-profiles.md) compares executable/version, configuration and environment provenance on the host and in the owned Herdr pane before starting the worker. It preserves authored settings and pending launches; model/reasoning choices come from approved role policy.
+
+Project settings live in `.astack/config.json`; fill the file and use `astack config approve --project <id>` to record its digest on the host. Default host state is `~/.astack`. Existing `~/.local/state/astack` remains accessible with `--state-directory` and is not moved automatically.

@@ -6,7 +6,7 @@ Hooks execute selected private-host-approved commands in an exact owned checkout
 
 `setup` prepares the project, `verify` runs project checks, `start` invokes the service controller, and `teardown` invokes the stop controller. The existing setup/verify/teardown selections retain their meaning. Optional `start` is additive: omitted fields do not add defaults or change historical configuration/prompt bytes. Required-host-hook checking includes start when explicitly declared.
 
-Portable configuration still proposes only command **names**. A private host policy must approve both the executable/argument vector and the lifecycle binding. For example, within an existing project-bound host policy:
+The approved `.astack/config.json` contains both command names and execution definitions. The host approves its exact digest using `astack config approve`; an unapproved change cannot grant execution. For example, within a project configuration:
 
 ```json
 {

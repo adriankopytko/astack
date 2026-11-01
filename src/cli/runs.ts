@@ -287,7 +287,7 @@ export function wireRunCommands(program: Command) {
             {
               stateDirectory:
                 host.stateDirectory === undefined
-                  ? join(homedir(), '.local', 'state', 'astack')
+                  ? join(homedir(), '.astack')
                   : resolve(process.cwd(), host.stateDirectory),
               ...(options.herdrExecutable === undefined
                 ? {}

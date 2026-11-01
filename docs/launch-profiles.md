@@ -1,10 +1,10 @@
 # Validated runtime launch profiles
 
-New `codex-herdr` starts require a private host-approved role profile and an injected `RuntimeLaunchValidator`. The built-in CLI/service wire `createCodexLaunchValidator` to the trusted host Node executable, controlled process runner and explicit Herdr pane probe. Repository proposals cannot select or approve these settings. A configuration readiness observation alone is not startup validation.
+New `codex-herdr` starts require a host-approved project role profile and an injected `RuntimeLaunchValidator`. The built-in CLI/service wire `createCodexLaunchValidator` to the trusted host Node executable, controlled process runner and explicit Herdr pane probe. Repository proposals cannot select or approve these settings. A configuration readiness observation alone is not startup validation.
 
 ## Policy and compatibility
 
-Add `execution.launchProfiles.<role>` to the private project policy before accepting the job. It has `runtime: "codex-herdr"` and adapter-specific `settings`:
+Add `execution.launchProfiles.<role>` to `.astack/config.json` and approve its exact current digest on this host before accepting the job. It has `runtime: "codex-herdr"` and adapter-specific `settings`:
 
 ```json
 {
@@ -29,7 +29,7 @@ Add `execution.launchProfiles.<role>` to the private project policy before accep
 }
 ```
 
-The example uses placeholders, not a runnable approval. The host must inspect the actual files, shell and environment before approving their values. `HOME` and `PATH` are required; `CODEX_HOME` and `XDG_CONFIG_HOME` are optional and their absence is also compared. These fields accept nonsecret resolution paths, not credentials or arbitrary environment injection. They describe the existing environment; the adapter does not rewrite it. Other inherited variables, credentials, system/MDM requirements, native hooks/plugins, authentication and shell aliases/functions remain explicit host trust. `shellResolutionApproved` attests that the Herdr shell invokes the canonical executable without a shadowing alias/function. Indirect configuration files must be listed in `files` as well. Executable digests pin the selected file, not an entire launcher dependency graph; prefer a canonical native executable when that distinction matters, and keep launcher dependencies under host control.
+The example uses placeholders, not a runnable approval. The host must inspect the actual files, shell and environment before approving their values. `HOME` and `PATH` are required; `CODEX_HOME` and `XDG_CONFIG_HOME` are optional and their absence is also compared. These fields accept nonsecret resolution paths, not credentials or arbitrary environment injection. The project file can be tracked, so do not place credentials in it. They describe the existing environment; the adapter does not rewrite it. Other inherited variables, credentials, system/MDM requirements, native hooks/plugins, authentication and shell aliases/functions remain explicit host trust. `shellResolutionApproved` attests that the Herdr shell invokes the canonical executable without a shadowing alias/function. Indirect configuration files must be listed in `files` as well. Executable digests pin the selected file, not an entire launcher dependency graph; prefer a canonical native executable when that distinction matters, and keep launcher dependencies under host control.
 
 The base command still permits only the existing explicit sandbox, approval, no-daemon and no-alt-screen flags. Model and reasoning come from this approved adapter profile; arbitrary native `--profile`, `-c`, bypass, resume, remote and alternate launch modes stay unsupported. The adapter adds only the selected model/reasoning settings, fixed update suppression and exact checkout cwd. Unknown profile fields are rejected. The installed executable must support the selected arguments, `--version` and `features list`; no upgrade, fallback or unrestricted command is attempted. Model availability and whether a particular model supports a reasoning level are not inferred from successful parsing.
 

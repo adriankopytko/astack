@@ -2,6 +2,7 @@ import { constants } from 'node:fs';
 import { access, lstat, stat } from 'node:fs/promises';
 import { basename, dirname, join, isAbsolute } from 'node:path';
 import { projectIdSchema } from '../../contracts/project-context.js';
+import type { ProjectRegistry } from '../../ports/project-registry.js';
 import type { ConfigurationDiagnostic } from '../../contracts/configuration.js';
 import type { ConfigurationReader, ConfigurationProbe } from '../../ports/configuration.js';
 import {
@@ -103,8 +104,29 @@ function json(file: FileSnapshot | null): unknown {
   }
 }
 
+export async function readProjectConfiguration(
+  checkoutRoot: string,
+): Promise<{ value: unknown; digest: string } | null> {
+  const root = await canonicalFileRoot(checkoutRoot);
+
+  if (root.path !== checkoutRoot) {
+    throw new ConfigurationReadError('configuration_unsafe');
+  }
+
+  if (!(await exists(join(checkoutRoot, '.astack')))) {
+    return null;
+  }
+
+  const file = await readRegularFile(root, '.astack/config.json', 65_536);
+
+  return file ? { value: json(file), digest: file.sha256 } : null;
+}
+
 /** Reads only: never creates config folders, copies proposals, launches hooks or searches cwd. */
-export function createNodeConfigurationReader(stateDirectory: string): ConfigurationReader {
+export function createNodeConfigurationReader(
+  stateDirectory: string,
+  registry?: ProjectRegistry,
+): ConfigurationReader {
   return {
     async readPolicy(projectId, signal) {
       if (signal?.aborted) {
@@ -116,6 +138,47 @@ export function createNodeConfigurationReader(stateDirectory: string): Configura
       }
 
       try {
+        if (registry) {
+          const project = await registry.readProject(projectId);
+
+          if (project.outcome === 'rejected') {
+            throw new ConfigurationReadError('configuration_unavailable');
+          }
+
+          if (project.value) {
+            const checkout = await registry.readCheckout(project.value.project.primaryCheckoutId);
+
+            if (checkout.outcome === 'rejected' || !checkout.value?.registered) {
+              throw new ConfigurationReadError('configuration_unavailable');
+            }
+
+            const config = await readProjectConfiguration(checkout.value.checkout.rootPath);
+            const value = config?.value ?? null;
+
+            if (value !== null) {
+              if (typeof value !== 'object' || Array.isArray(value)) {
+                throw new ConfigurationReadError('configuration_invalid');
+              }
+
+              const approval = json(
+                await privateFile(join(stateDirectory, 'approvals', `${projectId}.json`), 4096),
+              );
+
+              if (
+                !approval ||
+                typeof approval !== 'object' ||
+                Array.isArray(approval) ||
+                !('digest' in approval) ||
+                approval.digest !== config?.digest
+              ) {
+                return null;
+              }
+
+              return { ...value, projectId, repositoryId: project.value.repository.id };
+            }
+          }
+        }
+
         return json(await privateFile(join(stateDirectory, 'config', `${projectId}.json`), 65_536));
       } catch (error) {
         throw error instanceof ConfigurationReadError
@@ -129,6 +192,20 @@ export function createNodeConfigurationReader(stateDirectory: string): Configura
       }
 
       try {
+        const configured = (await readProjectConfiguration(checkoutRoot))?.value ?? null;
+
+        if (configured !== null) {
+          if (
+            typeof configured !== 'object' ||
+            Array.isArray(configured) ||
+            !('project' in configured)
+          ) {
+            throw new ConfigurationReadError('configuration_invalid');
+          }
+
+          return { schemaVersion: 1, settings: configured.project };
+        }
+
         const root = await canonicalFileRoot(checkoutRoot);
 
         if (root.path !== checkoutRoot) {

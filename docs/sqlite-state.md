@@ -22,7 +22,7 @@ Pass `{ schemaVersion: 1, stateDirectory: '/isolated/state', busyTimeoutMs: 100 
 
 ## Directory and lifetime
 
-Linux and macOS are supported. The default is `~/.local/state/astack`, resolved from the host home directory at explicit open time. No project or environment schema is inferred. An absolute `stateDirectory` override is supported; relative paths are rejected.
+Linux and macOS are supported. The default is `~/.astack`, resolved from the host home directory at explicit open time. No project or environment schema is inferred. An absolute `stateDirectory` override is supported; relative paths are rejected.
 
 - Canonicalize explicit root aliases and create missing directories privately. Reject state inside a directory with a `.git` ancestor or a recognizable bare-repository ancestor. This is a filesystem placement guard, not general Git discovery; callers must also keep state outside unversioned source directories and unconventional repository layouts.
 - Require a private directory owned by the current OS user. Existing broad permissions are refused, never silently changed. Parent directories must be trusted; this is not protection against adversarial parent replacement.
@@ -161,3 +161,5 @@ Migration 17 adds `hook_invocations`, exposed through `openSqliteState().hooks`.
 Migration 18 adds `implementation_verifications`, exposed through `openSqliteState().verifications`. Aggregate intent/progress and local events are transactional; real hook journals authenticate successful named checks against the immutable accepted job's approved verification plan. A host-clock age limit, exact accepted report/source/artifacts and approved check digests govern new handoff reservation/effect claims. Read-only history and already-claimed publication reconciliation retain their no-replay behavior. Explicit aggregate reconciliation handles interrupted writers without releasing hook/services resources. See [verification contracts](verification.md).
 
 Runtime session JSON now optionally includes a launch-validation invocation, profile/argument/context digests and pending/validated state. New reservations require pending validation; a compare-and-set operation records its evidence before native launch. No migration or historical healing is added. Legacy records remain readable; failed validation retains runtime resource holds. See [launch profiles](launch-profiles.md).
+
+Existing state at `~/.local/state/astack` is not automatically moved or deleted; select it explicitly with `--state-directory` until deliberately migrated. New project configuration lives in `.astack/config.json`; host approvals retain only its digest.

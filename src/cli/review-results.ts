@@ -13,9 +13,7 @@ export function wireReviewResultCommands(program: Command, review: Command) {
   const directory = () => {
     const selected = program.opts<{ stateDirectory?: string }>().stateDirectory;
 
-    return selected === undefined
-      ? join(homedir(), '.local', 'state', 'astack')
-      : resolve(process.cwd(), selected);
+    return selected === undefined ? join(homedir(), '.astack') : resolve(process.cwd(), selected);
   };
 
   function render(

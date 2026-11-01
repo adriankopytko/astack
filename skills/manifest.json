@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
   "namespace": "astack",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "skills": [
     {
       "id": "orchestrator",
       "name": "astack-orchestrator",
       "description": "Delegate implementation and code review through Astack, inspect accepted results, and choose explicit follow-up or recovery actions across registered projects.",
-      "version": "1.0.4",
+      "version": "1.0.5",
       "path": "astack-orchestrator/SKILL.md",
-      "sha256": "47194c692a775ed3e7c4b67be5d6d76000faf7ef1435d59fbaab6d83eee672ee"
+      "sha256": "8a30e2aea392b82ba94944be14099b8f1965617b7b4dab05fd0718b863dd43bf"
     },
     {
       "id": "implementer",

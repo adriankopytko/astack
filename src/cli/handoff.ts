@@ -48,9 +48,7 @@ export function wireHandoffCommands(program: Command) {
   const stateDirectory = () => {
     const selected = program.opts<{ stateDirectory?: string }>().stateDirectory;
 
-    return selected === undefined
-      ? join(homedir(), '.local', 'state', 'astack')
-      : resolve(process.cwd(), selected);
+    return selected === undefined ? join(homedir(), '.astack') : resolve(process.cwd(), selected);
   };
 
   const withState = async (json: boolean | undefined, action: (store: HandoffStore) => Result) => {

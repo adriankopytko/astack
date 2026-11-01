@@ -122,7 +122,7 @@ export async function prepareStateDirectory(
   selected?: string,
   readOnly = false,
 ): Promise<{ root: FileRoot; databasePath: string }> {
-  const target = await canonicalTarget(selected ?? join(homedir(), '.local', 'state', 'astack'));
+  const target = await canonicalTarget(selected ?? join(homedir(), '.astack'));
   await outsideRepository(target);
 
   if (readOnly && !(await exists(target))) {

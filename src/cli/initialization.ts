@@ -100,7 +100,7 @@ function compose(
     registry,
     git: createGitInspector({ executable, runner: nodeProcessRunner }),
     identity: nodeCheckoutIdentityReader,
-    configuration: createNodeConfigurationReader(root),
+    configuration: createNodeConfigurationReader(root, registry),
     prerequisites: createNodeConfigurationProbe((name) => Boolean(process.env[name])),
   };
 
@@ -116,7 +116,6 @@ function compose(
       files: nodeManagedFileStore,
     },
     userSkillsRoot: skillsRoot,
-    hostRoot: root,
     ...(state
       ? {
           worktrees: state.worktrees,
@@ -194,7 +193,7 @@ export function wireInitializationCommand(program: Command) {
       }>();
       const root =
         host.stateDirectory === undefined
-          ? join(homedir(), '.local', 'state', 'astack')
+          ? join(homedir(), '.astack')
           : resolve(process.cwd(), host.stateDirectory);
       const executable = await gitExecutable(host.gitExecutable);
 

@@ -8,7 +8,7 @@ import {
 } from '../../core/file-paths.js';
 import { completed, rejected } from '../../contracts/operation-result.js';
 import type { InitializationFiles } from '../../ports/initialization.js';
-const pathsAllowed = new Set(['.astack', '.agents', '.agents/skills', 'config']);
+const pathsAllowed = new Set(['.astack', '.agents', '.agents/skills']);
 function safeDirectory(info: {
   isDirectory(): boolean;
   isSymbolicLink(): boolean;
@@ -25,7 +25,7 @@ function safeDirectory(info: {
 }
 
 export const nodeInitializationFiles: InitializationFiles = {
-  async directory(path, privateRoot = false, anchor) {
+  async directory(path, anchor) {
     try {
       if (anchor) {
         const selected = await canonicalFileRoot(anchor);
@@ -54,7 +54,7 @@ export const nodeInitializationFiles: InitializationFiles = {
         return completed('missing' as const);
       }
 
-      if (!safeDirectory(info) || (privateRoot && (info.mode & 0o077) !== 0)) {
+      if (!safeDirectory(info)) {
         throw new Error('unsafe_directory');
       }
 
@@ -69,7 +69,7 @@ export const nodeInitializationFiles: InitializationFiles = {
 
       return rejected(
         'initialization_unavailable',
-        'Initialization directories must be owned and safe; private host configuration requires a private parent.',
+        'Initialization directories must be owned and safe.',
       );
     }
   },
@@ -103,10 +103,7 @@ export const nodeInitializationFiles: InitializationFiles = {
           }
         }
 
-        if (
-          !safeDirectory(await lstat(target)) ||
-          (name === 'config' && ((await lstat(target)).mode & 0o077) !== 0)
-        ) {
+        if (!safeDirectory(await lstat(target))) {
           throw new Error('unsafe_initialization_directory');
         }
       }

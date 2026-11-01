@@ -2,8 +2,7 @@ import { join } from 'node:path';
 import {
   initializationIgnore,
   initializationJson,
-  initializationPolicy,
-  initializationProposal,
+  initializationProjectConfig,
   initializationAssetVersion,
 } from '../core/initialization-assets.js';
 import type { ManagedFileStore } from '../ports/managed-file-store.js';
@@ -17,17 +16,15 @@ export interface InitializationAssetPlan {
   root: string;
   anchor: string;
   path: string;
-  content: string | null;
+  content: string;
   owner: string;
-  mode: 0o600 | 0o644;
+  mode: 0o644;
 }
 export function initializationAssets(
   selection: ProjectSelection,
-  hostRoot: string,
   skills: boolean,
 ): InitializationAssetPlan[] {
   const projectRoot = join(selection.git.checkout.rootPath, '.astack');
-  const project = selection.project;
 
   return [
     {
@@ -40,24 +37,13 @@ export function initializationAssets(
       mode: 0o644,
     },
     {
-      kind: 'proposal',
+      kind: 'project-config',
       root: projectRoot,
       anchor: selection.git.checkout.rootPath,
-      path: 'project.json',
-      content: initializationJson(initializationProposal),
-      owner: 'astack:init:proposal',
+      path: 'config.json',
+      content: initializationJson(initializationProjectConfig),
+      owner: 'astack:init:project-config',
       mode: 0o644,
-    },
-    {
-      kind: 'host-policy',
-      root: join(hostRoot, 'config'),
-      anchor: hostRoot,
-      path: `${project?.project.id ?? 'registration-required'}.json`,
-      content: project
-        ? initializationJson(initializationPolicy(project.project.id, project.repository.id))
-        : null,
-      owner: 'astack:init:host-policy',
-      mode: 0o600,
     },
     ...(skills
       ? [
@@ -88,17 +74,13 @@ export async function inspectInitializationAsset(
     inspection: null,
     write: null,
   };
-  const directory = await deps.layout.directory(
-    plan.root,
-    plan.kind === 'host-policy',
-    plan.anchor,
-  );
+  const directory = await deps.layout.directory(plan.root, plan.anchor);
 
   if (directory.outcome === 'rejected') {
     return { ...base, state: 'blocked', reason: directory.error.code };
   }
 
-  if (directory.value === 'missing' || plan.content === null) {
+  if (directory.value === 'missing') {
     return base;
   }
 
@@ -146,10 +128,7 @@ export async function writeInitializationAsset(
 ): Promise<InitializationAsset> {
   const before = await inspectInitializationAsset(plan, deps);
 
-  if (
-    ['preserved', 'blocked', 'pending', 'current'].includes(before.state) ||
-    plan.content === null
-  ) {
+  if (['preserved', 'blocked', 'pending', 'current'].includes(before.state)) {
     return before;
   }
 
@@ -186,21 +165,5 @@ export async function writeInitializationAsset(
 export function initializationDiagnostic(view: InitializationView, code: string, message: string) {
   if (!view.diagnostics.some((item) => item.code === code)) {
     view.diagnostics.push({ code, message });
-  }
-}
-
-export function preserveEstablishedProposal(assets: InitializationAsset[]): void {
-  const host = assets.find((asset) => asset.kind === 'host-policy');
-  const proposal = assets.find((asset) => asset.kind === 'proposal');
-
-  if (
-    host?.state === 'preserved' &&
-    host.inspection?.outcome === 'inspected' &&
-    host.inspection.observation !== 'missing' &&
-    proposal &&
-    ['planned', 'missing'].includes(proposal.state)
-  ) {
-    proposal.state = 'preserved';
-    proposal.reason = 'existing_host_setup';
   }
 }

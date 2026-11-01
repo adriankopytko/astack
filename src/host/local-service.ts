@@ -153,7 +153,7 @@ export async function startLocalService(
       ...(options.afterHandoffReview ? { automaticReviews: opened.automaticReviews } : {}),
       git: createGitInspector({ executable, runner: nodeProcessRunner }),
       identity: nodeCheckoutIdentityReader,
-      configuration: createNodeConfigurationReader(opened.stateDirectory),
+      configuration: createNodeConfigurationReader(opened.stateDirectory, opened.registry),
       prerequisites: createNodeConfigurationProbe(
         (name) => Object.hasOwn(process.env, name) && Boolean(process.env[name]),
       ),

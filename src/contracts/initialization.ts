@@ -28,7 +28,7 @@ export const initializationRequestSchema = projectSelectionRequestSchema
   })
   .refine((value) => new Set(value.skills).size === value.skills.length);
 export const initializationAssetSchema = z.strictObject({
-  kind: z.enum(['proposal', 'host-policy', 'project-ignore', 'skills-ignore']),
+  kind: z.enum(['project-config', 'project-ignore', 'skills-ignore']),
   root: absoluteFilePathSchema,
   path: relativeFilePathSchema,
   state: z.enum([

@@ -10,7 +10,7 @@ Starting a generic session does not send the saved task description. The impleme
 
 ## Host opt-in and prerequisites
 
-Register the project, approve its private host policy, prepare an owned worktree and select its registered checkout explicitly when submitting the job. Configure the project's Herdr target first. Run:
+Register the project, approve its project configuration digest, prepare an owned worktree and select its registered checkout explicitly when submitting the job. Configure the project's Herdr target first. Run:
 
 ```sh
 astack --state-directory /private/astack --herdr-executable /trusted/bin/herdr service run \
