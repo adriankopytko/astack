@@ -54,7 +54,7 @@ function execution(body: unknown): ProcessResult {
 }
 
 await test(
-  'primary spaces use saved canonical projects, never labels or ambient caller context',
+  'primary spaces reuse matching names even when projects have different roots',
   options,
   async () => {
     await fixture(async ({ configure, deps, fake, sources }) => {
@@ -63,25 +63,25 @@ await test(
       const first = space(await ensureHerdrProject(project, deps), 'prepared');
       const second = space(
         await ensureHerdrProject({ ...project, projectId: 'project-1' }, deps),
-        'prepared',
+        'reused',
       );
 
-      assert.notEqual(first.handle?.workspaceId, second.handle?.workspaceId);
+      assert.equal(first.handle?.workspaceId, second.handle?.workspaceId);
       assert.equal(first.root, sources[0]);
       assert.equal(second.root, sources[1]);
       assert.deepEqual(first.target, second.target);
-      assert.equal(fake.calls.length, 2);
+      assert.equal(fake.calls.length, 1);
 
       const repeated = space(await ensureHerdrProject(project, deps), 'reused');
 
       assert.deepEqual(repeated, first);
-      assert.equal(fake.calls.length, 2);
+      assert.equal(fake.calls.length, 1);
     });
   },
 );
 
 await test(
-  'unambiguous existing primary is associated without taking ownership of its agents',
+  'existing workspace is reused by name without taking ownership of its agents',
   options,
   async () => {
     await fixture(async ({ configure, deps, fake, sources, opened }) => {
@@ -92,17 +92,17 @@ await test(
         assert.fail('Missing settings');
       }
 
-      const handle = fake.add(settings.value.target, sources[0] ?? '', 'user-workspace');
+      const handle = fake.add(settings.value.target, '/another-project', settings.value.label);
       const reused = space(await ensureHerdrProject(project, deps), 'reused');
 
       assert.deepEqual(reused.handle, handle);
       assert.equal(reused.agent, null);
       assert.equal(fake.calls.length, 0);
 
-      fake.add(settings.value.target, sources[0] ?? '', 'another-matching-workspace');
-      const ambiguous = await ensureHerdrProject(project, deps);
+      fake.add(settings.value.target, sources[0] ?? '', settings.value.label);
+      const repeated = space(await ensureHerdrProject(project, deps), 'reused');
 
-      assert.equal(reason(ambiguous), 'ambiguous');
+      assert.deepEqual(repeated.handle, handle);
       assert.equal(fake.calls.length, 0);
     });
   },

@@ -30,13 +30,11 @@ The initial grouping contract requires the registered **main** checkout as the p
 
 ## Primary project spaces
 
-`configureHerdrProject` and `ensureHerdrProject` receive explicit versioned requests and injected dependencies. They recheck registry/Git/filesystem identity. One primary association is saved per enabled project, scoped to its explicit target.
+Initialization ensures one primary project workspace by default. It uses saved Herdr target settings, or the standard default session and socket for a newly configured project. `--herdr-session` with `--herdr-socket` selects a different target. The default workspace name is the repository directory name; `--herdr-label` supplies a different name.
 
-An existing workspace is eligible only when its checkout provenance exactly matches the canonical main checkout and non-linked repository root. For an ordinary workspace without attached worktree provenance, all its panes must report that exact root cwd. Labels, tab order and focus do not establish identity. A single eligible workspace can be associated; multiple matches block as ambiguous. Reuse does not claim its panes/agents for cleanup or job execution.
+Astack reuses a workspace with the same name, regardless of its cwd, contents or repository association. If there are several matches, a matching saved workspace is preferred; otherwise the first match is reused. Users are responsible for choosing distinct names where they want separate workspaces. If no name matches, Astack records creation intent and asks Herdr to create a workspace at the project root without changing focus. The result reports the name, workspace handle and whether it was created or reused. A ready primary space is retained when workers finish. Pending creation remains inspectable and is not automatically replayed.
 
-When none exists, Astack persists pending creation intent before `workspace create --cwd <canonical-root> --label <label> --no-focus`. A fresh snapshot and fresh registered-project observation establish the resulting association. The saved handle contains workspace, tab, pane and terminal IDs. A primary pane is an explicit handle selected from that workspace, not an ambient focused pane.
-
-A primary is persistent project visibility infrastructure. No worker finish, inspection, binding or reconciliation closes it. This issue supplies no group-close or generic close command. If a ready primary layout disappears, an explicit ensure can associate an unambiguous matching restored workspace or create a new primary without focus changes. Old worker records retain their original handles and are checked separately; restoring a primary never authorizes replacing a worker.
+The saved target and workspace handle keep later operations directed at the selected space. Primary selection by name does not claim ownership of existing panes or agents. Worker checkouts and agent controls retain their separate attribution and ownership contracts. See [ADR 0028](adr/0028-project-workspaces-by-name.md).
 
 ## Grouped owned workers
 
@@ -50,7 +48,7 @@ herdr worktree open --workspace <saved-primary-workspace-id> --path <owned-check
 
 No `worktree create`, `worktree remove`, `--force`, `--trust-repository`, pane input or agent-start command is used. Git worktree ownership remains with Astack's worktree operations. Opening an existing checkout can start a Herdr shell and trigger the server's own configured plugin behavior; Herdr's shell/plugin configuration is trusted host behavior, not a portable PR permission source. Astack does not install or alter it.
 
-A fresh snapshot verifies the linked checkout, parent workspace, shared repository key/root, exact pane cwd and workspace/tab/pane/terminal relationships. An already-open unowned worker workspace is preserved and blocked. A race yielding `already_open` leaves pending evidence rather than adopting another creator's layout.
+A fresh snapshot verifies the linked worker checkout, project repository root, parent workspace existence, exact worker pane cwd and workspace/tab/pane/terminal relationships. An already-open unowned worker workspace is preserved and blocked. A race yielding `already_open` leaves pending evidence rather than adopting another creator's layout.
 
 Ready worker handles and attempt-bound retained `herdr-space` resources are committed together. One worker association per attempt and checkout prevents another writer from adopting the same prepared layout. This slice does not release worker resources, recycle them for another attempt, or close their checkout/workspace. Review workflows can prepare a separate owned checkout; cleanup/handoff policy comes later.
 
@@ -70,9 +68,9 @@ The namespace/terminal/name/cwd evidence establishes current attribution, not au
 
 Every record stores session, socket path, socket device/inode/change timestamp, supported protocol, and layout handles. The filesystem reader requires an owned private Unix socket in a canonical directory that is not writable by other users. Snapshot and write calls check endpoint identity before and after the CLI request, and writes also require the expected saved endpoint.
 
-Protocol 22 provides no server-instance UUID. The saved tuple is therefore **transport identity evidence**, not an invented Herdr-issued nonce. A stable endpoint/live handoff may preserve this tuple. Astack always revalidates topology, checkout provenance, terminal identity and recorded agent/native-session evidence; it does not establish historical continuity from an ID alone. A future Herdr server nonce would improve this boundary.
+Protocol 22 provides no server-instance UUID. The saved tuple is therefore **transport identity evidence**, not an invented Herdr-issued nonce. A stable endpoint/live handoff may preserve this tuple. Astack revalidates worker topology, checkout provenance, terminal identity and recorded agent/native-session evidence; primary workspace selection uses its name; it does not establish historical continuity from an ID alone. A future Herdr server nonce would improve this boundary.
 
-A ready primary can be rediscovered after restart through its canonical project checkout. Changed worker transport identity, moved panes, replacement terminals, wrong cwd, missing layout or changed native agent identity are reported as blockers. No old worker ID is silently redirected and no replacement agent starts. Manual layout migration and worker restart authorization remain separate work.
+A ready primary can be rediscovered after restart by its saved workspace name and handle. Changed worker transport identity, moved panes, replacement terminals, wrong cwd, missing layout or changed native agent identity are reported as blockers. No old worker ID is silently redirected and no replacement agent starts. Manual layout migration and worker restart authorization remain separate work.
 
 Snapshots are observations, not atomic snapshots across Git, filesystem, shell and Herdr activity. Supported adapters must return complete coherent snapshots. Hosts/layout writers must coordinate and recheck immediately before execution or future cleanup.
 

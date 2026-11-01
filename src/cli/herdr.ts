@@ -345,7 +345,7 @@ export function wireHerdrCommands(program: Command): void {
       '--socket <path>',
       'Explicit socket path; default: standard path for the selected session',
     )
-    .option('--label <text>', 'Human project label; never an identity selector')
+    .option('--label <text>', 'Project workspace name; defaults to repository directory name')
     .option('--json', 'Print saved target evidence')
     .action(
       async (options: {

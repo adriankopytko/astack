@@ -131,24 +131,19 @@ export async function project(
   return selected;
 }
 
-export function matching(snapshot: HerdrSnapshot, root: string, kind: HerdrSpace['kind']) {
-  return snapshot.workspaces.filter((workspace) => {
-    if (workspace.worktree) {
-      return (
-        workspace.worktree.checkoutPath === root &&
-        workspace.worktree.linked === (kind === 'worker') &&
-        (kind !== 'primary' || workspace.worktree.repositoryRoot === root)
-      );
-    }
+export function matching(
+  snapshot: HerdrSnapshot,
+  root: string,
+  kind: HerdrSpace['kind'],
+  label?: string,
+) {
+  if (kind === 'primary') {
+    return snapshot.workspaces.filter((workspace) => workspace.label === label);
+  }
 
-    if (kind === 'worker') {
-      return false;
-    }
-
-    const panes = snapshot.panes.filter((pane) => pane.workspaceId === workspace.id);
-
-    return panes.length > 0 && panes.every((pane) => pane.cwd === root);
-  });
+  return snapshot.workspaces.filter(
+    (workspace) => workspace.worktree?.checkoutPath === root && workspace.worktree.linked,
+  );
 }
 
 export function selectedHandle(
@@ -156,9 +151,10 @@ export function selectedHandle(
   workspaceId: string,
   root: string,
   preferred?: HerdrHandle | null,
+  anyCwd = false,
 ): HerdrHandle | null {
   const panes = snapshot.panes.filter(
-    (pane) => pane.workspaceId === workspaceId && pane.cwd === root,
+    (pane) => pane.workspaceId === workspaceId && (anyCwd || pane.cwd === root),
   );
   const pane =
     panes.find(
@@ -198,15 +194,21 @@ export function observe(
     return { reason: 'server_changed', observation: empty };
   }
 
-  const candidates = matching(snapshot, record.root, record.kind);
+  const candidates = matching(snapshot, record.root, record.kind, record.label);
 
-  if (candidates.length !== 1) {
+  if (record.kind === 'worker' && candidates.length !== 1) {
     return { reason: candidates.length ? 'ambiguous' : 'layout_missing', observation: empty };
   }
 
-  const candidate = candidates[0];
+  const candidate =
+    candidates.find((item) => item.id === record.handle?.workspaceId) ?? candidates[0];
+
+  if (!candidate) {
+    return { reason: 'layout_missing', observation: empty };
+  }
+
   const handle = candidate
-    ? selectedHandle(snapshot, candidate.id, record.root, record.handle)
+    ? selectedHandle(snapshot, candidate.id, record.root, record.handle, record.kind === 'primary')
     : null;
 
   if (!handle || (record.handle !== null && !same(record.handle, handle))) {
@@ -220,13 +222,8 @@ export function observe(
 
     if (
       !primary ||
-      !candidate?.worktree ||
-      !primary.worktree ||
-      candidate.worktree.repositoryKey !== primary.worktree.repositoryKey ||
-      candidate.worktree.repositoryRoot !== primary.worktree.repositoryRoot ||
-      primary.worktree.checkoutPath !== record.primaryRoot ||
-      primary.worktree.repositoryRoot !== record.primaryRoot ||
-      primary.worktree.linked
+      !candidate.worktree ||
+      candidate.worktree.repositoryRoot !== record.primaryRoot
     ) {
       return { reason: 'layout_changed', observation: empty };
     }

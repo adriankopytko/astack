@@ -54,7 +54,7 @@ export async function fixture(
       files,
       newId: () => `herdr-${++sequence}`,
     };
-    const configure = async (index = 0, session = 'default', label = 'project') => {
+    const configure = async (index = 0, session = 'default', label = `project-${index}`) => {
       const result = await configureHerdrProject(
         {
           schemaVersion: 1,

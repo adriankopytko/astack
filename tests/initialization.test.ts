@@ -105,6 +105,7 @@ async function fixture(
       directories: nodeSkillDirectories,
     },
     userSkillsRoot: join(root, 'user-skills'),
+    defaultHerdrTarget: { session: 'default', socketPath: join(root, 'default.sock') },
     worktrees: opened.worktrees,
     herdr: {
       ...common,
@@ -172,7 +173,13 @@ await test(
 
       assert.equal(applied.target.projectId, 'project-init');
       assert.equal(applied.delegation, 'not_ready');
-      assert.equal(applied.provider.status, 'not_selected');
+      assert.equal(applied.provider.status, 'ready');
+      assert.ok(
+        applied.provider.result &&
+          'record' in applied.provider.result &&
+          applied.provider.result.outcome === 'prepared',
+      );
+      assert.equal(applied.provider.result.record?.label, 'repository');
       assert.ok(
         applied.configuration.every(
           (item) => item.result.outcome === 'completed' && item.result.value.status === 'blocked',
@@ -217,6 +224,8 @@ await test(
       const repeated = view(await initializeProject(request, f.deps), 'initialized');
 
       assert.equal(repeated.registration, 'registered');
+      assert.ok(repeated.provider.result && repeated.provider.result.outcome === 'reused');
+      assert.equal(f.fake.calls.filter((call) => call.operation === 'create').length, 1);
       assert.equal(repeated.target.checkoutId, applied.target.checkoutId);
       assert.equal((await stat(proposal)).ino, inode);
       assert.ok(repeated.assets.every((asset) => asset.state === 'current'));
@@ -465,6 +474,7 @@ await test(
             path: f.source,
             assignProjectId: 'linked-project',
             skills: ['implementer'],
+            herdr: { target: { session: 'linked', socketPath: join(f.root, 'linked.sock') } },
           },
           f.deps,
         ),
@@ -578,7 +588,13 @@ await test(
             ...args,
             '--json',
           ],
-          { cwd, encoding: 'utf8', timeout: 60000, stdio: ['ignore', 'pipe', 'pipe'] },
+          {
+            cwd,
+            encoding: 'utf8',
+            timeout: 60000,
+            stdio: ['ignore', 'pipe', 'pipe'],
+            env: { ...process.env, HOME: root },
+          },
         );
       const preview = call([source, '--preview']);
 
@@ -606,12 +622,14 @@ await test(
         'reviewer',
       ]);
 
-      assert.equal(initialized.status, 0, initialized.stderr || initialized.stdout);
+      assert.equal(initialized.status, 1, initialized.stderr || initialized.stdout);
 
       const actual = view(
         initializationResultSchema.parse(JSON.parse(initialized.stdout)),
-        'initialized',
+        'partial',
       );
+
+      assert.equal(actual.provider.status, 'blocked');
 
       assert.equal(actual.target.projectId, 'packed-project');
       assert.equal(actual.delegation, 'not_ready');
@@ -689,8 +707,9 @@ await test(
   options,
   async () => {
     await fixture(async (f) => {
+      const { defaultHerdrTarget: _defaultHerdrTarget, ...noDefault } = f.deps;
       const result = view(
-        await initializeProject({ schemaVersion: 1, path: f.source, herdr: {} }, f.deps),
+        await initializeProject({ schemaVersion: 1, path: f.source, herdr: {} }, noDefault),
         'partial',
       );
 
@@ -812,6 +831,32 @@ await test(
       await assert.rejects(access(join(f.state, 'config', 'approval-project.json')), {
         code: 'ENOENT',
       });
+    });
+  },
+);
+
+await test(
+  'initialization reuses an existing same-name Herdr workspace without checking its cwd',
+  options,
+  async () => {
+    await fixture(async (f) => {
+      assert.ok(f.deps.defaultHerdrTarget);
+
+      const existing = f.fake.add(f.deps.defaultHerdrTarget, '/different-project', 'repository');
+      const initialized = view(
+        await initializeProject(
+          { schemaVersion: 1, path: f.source, assignProjectId: 'reuse-project' },
+          f.deps,
+        ),
+        'initialized',
+      );
+      const result = initialized.provider.result;
+
+      assert.ok(result && 'record' in result);
+      assert.equal(result.outcome, 'reused');
+      assert.equal(result.record?.label, 'repository');
+      assert.equal(result.record?.handle?.workspaceId, existing.workspaceId);
+      assert.equal(f.fake.calls.filter((call) => call.operation === 'create').length, 0);
     });
   },
 );

@@ -10,6 +10,7 @@ import { rejected, type OperationResult } from '../contracts/operation-result.js
 import type { CheckoutLocation, ProjectSelection } from '../contracts/projects.js';
 import type { ManagedFileStore } from '../ports/managed-file-store.js';
 import type { InitializationFiles } from '../ports/initialization.js';
+import type { HerdrTarget } from '../contracts/herdr.js';
 import type { WorktreeStore } from '../ports/worktrees.js';
 import { parseOperationRequest } from '../core/parse-operation-request.js';
 import { locateCheckout } from './project-facts.js';
@@ -30,6 +31,7 @@ export interface InitializationDependencies
   layout: InitializationFiles;
   skills: SkillsDependencies;
   userSkillsRoot: string;
+  defaultHerdrTarget?: HerdrTarget;
   herdr?: HerdrDependencies;
   worktrees?: WorktreeStore;
 }
@@ -228,10 +230,6 @@ async function provider(
   deps: InitializationDependencies,
   signal?: AbortSignal,
 ) {
-  if (!request.herdr) {
-    return;
-  }
-
   if (!deps.herdr || !view.target.projectId) {
     view.provider.status = 'blocked';
     diagnostic(
@@ -270,7 +268,9 @@ async function provider(
   }
 
   if (!stored.value) {
-    if (!request.herdr.target) {
+    const target = request.herdr.target ?? deps.defaultHerdrTarget;
+
+    if (!target) {
       view.provider.status = 'blocked';
       diagnostic(
         view,
@@ -285,7 +285,7 @@ async function provider(
       {
         schemaVersion: 1,
         projectId: view.target.projectId,
-        target: request.herdr.target,
+        target,
         ...(request.herdr.label === undefined ? {} : { label: request.herdr.label }),
       },
       deps.herdr,
@@ -376,7 +376,7 @@ export async function initializeProject(
             )
         : null,
       provider: {
-        status: request.herdr ? 'planned' : 'not_selected',
+        status: 'planned',
         settings: null,
         result: null,
       },

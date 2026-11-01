@@ -39,7 +39,6 @@ interface Options {
   nonInteractive?: boolean;
   role: SkillId[];
   userSkillsRoot?: string;
-  herdr?: boolean;
   herdrSession?: string;
   herdrSocket?: string;
   herdrLabel?: string;
@@ -59,6 +58,15 @@ function render(result: InitializationResult, json?: boolean) {
     for (const asset of view.assets) {
       process.stdout.write(
         `${asset.kind}: ${asset.state}${asset.reason ? ` (${asset.reason})` : ''}\n`,
+      );
+    }
+
+    if (view.provider.result && 'record' in view.provider.result && view.provider.result.record) {
+      const workspace = view.provider.result.record;
+      const action =
+        view.provider.result.outcome === 'prepared' ? 'created' : view.provider.result.outcome;
+      process.stdout.write(
+        `Herdr workspace: ${action} ${workspace.label} (${workspace.handle?.workspaceId ?? 'pending'})\n`,
       );
     }
 
@@ -116,6 +124,10 @@ function compose(
       files: nodeManagedFileStore,
     },
     userSkillsRoot: skillsRoot,
+    defaultHerdrTarget: {
+      session: 'default',
+      socketPath: join(homedir(), '.config', 'herdr', 'herdr.sock'),
+    },
     ...(state
       ? {
           worktrees: state.worktrees,
@@ -176,7 +188,6 @@ export function wireInitializationCommand(program: Command) {
       '--user-skills-root <directory>',
       'Inspect global orchestrator availability at this root; never install globally',
     )
-    .option('--herdr', 'Ensure the project primary space using its saved target')
     .option('--herdr-session <session>', 'Explicit project session; requires --herdr-socket')
     .option('--herdr-socket <path>', 'Explicit project socket; requires --herdr-session')
     .option('--herdr-label <label>', 'Label for new settings; existing settings are preserved')
@@ -211,7 +222,7 @@ export function wireInitializationCommand(program: Command) {
         ...(options.checkout === undefined ? {} : { checkoutId: options.checkout }),
         ...(options.id === undefined ? {} : { assignProjectId: options.id }),
         skills: options.role,
-        ...(options.herdr || options.herdrSession || options.herdrLabel
+        ...(options.herdrSession || options.herdrLabel
           ? {
               herdr: {
                 ...(options.herdrSession && options.herdrSocket
@@ -281,9 +292,7 @@ export function wireInitializationCommand(program: Command) {
           }
 
           try {
-            const provider = request.herdr
-              ? await hostExecutable('herdr', host.herdrExecutable)
-              : null;
+            const provider = await hostExecutable('herdr', host.herdrExecutable);
             render(
               await initializeProject(
                 { ...request, preview: false },

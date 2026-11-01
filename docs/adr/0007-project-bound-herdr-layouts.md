@@ -1,6 +1,6 @@
 # ADR 0007: Bind Herdr project spaces and worker layouts explicitly
 
-- Status: accepted
+- Status: accepted; primary workspace matching superseded by ADR 0028
 - Date: 2026-10-17
 
 ## Context

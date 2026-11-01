@@ -1,3 +1,4 @@
+import { basename } from 'node:path';
 import {
   herdrConfigureRequestSchema,
   herdrProjectRequestSchema,
@@ -79,7 +80,7 @@ export async function configureHerdrProject(
       root: checkout.checkout.rootPath,
       location: checkout.location,
       target: request.value.target,
-      label: request.value.label ?? project.project.id,
+      label: request.value.label ?? basename(checkout.checkout.rootPath),
     }),
   );
 }
@@ -99,30 +100,15 @@ export async function ensureHerdrProject(
       return result('pending', record, 'pending_writer');
     }
 
-    const candidates = matching(snapshot, config.root, 'primary');
-
-    if (candidates.length > 1) {
-      return result('blocked', record, 'ambiguous');
-    }
-
-    const candidate = candidates[0];
+    const candidates = matching(snapshot, config.root, 'primary', config.label);
+    const candidate =
+      candidates.find((item) => item.id === record?.handle?.workspaceId) ?? candidates[0];
     const handle = candidate
-      ? selectedHandle(snapshot, candidate.id, config.root, record?.handle)
+      ? selectedHandle(snapshot, candidate.id, config.root, record?.handle, true)
       : null;
 
     if (record && handle && same(record.server, snapshot.server) && same(record.handle, handle)) {
       return result('reused', record, null, observe(record, snapshot).observation);
-    }
-
-    const existingWorkspaceId = record?.handle?.workspaceId;
-
-    if (
-      record &&
-      same(record.server, snapshot.server) &&
-      snapshot.workspaces.some((workspace) => workspace.id === existingWorkspaceId) &&
-      !candidate
-    ) {
-      return result('blocked', record, 'layout_changed');
     }
 
     const next = herdrSpaceSchema.parse(

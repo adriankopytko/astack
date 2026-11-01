@@ -24,7 +24,7 @@ export const initializationRequestSchema = projectSelectionRequestSchema
         target: herdrTargetSchema.optional(),
         label: herdrSettingsSchema.shape.label.optional(),
       })
-      .optional(),
+      .default({}),
   })
   .refine((value) => new Set(value.skills).size === value.skills.length);
 export const initializationAssetSchema = z.strictObject({
@@ -61,7 +61,7 @@ export const initializationViewSchema = z.strictObject({
   userSkills: skillsInspectResultSchema,
   projectSkills: z.union([skillsInspectResultSchema, skillsInstallResultSchema]).nullable(),
   provider: z.strictObject({
-    status: z.enum(['not_selected', 'planned', 'ready', 'blocked', 'pending']),
+    status: z.enum(['planned', 'ready', 'blocked', 'pending']),
     settings: herdrSettingsSchema.nullable(),
     result: herdrResultSchema.nullable(),
   }),

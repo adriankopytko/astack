@@ -8,7 +8,7 @@
 astack init /absolute/project --preview --json
 astack init /absolute/project --id project-example --non-interactive --json
 astack init /absolute/project --role implementer --role reviewer --json
-astack init --project project-example --herdr --json
+astack init --project project-example --json
 astack init /absolute/project --herdr-session selected-session --herdr-socket /absolute/socket --json
 ```
 
@@ -39,7 +39,7 @@ Codex's documented project skill location is `.agents/skills`; see [official ski
 
 Initialization does not inspect manifests, lockfiles or scripts to discover project tools. It points the user or agent to the project configuration; use project instructions and tooling to decide what to configure. Hook execution remains an explicit owned-checkout operation. No project code runs during initialization.
 
-Herdr is opt-in. `--herdr` uses saved settings; a new target requires both `--herdr-session` and `--herdr-socket`. `--herdr-label` labels new settings. Existing settings are preserved on conflict; deliberate retargeting uses existing explicit Herdr operations. Space creation uses the registered primary and existing durable provider intent. It creates no worker layouts, terminals or agents. Preview reports the requested plan without validating live provider readiness.
+Initialization ensures a primary Herdr workspace by default. It uses existing saved project target settings when available, otherwise the standard default session/socket. `--herdr-session` and `--herdr-socket` together select a different target; `--herdr-label` selects the workspace name. By default the name is the repository directory name. A workspace with that exact name is reused regardless of its cwd or contents; otherwise Astack creates one. When names are duplicated, an already saved match is preferred, otherwise the first match is reused. Users choose their own workspace names. The result reports creation/reuse, name and workspace handle. If Herdr is unavailable, setup returns partial while preserving completed registration and files. Preview does not contact Herdr. Workspace creation can start a Herdr shell but never starts an agent or task worker.
 
 Registration, setup success and delegation readiness are separate. Results contain each role's configuration/prerequisite diagnostics, user/project skill evidence, provider status and a conservative delegation observation. A disabled or unapproved starter normally reports `not_ready`. Fill `.astack/config.json` and explicitly approve its current digest with `astack config approve --project <id>`. Even `requires_owned_checkout` still requires explicit owned checkout preparation, assignment acceptance, service/runtime opt-in and dispatch-time checks. Configuration readiness is an observation, not permission granted by initialization. Initialization never enables automatic review, mutates trackers, installs dependencies or starts services.
 

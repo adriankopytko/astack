@@ -1,6 +1,6 @@
 # ADR 0022: Compose conservative, explicit project initialization
 
-Status: accepted
+Status: accepted; configuration and workspace defaults superseded by ADRs 0027 and 0028
 
 ## Context
 
