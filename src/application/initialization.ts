@@ -224,7 +224,7 @@ async function readiness(
     diagnostic(
       view,
       'hooks_require_explicit_execution',
-      'Declared hooks require explicit host-approved execution in an owned task checkout; project tooling must be configured deliberately.',
+      'Declared hooks run through an explicit operation in an owned task checkout; configure project tooling deliberately.',
     );
   }
 

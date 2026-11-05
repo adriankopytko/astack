@@ -201,7 +201,7 @@ export function createNodeConfigurationProbe(
             code: 'executable_missing',
             subject: command.id,
             nextStep:
-              'Install the approved executable or update its absolute path in trusted host policy.',
+              'Install the configured executable or update its absolute path in .astack/config.json.',
           });
         }
       }
@@ -212,7 +212,7 @@ export function createNodeConfigurationProbe(
             code: 'environment_missing',
             subject: variable,
             nextStep:
-              'Make the approved variable available to the host; do not put its value in configuration or reports.',
+              'Make the configured variable available to the host; do not put its value in configuration or reports.',
           });
         }
       }
@@ -229,7 +229,7 @@ export function createNodeConfigurationProbe(
             code: 'skill_unavailable',
             subject: skill.id,
             nextStep:
-              'Restore the approved private skill bytes or explicitly approve a new version and digest.',
+              'Restore the configured private skill bytes or update its version and digest in .astack/config.json.',
           });
         }
       }

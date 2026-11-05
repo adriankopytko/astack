@@ -56,18 +56,14 @@ function prerequisites(
     diagnostics.push(
       diagnostic(
         'execution_disabled',
-        'Enable execution in the trusted host policy before accepting work.',
+        'Set execution.enabled to true in .astack/config.json before accepting work.',
       ),
     );
   }
 
   if (!role) {
     diagnostics.push(
-      diagnostic(
-        'role_missing',
-        'Define the selected role in the approved settings.',
-        snapshot.role,
-      ),
+      diagnostic('role_missing', 'Define the selected role in .astack/config.json.', snapshot.role),
     );
 
     return { input, diagnostics };
@@ -77,7 +73,7 @@ function prerequisites(
     diagnostics.push(
       diagnostic(
         'runtime_not_allowed',
-        'Approve the selected runtime in host policy.',
+        'Select a runtime for the role and add it to execution.allowedRuntimes in .astack/config.json.',
         snapshot.role,
       ),
     );
@@ -87,7 +83,7 @@ function prerequisites(
     diagnostics.push(
       diagnostic(
         'timeout_not_allowed',
-        'Reduce the requested timeout or explicitly raise the host limit.',
+        'Reduce the requested timeout or raise execution.maxTimeoutMs in .astack/config.json.',
         snapshot.role,
       ),
     );
@@ -100,7 +96,7 @@ function prerequisites(
       diagnostics.push(
         diagnostic(
           'required_hook_changed',
-          'Restore the mandatory hook selected by host policy.',
+          'Restore the hook required by execution.requiredHooks in .astack/config.json.',
           hook,
         ),
       );
@@ -122,7 +118,7 @@ function prerequisites(
       diagnostics.push(
         diagnostic(
           'command_not_allowed',
-          'Define the command in trusted host execution policy.',
+          'Define the command in execution.commands in .astack/config.json.',
           id,
         ),
       );
@@ -133,7 +129,11 @@ function prerequisites(
 
   if (role.command === null) {
     diagnostics.push(
-      diagnostic('command_not_allowed', 'Select an approved command for this role.', snapshot.role),
+      diagnostic(
+        'command_not_allowed',
+        'Select a configured command for this role.',
+        snapshot.role,
+      ),
     );
   }
 
@@ -142,7 +142,7 @@ function prerequisites(
       diagnostics.push(
         diagnostic(
           'environment_not_allowed',
-          'Approve this environment variable name in host policy.',
+          'Add this variable name to execution.allowedEnvironment in .astack/config.json.',
           variable,
         ),
       );
@@ -161,7 +161,7 @@ function prerequisites(
       diagnostics.push(
         diagnostic(
           'skill_not_approved',
-          'Approve this exact skill version and digest in host policy.',
+          'Add this skill version and digest to execution.skills in .astack/config.json.',
           skill.id,
         ),
       );
@@ -173,7 +173,7 @@ function prerequisites(
   return { input, diagnostics };
 }
 
-/** Resolve only host-approved layers. Repository bytes are a proposal, never execution authority. */
+/** Resolve project configuration and pin the effective settings in a snapshot. */
 export async function resolveConfiguration(
   input: unknown,
   dependencies: ConfigurationDependencies,
@@ -468,7 +468,7 @@ export async function checkConfigurationDispatch(
         ...current.value.diagnostics,
         diagnostic(
           'policy_changed',
-          'Re-evaluate the changed host policy and accept a new job; the saved job policy is immutable.',
+          'Review the changed project configuration and accept a new job; the saved job configuration is immutable.',
         ),
       ],
     });
