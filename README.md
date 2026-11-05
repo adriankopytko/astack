@@ -63,7 +63,7 @@ Next, connect remaining project setup and runtime integrations to these run cont
 ## Initialize a project
 
 ```sh
-astack init /absolute/project --preview --json
+astack init /absolute/project --dry-run --json
 astack init /absolute/project --non-interactive --role implementer --role reviewer --json
 ```
 

@@ -274,7 +274,7 @@ For a task cancelled before any worker launch claim, `run cancel` now closes its
 
 ## Initialize one project
 
-Use `astack init <path> --preview --json` before setup. A repository subdirectory resolves to its root; a neutral directory requires an explicit path or `--project <id>` / `--checkout <id>`. Selectors must agree. `--id <id>` assigns a new identity or asserts the selected saved identity. Register the primary before initializing a linked checkout. Owned task checkouts are refused.
+Use `astack init <path> --dry-run --json` before setup. A repository subdirectory resolves to its root; a neutral directory requires an explicit path or `--project <id>` / `--checkout <id>`. Selectors must agree. The project ID defaults to the repository directory name; `--id <id>` overrides it or asserts the selected saved identity. Register the primary before initializing a linked checkout. Owned task checkouts are refused.
 
 Apply with `astack init <path> --non-interactive --json`; noninteractive reporting is also the default. Optional repeated `--role implementer --role reviewer` installs selected project guides in `.agents/skills`, with Git-compatible mode 0644. Standalone `skills inspect|install --root <project>/.agents/skills --project-scope` uses the same mode. Global skill availability is read-only; select its inspection root with `--user-skills-root <path>`. Missing global guidance is not permission to install it.
 

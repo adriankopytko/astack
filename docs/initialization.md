@@ -5,7 +5,7 @@
 ## Inputs and selection
 
 ```sh
-astack init /absolute/project --preview --json
+astack init /absolute/project --dry-run --json
 astack init /absolute/project --id project-example --non-interactive --json
 astack init /absolute/project --role implementer --role reviewer --json
 astack init --project project-example --json
@@ -18,7 +18,7 @@ The primary checkout must be registered before initializing an unregistered link
 
 ## Preview and effects
 
-Preview inspects Git identity, managed assets, selected skill availability and saved configuration. It creates no state, directories, registration, files or provider resources and does not contact Herdr. An absent state store is read through an empty registry. A new project's preview cannot allocate its eventual generated IDs before registration.
+Preview inspects Git identity, managed assets, selected skill availability and saved configuration. It creates no state, directories, registration, files or provider resources and does not contact Herdr. An absent state store is read through an empty registry. A new project ID is derived from the repository root directory name; `--id` overrides it or resolves a collision.
 
 Apply holds kernel-backed coordinator ownership before writable database migration and throughout setup; an active service/coordinator must be stopped first. It persists registration before file/provider effects. Setup writes are individually managed, not one atomic batch:
 

@@ -35,7 +35,7 @@ interface Options {
   project?: string;
   checkout?: string;
   id?: string;
-  preview?: boolean;
+  dryRun?: boolean;
   nonInteractive?: boolean;
   role: SkillId[];
   userSkillsRoot?: string;
@@ -50,7 +50,7 @@ function render(result: InitializationResult, json?: boolean) {
     const steps: string[] = [];
 
     if (result.outcome === 'previewed') {
-      steps.push('Run astack init without the preview option to apply this plan.');
+      steps.push('Run astack init without --dry-run to apply this plan.');
     } else {
       steps.push(
         `Review project instructions and fill in ${join(view.target.root, '.astack', 'config.json')} for this project.`,
@@ -206,7 +206,7 @@ export function wireInitializationCommand(program: Command) {
     .option('--project <id>', 'Select an existing registered project from any caller directory')
     .option('--checkout <id>', 'Select an existing registered checkout; selectors must agree')
     .option('--id <id>', 'Assign a new project ID or assert the selected saved ID')
-    .option('--preview', 'Read-only plan; no registration, files, state or provider setup')
+    .option('--dry-run', 'Read-only plan; no registration, files, state or provider setup')
     .option('--non-interactive', 'Report remaining decisions without prompts (also the default)')
     .option(
       '--role <role>',
@@ -307,7 +307,7 @@ export function wireInitializationCommand(program: Command) {
         }
       }
 
-      if (options.preview || preview.outcome === 'rejected') {
+      if (options.dryRun || preview.outcome === 'rejected') {
         render(preview, options.json);
 
         return;

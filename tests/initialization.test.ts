@@ -627,7 +627,7 @@ await test(
             env: { ...process.env, HOME: root },
           },
         );
-      const preview = call([source, '--preview']);
+      const preview = call([source, '--dry-run']);
 
       assert.equal(preview.status, 0, preview.stderr);
 
@@ -673,7 +673,7 @@ await test(
       assert.equal(actual.target.projectId, 'packed-project');
       assert.equal(actual.delegation, 'not_ready');
 
-      const readonly = call(['--project', 'packed-project', '--preview']);
+      const readonly = call(['--project', 'packed-project', '--dry-run']);
 
       assert.equal(readonly.status, 0, readonly.stderr);
       assert.equal(
