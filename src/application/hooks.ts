@@ -87,7 +87,7 @@ async function preflight(
 
   if (configuration.status !== 'ready' || !configuration.snapshot) {
     blocked(
-      'Inspect configuration and restore the accepted host-approved policy before executing hooks.',
+      'Inspect configuration and restore the settings accepted by the job before executing hooks.',
     );
   }
 

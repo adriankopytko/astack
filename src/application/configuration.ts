@@ -296,7 +296,7 @@ export async function resolveConfiguration(
       checks.diagnostics.push(
         diagnostic(
           'proposal_changed',
-          'Review the repository proposal and explicitly update the host-approved project baseline before accepting work.',
+          'Review the proposed settings and update the project configuration before accepting work.',
         ),
       );
     }

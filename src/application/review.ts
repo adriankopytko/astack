@@ -92,7 +92,10 @@ async function policy(
         configurationDigest(value.data) !== job.job.configuration?.policyDigest))
   ) {
     throw new ReviewFailure(
-      rejected('configuration_blocked', 'Review requires unchanged approved host policy.'),
+      rejected(
+        'configuration_blocked',
+        'Review requires the configuration accepted for this job to remain unchanged.',
+      ),
     );
   }
 
