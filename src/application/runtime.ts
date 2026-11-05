@@ -13,7 +13,6 @@ import {
   type RuntimeStatus,
   type RuntimeAction,
 } from '../contracts/runtime.js';
-import { hostConfigurationPolicySchema } from '../contracts/configuration.js';
 import { completed, rejected, type OperationResult } from '../contracts/operation-result.js';
 import type { StateWriteResult } from '../contracts/state.js';
 import type { ServiceJob, WorkerObservation } from '../contracts/service.js';
@@ -27,7 +26,7 @@ import type { ServiceStore, ServiceWorkerRuntime } from '../ports/service.js';
 import { workerInputDigest } from '../core/worker-input.js';
 import { parseOperationRequest } from '../core/parse-operation-request.js';
 import { configurationDigest } from '../core/configuration.js';
-import { checkConfigurationDispatch } from './configuration.js';
+import { checkConfigurationDispatch, readJobConfiguration } from './configuration.js';
 import { prepareHerdrWorker, inspectHerdrWorker, bindHerdrAgent } from './herdr.js';
 import { selectProjectContext } from './select-project-context.js';
 import type { HerdrDependencies } from './herdr.js';
@@ -180,11 +179,9 @@ async function approved(job: ServiceJob, deps: RuntimeDependencies, signal?: Abo
     );
   }
 
-  const policy = hostConfigurationPolicySchema.parse(
-    await deps.configuration.readPolicy(job.job.projectId, signal),
-  );
+  const policy = await readJobConfiguration(job.job, deps.configuration, signal);
 
-  if (configurationDigest(policy) !== job.job.configuration.policyDigest) {
+  if (!policy) {
     throw new RuntimeFailure(
       rejected('configuration_blocked', 'Host policy changed during runtime authorization.'),
     );
@@ -737,19 +734,10 @@ async function control(
     }
 
     if (kind === 'input') {
-      const currentPolicy = hostConfigurationPolicySchema.safeParse(
-        await deps.configuration.readPolicy(job.job.projectId, signal).catch(() => null),
-      );
+      const command = await approved(job, deps, signal);
 
-      if (
-        currentPolicy.success &&
-        configurationDigest(currentPolicy.data) === job.job.configuration?.policyDigest
-      ) {
-        const command = await approved(job, deps, signal);
-
-        if (!(await profileMatches(session, command, deps, signal))) {
-          return status(session, 'blocked', 'policy_blocked');
-        }
+      if (!(await profileMatches(session, command, deps, signal))) {
+        return status(session, 'blocked', 'policy_blocked');
       }
     }
 

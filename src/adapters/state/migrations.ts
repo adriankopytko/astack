@@ -485,4 +485,13 @@ CREATE TABLE implementation_verifications (
 CREATE UNIQUE INDEX one_verification_writer ON implementation_verifications(job_id) WHERE status IN ('prepared','running');
 `,
   },
+  {
+    version: 19,
+    sql: `
+CREATE TABLE job_configurations (
+ job_id TEXT PRIMARY KEY REFERENCES jobs(id),
+ data TEXT NOT NULL CHECK(json_valid(data))
+) STRICT;
+`,
+  },
 ] as const;

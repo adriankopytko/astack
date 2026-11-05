@@ -2,7 +2,7 @@
 name: astack-orchestrator
 description: Delegate implementation and code review through Astack, inspect accepted results, and choose explicit follow-up or recovery actions across registered projects.
 metadata:
-  asset-version: '1.0.8'
+  asset-version: '1.0.9'
 ---
 
 # Orchestrate with Astack
@@ -15,7 +15,7 @@ Read `astack --skill` for the installed command contracts when you need details;
 
 - `astack project list --json` finds registered identities. `astack context --project <project-id> --json` observes the selected checkout; explicit checkout/path/attempt selectors must agree. Invoking Astack from a directory containing several projects does not scan or choose one.
 - `astack project register <path> --json` deliberately registers an unregistered canonical checkout. Registration does not install files, approve configuration or authorize workers.
-- `astack config inspect --project <project-id> --role implementer --json` checks trusted host policy and prerequisites. Repository settings are proposals. Keep secrets out of descriptions, overrides, reports and logs.
+- `astack config inspect --project <project-id> --role implementer --json` checks current project configuration and prerequisites. Accepted jobs keep their own settings; edits apply to new jobs. Keep secrets out of descriptions, overrides, reports and logs.
 - Prepare a dedicated owned checkout with `astack worktree prepare --project <project-id> --key <checkout-key> --branch <branch> --base <full-sha> --json`. Select its returned checkout ID explicitly. Preparing a worktree does not start a worker or provision services.
 
 ## Delegate and inspect
@@ -52,4 +52,4 @@ Report concrete job/attempt/checkout/commit identities, accepted outcomes, block
 
 For a new project, inspect `astack init <path> --dry-run --json`. Apply with `astack init <path> --non-interactive --json` only within authorized setup scope. Optional repeated `--role implementer --role reviewer` installs project-local guides; user-level orchestrator availability is read-only and never installed implicitly. Initialization preserves authored setup and creates disabled `.astack/config.json`; fill it; Astack reads changes directly. Delegation readiness is separate. Init ensures the named Herdr workspace using the saved target or default session/socket; it reports whether the workspace was created or reused. Inspect project instructions and tooling yourself and fill the project configuration; initialization does not discover tools or run scripts, dependencies or agents. Preserve partial registration and pending writer intents; inspect their component recovery contracts before retrying. See `astack init --help` and the canonical `astack --skill` guide.
 
-Before a new Codex worker starts, the host must approve its role launch profile, model/reasoning and exact executable/configuration/environment provenance. Host and owned-pane validation must agree. A pending/failed validation or changed profile blocks startup/reuse; do not repeat it or replace the worker automatically. Preserve the runtime record and resource holds for deliberate host recovery. Configuration parsing is not proof of sandbox enforcement or completed shutdown.
+Before a new Codex worker starts, configure its role launch profile, model/reasoning and executable/configuration/environment provenance. Host and owned-pane validation must agree. A pending/failed validation or changed profile blocks startup/reuse; do not repeat it or replace the worker automatically. Preserve the runtime record and resource holds for deliberate host recovery. Configuration parsing is not proof of sandbox enforcement or completed shutdown.

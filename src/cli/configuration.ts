@@ -89,7 +89,7 @@ export function wireConfigurationCommands(program: Command): void {
                 registry: opened.registry,
                 git: createGitInspector({ executable, runner: nodeProcessRunner }),
                 identity: nodeCheckoutIdentityReader,
-                configuration: createNodeConfigurationReader(opened.registry),
+                configuration: createNodeConfigurationReader(opened.registry, opened.store),
                 prerequisites: createNodeConfigurationProbe(
                   (name) => Object.hasOwn(process.env, name) && Boolean(process.env[name]),
                 ),

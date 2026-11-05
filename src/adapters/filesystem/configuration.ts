@@ -3,6 +3,7 @@ import { access, lstat, stat } from 'node:fs/promises';
 import { basename, dirname, join, isAbsolute } from 'node:path';
 import { projectIdSchema } from '../../contracts/project-context.js';
 import type { ProjectRegistry } from '../../ports/project-registry.js';
+import type { StateStore } from '../../ports/state-store.js';
 import type { ConfigurationDiagnostic } from '../../contracts/configuration.js';
 import type { ConfigurationReader, ConfigurationProbe } from '../../ports/configuration.js';
 import {
@@ -123,8 +124,24 @@ export async function readProjectConfiguration(
 }
 
 /** Reads only: never creates config folders, copies proposals, launches hooks or searches cwd. */
-export function createNodeConfigurationReader(registry: ProjectRegistry): ConfigurationReader {
+export function createNodeConfigurationReader(
+  registry: ProjectRegistry,
+  state?: Pick<StateStore, 'readJobConfiguration'>,
+): ConfigurationReader {
   return {
+    async readJobPolicy(jobId, signal) {
+      if (signal?.aborted || !state) {
+        return null;
+      }
+
+      const result = state.readJobConfiguration(jobId);
+
+      if (result.outcome === 'rejected') {
+        throw new ConfigurationReadError('configuration_unavailable');
+      }
+
+      return result.value;
+    },
     async readPolicy(projectId, signal) {
       if (signal?.aborted) {
         throw new ConfigurationReadError('configuration_unavailable');

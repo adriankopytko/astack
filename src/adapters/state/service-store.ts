@@ -26,6 +26,8 @@ import { canonicalJson, type StateDatabase } from './database.js';
 import { acceptJobTransaction } from './store.js';
 import { runControl, saveRunControl, appendRunEvent } from './run-events.js';
 import { stateFailure } from './errors.js';
+import { configurationDigest } from '../../core/configuration.js';
+import { hostConfigurationPolicySchema } from '../../contracts/configuration.js';
 
 export function createSqliteServiceStore(
   db: StateDatabase,
@@ -101,8 +103,17 @@ export function createSqliteServiceStore(
   }
 
   return {
-    submit({ job, entry }) {
+    submit({ job, entry, policy }) {
       return db.write(() => {
+        if (
+          !hostConfigurationPolicySchema.safeParse(policy).success ||
+          configurationDigest(policy) !== job.configuration?.policyDigest ||
+          policy.projectId !== job.projectId ||
+          policy.repositoryId !== job.repositoryId
+        ) {
+          stateFailure('state_conflict');
+        }
+
         const review = reviewTaskSchema.safeParse(job.intent.task);
 
         if (
@@ -241,6 +252,11 @@ export function createSqliteServiceStore(
 
           return { value: existing, disposition: 'existing' };
         }
+
+        db.statement('INSERT INTO job_configurations(job_id, data) VALUES (?, ?)').run(
+          job.id,
+          canonicalJson(policy),
+        );
 
         const repository = db
           .statement('SELECT data FROM repositories WHERE id=?')

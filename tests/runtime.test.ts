@@ -33,6 +33,30 @@ function value(result: OperationResult<RuntimeStatus>): RuntimeStatus {
 }
 
 await test(
+  'a queued worker starts with the configuration accepted for its job',
+  options,
+  async () => {
+    await fixture(async ({ prepare, deps, policy, calls }) => {
+      const job = await prepare();
+      await policy((value) => {
+        value.execution.enabled = false;
+        value.execution.commands['fixture-worker'].args = [];
+        value.execution.launchProfiles = {
+          implementer: { runtime: 'codex-herdr', settings: { model: 'changed' } },
+        };
+      });
+
+      const launched = value(
+        await launchRuntime({ schemaVersion: 1, attemptId: job.attempt.id }, deps),
+      );
+
+      assert.equal(launched.state, 'running');
+      assert.equal(calls.filter((call) => call.operation === 'launch').length, 1);
+    });
+  },
+);
+
+await test(
   'launch persists stable attempt identity before the effect, binds native session, and reuses without another writer',
   options,
   async () => {
@@ -466,7 +490,7 @@ await test(
 );
 
 await test(
-  'revoked policy, missing capability, malformed requests and cancellation cannot launch workers',
+  'accepted settings survive project edits while malformed requests and cancellation cannot launch workers',
   options,
   async () => {
     await fixture(async ({ prepare, deps, policy, calls, context }) => {
@@ -504,8 +528,8 @@ await test(
       });
       const revoked = await launchRuntime(request, deps);
 
-      assert.ok(revoked.outcome === 'rejected' && revoked.error.code === 'configuration_blocked');
-      assert.equal(calls.length, 0);
+      assert.equal(value(revoked).state, 'running');
+      assert.equal(calls.filter((call) => call.operation === 'launch').length, 1);
     });
   },
 );

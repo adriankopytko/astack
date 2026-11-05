@@ -409,10 +409,63 @@ export async function acceptConfiguredJob(
     job: { ...job, configuration: resolution.value.snapshot },
   });
 
-  return accepted.valid ? dependencies.store.acceptJob(accepted.value) : accepted.result;
+  if (!accepted.valid) {
+    return accepted.result;
+  }
+
+  let policy: ReturnType<typeof hostConfigurationPolicySchema.safeParse>;
+
+  try {
+    policy = hostConfigurationPolicySchema.safeParse(
+      await dependencies.configuration.readPolicy(job.projectId, signal),
+    );
+  } catch {
+    return rejected('configuration_unavailable', 'Project configuration could not be read.');
+  }
+
+  if (signal?.aborted) {
+    return rejected('cancelled', 'Job acceptance was cancelled before persistence.');
+  }
+
+  if (
+    !policy.success ||
+    configurationDigest(policy.data) !== resolution.value.snapshot.policyDigest
+  ) {
+    return rejected(
+      'configuration_blocked',
+      'Project configuration changed during job acceptance; retry the submission.',
+    );
+  }
+
+  return dependencies.store.acceptJob(accepted.value, policy.data);
 }
 
-/** A dispatch gate, not a dispatcher: refresh revocation, executables, environment, skills and checkout. */
+/** Read a job's private accepted configuration without reading the mutable project file. */
+export async function readJobConfiguration(
+  job: StateJob,
+  reader: ConfigurationReader,
+  signal?: AbortSignal,
+): Promise<HostConfigurationPolicy | null> {
+  if (!job.configuration) {
+    return null;
+  }
+
+  const saved = await reader.readJobPolicy?.(job.id, signal);
+  const parsed = hostConfigurationPolicySchema.safeParse(saved);
+
+  if (
+    !parsed.success ||
+    parsed.data.projectId !== job.projectId ||
+    parsed.data.repositoryId !== job.repositoryId ||
+    configurationDigest(parsed.data) !== job.configuration.policyDigest
+  ) {
+    return null;
+  }
+
+  return parsed.data;
+}
+
+/** Recheck the assigned checkout and availability using the job's accepted settings. */
 export async function checkConfigurationDispatch(
   input: unknown,
   dependencies: ConfigurationDependencies,
@@ -444,35 +497,54 @@ export async function checkConfigurationDispatch(
     });
   }
 
-  const current = await resolveConfiguration(
-    {
-      schemaVersion: 1,
-      projectId: saved.projectId,
-      checkoutId: saved.checkoutId,
-      role: saved.role,
-      request: saved.request,
-    },
-    dependencies,
-    signal,
-  );
+  try {
+    const policy = await readJobConfiguration(parsed.value.job, dependencies.configuration, signal);
 
-  if (current.outcome === 'rejected') {
-    return current;
-  }
+    if (signal?.aborted) {
+      return rejected('cancelled', 'Dispatch configuration inspection was cancelled.');
+    }
 
-  if (configurationDigest(current.value.snapshot) !== configurationDigest(saved)) {
+    if (!policy) {
+      return completed({
+        status: 'blocked',
+        snapshot: saved,
+        proposal: 'absent',
+        diagnostics: [
+          diagnostic(
+            'snapshot_missing',
+            'The saved job configuration is unavailable; submit a new job.',
+          ),
+        ],
+      });
+    }
+
+    const selected = await selectProjectContext(
+      { schemaVersion: 1, projectId: saved.projectId, checkoutId: saved.checkoutId },
+      dependencies,
+      signal,
+    );
+
+    if (selected.outcome === 'rejected') {
+      return selected;
+    }
+
+    const checks = prerequisites(policy, saved);
+    checks.diagnostics.push(...(await dependencies.prerequisites.inspect(checks.input, signal)));
+
+    if (signal?.aborted) {
+      return rejected('cancelled', 'Dispatch configuration inspection was cancelled.');
+    }
+
     return completed({
-      ...current.value,
-      status: 'blocked',
-      diagnostics: [
-        ...current.value.diagnostics,
-        diagnostic(
-          'policy_changed',
-          'Review the changed project configuration and accept a new job; the saved job configuration is immutable.',
-        ),
-      ],
+      status: checks.diagnostics.length ? 'blocked' : 'ready',
+      snapshot: saved,
+      proposal: 'absent',
+      diagnostics: checks.diagnostics,
     });
+  } catch {
+    return rejected(
+      'configuration_unavailable',
+      'The saved job configuration could not be inspected.',
+    );
   }
-
-  return current;
 }

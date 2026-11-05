@@ -17,6 +17,7 @@ import { submitFollowUpReview } from './review.js';
 import { inspectOwnedAssignment, OwnedAssignmentFailure } from './owned-assignment.js';
 import { watchCi, type CiDependencies } from './ci.js';
 import { configurationDigest } from '../core/configuration.js';
+import { reviewGateConfigurationDigest } from '../core/review-gates.js';
 import { followUpCiRequest, followUpCiId } from '../core/automatic-review.js';
 import { parseOperationRequest } from '../core/parse-operation-request.js';
 export interface AutomaticReviewDependencies {
@@ -91,7 +92,7 @@ async function validate(
   const policy = await approved(plan.projectId, plan.repositoryId, deps, signal);
 
   if (
-    configurationDigest(policy) !== plan.policyDigest ||
+    reviewGateConfigurationDigest(policy) !== plan.policyDigest ||
     (plan.gate.overrideReason !== null && policy.execution.review?.allowGateOverride !== true) ||
     (plan.gate.allowNoChecks === true && policy.execution.review?.allowNoChecks !== true)
   ) {
@@ -229,7 +230,7 @@ export async function enqueueFollowUpReview(
       instructionPaths: followUp.instructionPaths,
       worktreeId: owned.managed.intent.id,
       root: owned.root,
-      policyDigest: configurationDigest(policy),
+      policyDigest: reviewGateConfigurationDigest(policy),
       phase: settings.enabled && deps.executorEnabled ? 'waiting' : 'suspended',
       reason: !deps.executorEnabled
         ? 'executor_disabled'

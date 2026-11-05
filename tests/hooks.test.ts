@@ -222,7 +222,7 @@ await test(
   },
 );
 await test(
-  'missing hooks, changed proposals/policy, stale SHA, wrong resources and invalid/cancelled requests launch nothing',
+  'invalid hook requests launch nothing and later configuration edits preserve the accepted hook',
   options,
   async () => {
     await fixture(async (f) => {
@@ -265,8 +265,12 @@ await test(
       p.policy.execution.enabled = false;
       await writeFile(p.path, JSON.stringify(p.policy), { mode: 0o600 });
 
-      assert.equal((await executeHook(request(p.job, 'verify'), deps)).outcome, 'rejected');
       assert.equal(calls, 0);
+
+      const executed = await executeHook(request(p.job, 'verify'), deps);
+
+      assert.ok(executed.outcome === 'persisted' && executed.value.status === 'succeeded');
+      assert.equal(calls, 1);
     });
   },
 );

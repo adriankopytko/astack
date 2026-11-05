@@ -13,6 +13,8 @@ import {
   requestLocalService,
   acquireCoordinatorOwnership,
   submitServiceJob,
+  checkConfigurationDispatch,
+  openSqliteState,
   serviceJobSchema,
   type ServiceWorkerRuntime,
   type ServiceJob,
@@ -116,6 +118,127 @@ await test(
         'unsupported_contract_version',
       );
       assert.deepEqual(opened.service.list(), before);
+    });
+  },
+);
+
+await test(
+  'new jobs read updated configuration while queued jobs retain their saved settings',
+  options,
+  async () => {
+    await fixture(async ({ deps, request, opened, state }) => {
+      const first = await submitServiceJob(request(0, 'before-edit'), deps);
+
+      assert.ok(first.outcome === 'persisted');
+
+      const path = join(state, 'config', 'project-0.json');
+      const policy = JSON.parse(await readFile(path, 'utf8')) as {
+        revision: string;
+        execution: { commands: Record<string, { executable: string; args: string[] }> };
+      };
+      policy.revision = 'v2';
+      policy.execution.commands['fixture-worker']!.args = ['--help'];
+      await writeFile(path, JSON.stringify(policy));
+      const retry = await submitServiceJob(request(0, 'before-edit'), deps);
+
+      assert.ok(retry.outcome === 'persisted' && retry.disposition === 'existing');
+      assert.equal(retry.value.job.id, first.value.job.id);
+
+      const cancelled = await submitServiceJob(
+        request(0, 'before-edit'),
+        deps,
+        AbortSignal.abort(),
+      );
+
+      assert.ok(cancelled.outcome === 'rejected' && cancelled.error.code === 'cancelled');
+
+      const second = await submitServiceJob(request(0, 'after-edit'), deps);
+
+      assert.ok(second.outcome === 'persisted');
+      assert.equal(first.value.job.configuration?.policyRevision, 'v1');
+      assert.equal(second.value.job.configuration?.policyRevision, 'v2');
+      assert.equal(JSON.stringify(first.value).includes('--version'), false);
+      assert.equal(JSON.stringify(second.value).includes('--help'), false);
+
+      const reopened = await openSqliteState({
+        schemaVersion: 1,
+        stateDirectory: state,
+        mode: 'read-only',
+      });
+
+      assert.ok(reopened.outcome === 'opened');
+
+      try {
+        const stored = reopened.store.readJobConfiguration(first.value.job.id);
+
+        assert.ok(stored.outcome === 'completed' && stored.value);
+        assert.equal((stored.value as { revision: string }).revision, 'v1');
+      } finally {
+        reopened.store.close();
+      }
+
+      const worker = provider();
+      const coordinator = createServiceCoordinator({
+        sessionId: 'config-test',
+        dependencies: deps,
+        limits: { global: 2, defaultRole: 2, perRole: {} },
+        runtimes: [worker.runtime],
+        onFailure: () => assert.fail('Unexpected coordinator failure'),
+      });
+      coordinator.start();
+      await coordinator.idle();
+      await coordinator.stop();
+
+      assert.ok(worker.started.includes(first.value.job.id));
+
+      const secondReady = await checkConfigurationDispatch(
+        { schemaVersion: 1, job: second.value.job },
+        deps,
+      );
+
+      assert.ok(secondReady.outcome === 'completed' && secondReady.value.status === 'ready');
+      assert.equal(opened.store.readJobConfiguration(first.value.job.id).outcome, 'completed');
+    });
+  },
+);
+
+await test('custom worker roles receive their own accepted configuration', options, async () => {
+  await fixture(async ({ deps, request, state }) => {
+    const path = join(state, 'config', 'project-0.json');
+    const policy = JSON.parse(await readFile(path, 'utf8')) as {
+      project: { roles: Record<string, { runtime: string; command: string }> };
+    };
+    policy.project.roles.researcher = { runtime: 'fixture', command: 'fixture-worker' };
+    await writeFile(path, JSON.stringify(policy));
+    const submitted = await submitServiceJob(request(0, 'research-task', 'researcher'), deps);
+
+    assert.ok(submitted.outcome === 'persisted', JSON.stringify(submitted));
+    assert.equal(submitted.value.job.configuration?.role, 'researcher');
+    assert.equal(submitted.value.job.configuration?.effective.roles.researcher?.runtime, 'fixture');
+  });
+});
+
+await test(
+  'missing saved job configuration never falls back to current project settings',
+  options,
+  async () => {
+    await fixture(async ({ deps, request, opened, state }) => {
+      const submitted = await submitServiceJob(request(0, 'missing-snapshot'), deps);
+
+      assert.ok(submitted.outcome === 'persisted');
+
+      const { DatabaseSync } = await import('node:sqlite');
+      const database = new DatabaseSync(join(state, 'state.sqlite'));
+      database.prepare('DELETE FROM job_configurations WHERE job_id=?').run(submitted.value.job.id);
+      database.close();
+      const check = await checkConfigurationDispatch(
+        { schemaVersion: 1, job: submitted.value.job },
+        deps,
+      );
+
+      assert.ok(check.outcome === 'completed' && check.value.status === 'blocked');
+      assert.ok(check.value.diagnostics.some((item) => item.code === 'snapshot_missing'));
+      assert.equal(opened.service.read(submitted.value.job.id).outcome, 'completed');
     });
   },
 );
@@ -361,7 +484,7 @@ await test(
 );
 
 await test(
-  'policy revocation, changed checkout assignment and absent runtimes block before launch',
+  'changed checkout assignment and absent runtimes block while accepted settings survive edits',
   options,
   async () => {
     await fixture(async ({ submit, deps, state, sources, opened }) => {
@@ -388,10 +511,7 @@ await test(
         coordinator.start();
         await coordinator.idle();
 
-        assert.equal(
-          saved(opened.service.read(first.job.id)).entry.reason,
-          'configuration_blocked',
-        );
+        assert.equal(saved(opened.service.read(first.job.id)).entry.reason, 'runtime_unavailable');
         assert.equal(saved(opened.service.read(second.job.id)).entry.reason, 'runtime_unavailable');
         assert.equal(saved(opened.service.read(third.job.id)).entry.reason, 'runtime_unavailable');
         assert.equal(worker.started.length, 0);
@@ -412,7 +532,7 @@ await test(
         await withRuntime.idle();
 
         assert.equal(saved(opened.service.read(second.job.id)).entry.reason, 'assignment_changed');
-        assert.deepEqual(worker.started, [third.job.id]);
+        assert.deepEqual(new Set(worker.started), new Set([first.job.id, third.job.id]));
       } finally {
         await withRuntime.stop();
       }

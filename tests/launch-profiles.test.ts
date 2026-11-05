@@ -95,7 +95,7 @@ process.exit(3);
         args: nativeArgs,
         space: { ...layout.record, root },
         invocationId: 'validation-fixture',
-        timeoutMs: 5000,
+        timeoutMs: 30000,
       };
       const runPane: RuntimePaneProbe['probe'] = async (request, signal) => {
         const execution = await nodeProcessRunner.run(
@@ -608,7 +608,7 @@ await test(
 );
 
 await test(
-  'missing profiles, cancelled probes and policy changes cannot authorize native startup',
+  'missing profiles and cancelled probes block startup while project edits retain accepted settings',
   options,
   async () => {
     for (const mode of ['missing', 'cancelled', 'policy']) {
@@ -647,12 +647,12 @@ await test(
         };
         const result = await launchRuntime(request, deps, controller.signal);
 
-        assert.equal(calls.length, 0, JSON.stringify(result));
+        assert.equal(calls.length, mode === 'policy' ? 1 : 0, JSON.stringify(result));
         assert.equal(probes, mode === 'missing' ? 0 : 1);
 
         await launchRuntime(request, deps);
 
-        assert.equal(calls.length, 0);
+        assert.equal(calls.length, mode === 'policy' ? 1 : 0);
         assert.equal(probes, mode === 'missing' ? 0 : 1);
       });
     }

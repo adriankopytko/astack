@@ -24,7 +24,7 @@ import {
   type CompletedImplementationDependencies,
 } from './completed-implementation.js';
 import { executeHook, type HookDependencies } from './hooks.js';
-import { checkConfigurationDispatch } from './configuration.js';
+import { checkConfigurationDispatch, readJobConfiguration } from './configuration.js';
 export interface VerificationDependencies
   extends HookDependencies, CompletedImplementationDependencies {
   verifications: VerificationStore;
@@ -80,7 +80,7 @@ export async function checkImplementationVerification(
     const r = parsed.value;
     const record = take(deps.verifications.authorize(r.id, r.source, r.jobId, r.reportId));
     const policy = hostConfigurationPolicySchema.parse(
-      await deps.configuration.readPolicy(record.source.projectId, signal),
+      await deps.configuration.readJobPolicy?.(record.request.jobId, signal),
     );
     const selection = verificationSelection(policy, record.role, record.request);
     const rawProposal = await deps.configuration.readProposal(record.source.root, signal);
@@ -178,7 +178,7 @@ export async function verifyImplementation(
     }
 
     const policy = hostConfigurationPolicySchema.parse(
-      await deps.configuration.readPolicy(inspected.source.projectId, signal),
+      await readJobConfiguration(inspected.job.job, deps.configuration, signal),
     );
 
     if (configurationDigest(policy) !== ready.snapshot.policyDigest) {
@@ -360,7 +360,7 @@ export async function verifyImplementation(
     }
 
     const finalPolicy = hostConfigurationPolicySchema.parse(
-      await deps.configuration.readPolicy(current.source.projectId, signal),
+      await readJobConfiguration(inspected.job.job, deps.configuration, signal),
     );
 
     if (configurationDigest(finalPolicy) !== current.policyDigest) {

@@ -318,7 +318,7 @@ await test(
 );
 
 await test(
-  'instruction drift and policy revocation block first input without granting a replacement launch',
+  'instruction drift blocks first input despite later configuration edits',
   options,
   async () => {
     await fixture(async (context) => {
@@ -348,7 +348,7 @@ await test(
         service.wake();
         await service.idle();
 
-        assert.equal(saved(job.job.job.id, context.deps).job.entry.reason, 'configuration_blocked');
+        assert.equal(saved(job.job.job.id, context.deps).job.entry.reason, 'workflow_blocked');
         assert.equal(context.launches.length, 0);
       } finally {
         await service.stop();

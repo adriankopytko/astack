@@ -29,7 +29,12 @@ import { selectProjectContext } from './select-project-context.js';
 import type { ProjectDependencies } from './project-facts.js';
 import { reviewTask } from './review.js';
 import { configurationDigest } from '../core/configuration.js';
-import { sameReviewTarget, reviewGateBlocker } from '../core/review-gates.js';
+import {
+  sameReviewTarget,
+  reviewGateBlocker,
+  reviewGateConfigurationDigest,
+} from '../core/review-gates.js';
+import { readJobConfiguration } from './configuration.js';
 import { parseOperationRequest } from '../core/parse-operation-request.js';
 
 export interface CiDependencies extends ProjectDependencies {
@@ -92,6 +97,7 @@ async function binding(
   let gate;
   let baseSha: string | null = null;
   let expectedPolicy: string | null = null;
+  let savedPolicy: unknown = null;
 
   if (source.kind === 'handoff') {
     const handoff = take(deps.handoffs.find(source.jobId, source.key));
@@ -133,6 +139,7 @@ async function binding(
     gate = task.submission.gate;
     baseSha = task.initialSnapshot.baseSha;
     expectedPolicy = run.job.job.configuration?.policyDigest ?? null;
+    savedPolicy = await readJobConfiguration(run.job.job, deps.configuration, signal);
 
     if (!expectedPolicy) {
       throw new CiFailure('configuration_blocked');
@@ -140,7 +147,9 @@ async function binding(
   }
 
   const policy = hostConfigurationPolicySchema.safeParse(
-    await deps.configuration.readPolicy(projectId, signal),
+    source.kind === 'handoff'
+      ? await deps.configuration.readPolicy(projectId, signal)
+      : savedPolicy,
   );
 
   if (
@@ -170,7 +179,10 @@ async function binding(
     target,
     gate,
     baseSha,
-    policyDigest: configurationDigest(policy.data),
+    policyDigest:
+      source.kind === 'handoff'
+        ? reviewGateConfigurationDigest(policy.data)
+        : configurationDigest(policy.data),
   };
 }
 

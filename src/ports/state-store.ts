@@ -18,11 +18,13 @@ import type {
   StateWriteResult,
 } from '../contracts/state.js';
 import type { ProjectContextReader } from './project-context-reader.js';
+import type { HostConfigurationPolicy } from '../contracts/configuration.js';
 
 /** Synchronous, bounded local transactions only. No provider execution or transaction callbacks. */
 export interface StateStore extends ProjectContextReader {
+  readJobConfiguration(jobId: string): OperationResult<unknown>;
   saveProject(request: StateProjectRequest): StateWriteResult<StateProjectRequest>;
-  acceptJob(request: StateJobRequest): StateWriteResult<StateJob>;
+  acceptJob(request: StateJobRequest, policy?: HostConfigurationPolicy): StateWriteResult<StateJob>;
   prepareAttempt(
     request: StateAttemptRequest,
   ): StateWriteResult<{ attempt: StateAttempt; effects: StateEffect[] }>;

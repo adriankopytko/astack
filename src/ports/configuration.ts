@@ -3,9 +3,10 @@ import type {
   HostConfigurationPolicy,
 } from '../contracts/configuration.js';
 
-/** Host implementations establish trust; repository proposals are always untrusted data. */
+/** Read the project configuration and, where available, the private configuration accepted for a job. */
 export interface ConfigurationReader {
   readPolicy(projectId: string, signal?: AbortSignal): Promise<unknown>;
+  readJobPolicy?(jobId: string, signal?: AbortSignal): Promise<unknown>;
   readProposal(checkoutRoot: string, signal?: AbortSignal): Promise<unknown>;
 }
 

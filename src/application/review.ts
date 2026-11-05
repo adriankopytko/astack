@@ -18,6 +18,7 @@ import { parseOperationRequest } from '../core/parse-operation-request.js';
 import { reviewGateBlocker, sameReviewTarget } from '../core/review-gates.js';
 import { renderReviewPrompt, reviewInputKey } from '../core/review-prompt.js';
 import { configurationDigest } from '../core/configuration.js';
+import { readJobConfiguration } from './configuration.js';
 import { inspectOwnedAssignment, OwnedAssignmentFailure } from './owned-assignment.js';
 import { submitServiceJob } from './service.js';
 import {
@@ -81,7 +82,9 @@ async function policy(
   job?: ServiceJob,
 ): Promise<string> {
   const value = hostConfigurationPolicySchema.safeParse(
-    await deps.configuration.readPolicy(task.submission.projectId, signal),
+    job
+      ? await readJobConfiguration(job.job, deps.configuration, signal)
+      : await deps.configuration.readPolicy(task.submission.projectId, signal),
   );
 
   if (

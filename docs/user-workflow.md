@@ -42,9 +42,9 @@ The generated project configuration starts disabled. Before delegation, fill it 
 
 ### Configuration changes and the orchestrator
 
-Currently, an accepted worker job retains a configuration snapshot. Before dispatch and some later actions, Astack compares it with the current project configuration. Because the comparison includes the full project policy, an unrelated change can block a queued worker, follow-up input or interruption. New jobs read the current file. This is implemented behavior, not an approval requirement.
+Astack reads the current project configuration when it accepts a worker job and stores the accepted settings privately with that job. Queued and running workers keep those settings after project edits; the next accepted worker uses the updated file. The orchestrator does not receive the configuration automatically. It uses the Astack skill and reads the file when setting up or diagnosing a project. The user's coding agent manages its own skill and project-instruction loading.
 
-The desired direction is different: implementer, reviewer and future researcher jobs use the configuration selected for the job, while a long-running orchestrator can use the latest project setup for future decisions and delegations without restarting its session. This behavior is **not implemented yet**. Astack would need a way to expose updated settings or guidance to the orchestrator; it cannot assume an agent automatically reloads changed instructions or skills. Changing the model or startup options of an already running agent may still require a new process, depending on its provider.
+Astack currently retains the accepted job's verification settings too: checks explicitly run for that job use its saved commands even if the project file has since changed. Start a new job to use a changed verification configuration. Configuration storage does not capture ambient environment values or executable contents; it does retain explicitly configured nonsecret launch-profile paths. The selected executable and other prerequisites must still be available.
 
 ### 2. Select the project and prepare a worker
 

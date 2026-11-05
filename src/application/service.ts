@@ -1,4 +1,5 @@
 import type { HookStore } from '../ports/hooks.js';
+import { isDeepStrictEqual } from 'node:util';
 import type { AutomaticReviewStore } from '../ports/automatic-review.js';
 import { reviewTaskSchema } from '../contracts/review-task.js';
 import {
@@ -27,6 +28,8 @@ import {
   type ConfigurationDependencies,
 } from './configuration.js';
 import { selectProjectContext } from './select-project-context.js';
+import { hostConfigurationPolicySchema } from '../contracts/configuration.js';
+import { configurationDigest } from '../core/configuration.js';
 
 export interface ServiceDependencies extends ConfigurationDependencies {
   hooks?: Pick<HookStore, 'prerequisitesReady' | 'integrationReady'>;
@@ -47,7 +50,37 @@ export async function submitServiceJob(
     return parsed.result;
   }
 
+  if (signal?.aborted) {
+    return rejected('cancelled', 'Submission was cancelled before persistence.');
+  }
+
   const request = parsed.value;
+  const existing = dependencies.queue.find({
+    projectId: request.projectId,
+    role: request.role,
+    key: request.key,
+  });
+
+  if (existing.outcome === 'rejected') {
+    return existing;
+  }
+
+  if (existing.value) {
+    const job = existing.value;
+
+    if (
+      (request.checkoutId !== undefined && request.checkoutId !== job.job.checkoutId) ||
+      request.branch !== job.entry.branch ||
+      request.commit !== job.entry.commit ||
+      !isDeepStrictEqual(request.task, job.job.intent.task) ||
+      !isDeepStrictEqual(request.request, job.job.configuration?.request)
+    ) {
+      return rejected('state_conflict', 'This job key already identifies different input.');
+    }
+
+    return { schemaVersion: 1, outcome: 'persisted', disposition: 'existing', value: job };
+  }
+
   const config = await resolveConfiguration(
     {
       schemaVersion: 1,
@@ -72,6 +105,27 @@ export async function submitServiceJob(
   }
 
   const snapshot = config.value.snapshot;
+  let savedPolicy: ReturnType<typeof hostConfigurationPolicySchema.safeParse>;
+
+  try {
+    savedPolicy = hostConfigurationPolicySchema.safeParse(
+      await dependencies.configuration.readPolicy(snapshot.projectId, signal),
+    );
+  } catch {
+    return rejected('configuration_unavailable', 'Project configuration could not be read.');
+  }
+
+  if (signal?.aborted) {
+    return rejected('cancelled', 'Submission was cancelled before persistence.');
+  }
+
+  if (!savedPolicy.success || configurationDigest(savedPolicy.data) !== snapshot.policyDigest) {
+    return rejected(
+      'configuration_blocked',
+      'Project configuration changed during job acceptance; retry the submission.',
+    );
+  }
+
   const job = parseOperationRequest(stateJobRequestSchema, {
     schemaVersion: 1,
     job: {
@@ -118,7 +172,11 @@ export async function submitServiceJob(
     return rejected('cancelled', 'Submission was cancelled before persistence.');
   }
 
-  return dependencies.queue.submit({ job: job.value.job, entry: entry.data });
+  return dependencies.queue.submit({
+    job: job.value.job,
+    entry: entry.data,
+    policy: savedPolicy.data,
+  });
 }
 
 const activeStates = new Set(['dispatching', 'started', 'unknown']);

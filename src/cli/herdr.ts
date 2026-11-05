@@ -168,7 +168,7 @@ export function wireHerdrCommands(program: Command): void {
         runtime: opened.runtime,
         canonicalCodexExecutable: (await hostExecutable('codex', codexExecutable)) ?? '',
         files: createNodeWorktreeFiles(join(opened.stateDirectory, 'worktrees')),
-        configuration: createNodeConfigurationReader(opened.registry),
+        configuration: createNodeConfigurationReader(opened.registry, opened.store),
         prerequisites: createNodeConfigurationProbe(
           (name) => Object.hasOwn(process.env, name) && Boolean(process.env[name]),
         ),

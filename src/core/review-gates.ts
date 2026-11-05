@@ -1,4 +1,14 @@
 import type { ReviewGatePolicy, ReviewSnapshot, ReviewTarget } from '../contracts/review-task.js';
+import type { HostConfigurationPolicy } from '../contracts/configuration.js';
+import { configurationDigest } from './configuration.js';
+
+export function reviewGateConfigurationDigest(policy: HostConfigurationPolicy): string {
+  return configurationDigest({
+    enabled: policy.execution.enabled,
+    review: policy.execution.review ?? null,
+  });
+}
+
 export function sameReviewTarget(a: ReviewTarget, b: ReviewTarget): boolean {
   return (
     a.host === b.host && a.repository === b.repository && a.number === b.number && a.sha === b.sha

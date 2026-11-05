@@ -56,6 +56,37 @@ function coordinator(f: CiReviewFixture, global = 2, sessionId = `auto-verificat
 }
 
 await test(
+  'a pending automatic review uses reviewer settings current when it is accepted',
+  options,
+  async () => {
+    await fixture(async (f) => {
+      const { readFile, writeFile } = await import('node:fs/promises');
+      await f.enable();
+      const plan = await f.enqueue(await f.reviewer());
+      const path = join(f.f.context.context.state, 'config', `${f.f.job.job.projectId}.json`);
+      const policy = JSON.parse(await readFile(path, 'utf8')) as {
+        revision: string;
+        project: { roles: { reviewer: { timeoutMs?: number } } };
+      };
+      policy.revision = 'reviewer-updated';
+      policy.project.roles.reviewer.timeoutMs = 60000;
+      await writeFile(path, JSON.stringify(policy));
+      await ready(f, plan.id);
+      await f.dispatch();
+      const queued = f.savedPlan(plan.id);
+
+      assert.ok(queued.reviewJobId, JSON.stringify(queued));
+
+      const job = f.opened.service.read(queued.reviewJobId);
+
+      assert.ok(job.outcome === 'completed' && job.value);
+      assert.equal(job.value.job.configuration?.policyRevision, 'reviewer-updated');
+      assert.equal(job.value.job.configuration?.effective.roles.reviewer?.timeoutMs, 60000);
+    });
+  },
+);
+
+await test(
   'handoff to pending CI to one independent review requires opt-in, resume, fresh readiness and capacity',
   options,
   async (t) => {

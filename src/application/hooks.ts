@@ -21,7 +21,11 @@ import type { ServiceStore } from '../ports/service.js';
 import type { AllocationStore, PortProbe } from '../ports/resources.js';
 import { parseOperationRequest } from '../core/parse-operation-request.js';
 import { configurationDigest } from '../core/configuration.js';
-import { checkConfigurationDispatch, type ConfigurationDependencies } from './configuration.js';
+import {
+  checkConfigurationDispatch,
+  readJobConfiguration,
+  type ConfigurationDependencies,
+} from './configuration.js';
 import {
   inspectOwnedAssignment,
   OwnedAssignmentFailure,
@@ -108,7 +112,7 @@ async function preflight(
   }
 
   const policy = hostConfigurationPolicySchema.parse(
-    await deps.configuration.readPolicy(job.job.projectId, signal),
+    await readJobConfiguration(job.job, deps.configuration, signal),
   );
 
   if (

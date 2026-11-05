@@ -643,7 +643,7 @@ await test(
 );
 
 await test(
-  'upgrading a version-ten database preserves a completed implementation and retained resources before its first publication',
+  'upgrading older state preserves history but cannot invent a missing job configuration',
   options,
   async () => {
     await fixture(async (f) => {
@@ -653,7 +653,7 @@ await test(
 
       try {
         raw.exec(
-          'DROP TABLE implementation_verifications; DROP TRIGGER hook_release_guard; DROP TABLE hook_invocations; DROP TRIGGER allocation_release_guard; DROP TABLE resource_allocations; DROP TABLE cleanup_plans; DROP TABLE review_result_publications; DROP TABLE review_result_observations; DROP TABLE review_follow_ups; DROP TABLE review_automation; DROP TABLE ci_requests; DROP TABLE ci_targets; DROP TABLE ci_budgets; DROP TABLE implementation_handoffs; DELETE FROM state_migrations WHERE version>=11; PRAGMA user_version=10;',
+          'DROP TABLE job_configurations; DROP TABLE implementation_verifications; DROP TRIGGER hook_release_guard; DROP TABLE hook_invocations; DROP TRIGGER allocation_release_guard; DROP TABLE resource_allocations; DROP TABLE cleanup_plans; DROP TABLE review_result_publications; DROP TABLE review_result_observations; DROP TABLE review_follow_ups; DROP TABLE review_automation; DROP TABLE ci_requests; DROP TABLE ci_targets; DROP TABLE ci_budgets; DROP TABLE implementation_handoffs; DELETE FROM state_migrations WHERE version>=11; PRAGMA user_version=10;',
         );
       } finally {
         raw.close();
@@ -682,38 +682,22 @@ await test(
             verifications: opened.verifications,
             runs: opened.runs,
             allocations: opened.allocations,
+            configuration: {
+              ...f.verificationDeps.configuration,
+              async readJobPolicy(jobId) {
+                const result = opened.store.readJobConfiguration(jobId);
+
+                assert.ok(result.outcome === 'completed');
+
+                return result.value;
+              },
+            },
           },
         );
 
-        assert.ok(
-          verification.outcome === 'persisted' && verification.value.status === 'passed',
-          JSON.stringify(verification),
-        );
-
-        const result = persisted(
-          await finishImplementation(
-            {
-              ...f.input,
-              request: {
-                ...f.request,
-                verification: { source: 'executed', id: verification.value.id },
-              },
-            },
-            {
-              ...f.deps,
-              registry: opened.registry,
-              worktrees: opened.worktrees,
-              state: opened.store,
-              runs: opened.runs,
-              handoffs: opened.handoffs,
-              verifications: opened.verifications,
-            },
-          ),
-        );
-
-        assert.equal(result.record.phase, 'accepted');
-        assert.equal(f.remote.pushCalls, 1);
-        assert.equal(f.remote.postCalls, 1);
+        assert.equal(verification.outcome, 'rejected');
+        assert.equal(f.remote.pushCalls, 0);
+        assert.equal(f.remote.postCalls, 0);
       } finally {
         opened.store.close();
       }

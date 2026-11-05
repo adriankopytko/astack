@@ -22,6 +22,8 @@ import { sha256 } from '../../core/file-paths.js';
 import type { StateStore } from '../../ports/state-store.js';
 import { canonicalJson, type StateDatabase } from './database.js';
 import { StateError, stateFailure } from './errors.js';
+import { hostConfigurationPolicySchema } from '../../contracts/configuration.js';
+import { configurationDigest } from '../../core/configuration.js';
 
 function valid<T extends z.ZodType>(schema: T, value: unknown): z.output<T> {
   const parsed = schema.safeParse(value);
@@ -200,6 +202,13 @@ export function createStateStore(db: StateDatabase, clock: () => number): StateS
   };
 
   return {
+    readJobConfiguration(jobId) {
+      return db.read(() => {
+        const row = db.statement('SELECT data FROM job_configurations WHERE job_id=?').get(jobId);
+
+        return db.data(hostConfigurationPolicySchema, row, 65_536);
+      });
+    },
     saveProject(request) {
       return db.write(() => {
         const repository = db.get(
@@ -260,8 +269,29 @@ export function createStateStore(db: StateDatabase, clock: () => number): StateS
         };
       });
     },
-    acceptJob({ job }) {
-      return db.write(() => acceptJobTransaction(db, job));
+    acceptJob({ job }, policy) {
+      return db.write(() => {
+        if (
+          policy &&
+          (!hostConfigurationPolicySchema.safeParse(policy).success ||
+            configurationDigest(policy) !== job.configuration?.policyDigest ||
+            policy.projectId !== job.projectId ||
+            policy.repositoryId !== job.repositoryId)
+        ) {
+          stateFailure('state_conflict');
+        }
+
+        const result = acceptJobTransaction(db, job);
+
+        if (result.disposition === 'created' && policy) {
+          db.statement('INSERT INTO job_configurations(job_id, data) VALUES (?, ?)').run(
+            job.id,
+            canonicalJson(policy),
+          );
+        }
+
+        return result;
+      });
     },
     prepareAttempt({ attempt, effects }) {
       return db.write(() => {

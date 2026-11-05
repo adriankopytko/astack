@@ -138,7 +138,6 @@ export function automaticReviewAllowed(db: StateDatabase, jobId: string) {
     plan.followUpId === task.data.followUp!.followUpId &&
     plan.projectId === job.projectId &&
     plan.repositoryId === job.repositoryId &&
-    plan.policyDigest === job.configuration?.policyDigest &&
     task.data.root === plan.root &&
     task.data.worktreeId === plan.worktreeId &&
     task.data.submission.key === plan.reviewKey &&
@@ -172,7 +171,6 @@ export function assertFollowUpSubmission(db: StateDatabase, task: ReviewTask, jo
     plan.reviewKey !== task.submission.key ||
     plan.root !== task.root ||
     plan.worktreeId !== task.worktreeId ||
-    plan.policyDigest !== job.configuration?.policyDigest ||
     !isDeepStrictEqual(plan.target, task.submission.target) ||
     !isDeepStrictEqual(plan.gate, task.submission.gate) ||
     !isDeepStrictEqual(plan.instructionPaths, task.submission.instructionPaths) ||
@@ -191,10 +189,6 @@ export function linkFollowUpJob(db: StateDatabase, task: ReviewTask, job: StateJ
   }
 
   const plan = readFollowUp(db, task.followUp!.planId) ?? stateFailure('automatic_review_blocked');
-
-  if (job.configuration?.policyDigest !== plan.policyDigest) {
-    stateFailure('automatic_review_blocked');
-  }
 
   const assigned = reviewTaskSchema.parse(job.intent.task);
   const owned = assigned.authorization === 'after-handoff' && assigned.followUp?.planId === plan.id;

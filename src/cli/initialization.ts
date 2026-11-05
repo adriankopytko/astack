@@ -146,7 +146,7 @@ function compose(
     registry,
     git: createGitInspector({ executable, runner: nodeProcessRunner }),
     identity: nodeCheckoutIdentityReader,
-    configuration: createNodeConfigurationReader(registry),
+    configuration: createNodeConfigurationReader(registry, state?.store),
     prerequisites: createNodeConfigurationProbe((name) => Boolean(process.env[name])),
   };
 

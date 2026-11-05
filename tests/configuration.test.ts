@@ -171,7 +171,7 @@ async function fixture(
 
     const deps: ConfigurationDependencies = {
       ...base,
-      configuration: createNodeConfigurationReader(state),
+      configuration: createNodeConfigurationReader(state, opened.store),
       prerequisites: createNodeConfigurationProbe(() => false),
     };
     const job = stateJobSchema.parse({
@@ -514,7 +514,7 @@ await test('versioned configuration operations reject malformed requests and unk
   });
 });
 
-await test('dispatch gate refreshes permissions even when the human policy revision is unchanged', async () => {
+await test('dispatch uses accepted configuration when the project file changes', async () => {
   await fixture(async ({ job, request, deps, opened, policy, save }) => {
     const accepted = await acceptConfiguredJob(
       { schemaVersion: 1, job, role: request.role, request: {} },
@@ -537,9 +537,8 @@ await test('dispatch gate refreshes permissions even when the human policy revis
       await checkConfigurationDispatch({ schemaVersion: 1, job: accepted.value }, deps),
     );
 
-    assert.equal(revoked.status, 'blocked');
-    assert.ok(revoked.diagnostics.some((entry) => entry.code === 'execution_disabled'));
-    assert.ok(revoked.diagnostics.some((entry) => entry.code === 'policy_changed'));
+    assert.equal(revoked.status, 'ready');
+    assert.equal(revoked.snapshot?.policyDigest, accepted.value.configuration?.policyDigest);
 
     policy.execution.enabled = true;
     policy.execution.commands.worker = { executable: process.execPath, args: ['--help'] };
@@ -548,8 +547,8 @@ await test('dispatch gate refreshes permissions even when the human policy revis
       await checkConfigurationDispatch({ schemaVersion: 1, job: accepted.value }, deps),
     );
 
-    assert.equal(changedCommand.status, 'blocked');
-    assert.ok(changedCommand.diagnostics.some((entry) => entry.code === 'policy_changed'));
+    assert.equal(changedCommand.status, 'ready');
+    assert.equal(changedCommand.snapshot?.policyDigest, accepted.value.configuration?.policyDigest);
   });
 });
 

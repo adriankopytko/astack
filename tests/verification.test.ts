@@ -62,6 +62,28 @@ function noWrites(f: HandoffFixture) {
 }
 
 await test(
+  'verification runs the accepted job commands after the project configuration changes',
+  options,
+  async () => {
+    await fixture(
+      async (f) => {
+        const path = join(f.context.context.state, 'config', `${f.job.job.projectId}.json`);
+        const policy = hostConfigurationPolicySchema.parse(
+          JSON.parse(await readFile(path, 'utf8')),
+        );
+        policy.execution.commands['fixture-check']!.args = ['-e', 'process.exit(7)'];
+        await writeFile(path, JSON.stringify(policy));
+        const result = saved(await run(f));
+
+        assert.equal(result.status, 'passed');
+        assert.equal(result.policyDigest, f.job.job.configuration?.policyDigest);
+      },
+      { verify: false },
+    );
+  },
+);
+
+await test(
   'baseline, lane and additional commands execute in two synthetic technology profiles and bind immutable accepted reports',
   options,
   async () => {
@@ -378,7 +400,7 @@ await test(
   },
 );
 await test(
-  'expiry and host-policy drift block new publication without mutating historical passed evidence',
+  'expiry blocks publication while later configuration edits preserve accepted verification',
   options,
   async () => {
     await fixture(async (f) => {
@@ -417,9 +439,8 @@ await test(
       await writeFile(path, JSON.stringify(policy), { mode: 0o600 });
       const result = await finishImplementation(f.input, f.deps);
 
-      assert.ok(result.outcome === 'rejected' && result.error.code === 'verification_blocked');
-
-      noWrites(f);
+      assert.ok(result.outcome === 'persisted', JSON.stringify(result));
+      assert.equal(f.remote.pushCalls, 1);
     });
   },
 );

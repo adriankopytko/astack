@@ -40,7 +40,7 @@ Migration 13 adds `review_automation` and `review_follow_ups`. Each project defa
 2. For a waiting authorized plan, enroll its owned CI generation. Enrollment rechecks the plan/project switch inside the same SQLite transaction that accepts CI intent, closing the disable-during-enrollment race.
 3. Let the shared CI observer wait without a worker. CI progress wakes the bounded follow-up dispatcher; it never selects another SHA.
 4. When CI is ready, revalidate source/policy/checkout and obtain fresh bracketed PR/check evidence through review acceptance. A cached ready bit alone cannot accept the automatic job.
-5. Atomically accept the existing service job/attempt/launch effect and link it to the plan as queued. Source-target compatibility, current project switch/revision, CI evidence, immutable binding and approved policy digest are checked inside that transaction.
+5. Atomically accept the existing service job/attempt/launch effect and link it to the plan as queued. Source-target compatibility, current project switch/revision, CI evidence, immutable binding and review-gate evidence are checked inside that transaction. The new reviewer job reads the project settings current at acceptance.
 6. The existing coordinator checks live workflow readiness, assignment, policy and capacity. Its claim transaction checks the project switch and plan again and atomically marks the plan dispatched with the worker claim.
 7. Native runtime reservations and immediate launch/initial-input boundaries recheck automatic authorization. Initial assignment receipts retain their existing idempotency and uncertainty rules. Worker results, decisions, continuation, cancellation and cleanup remain the run operations.
 

@@ -95,7 +95,7 @@ Worktree creation currently rejects configured content-filter commands and spars
 
 Use `astack config inspect --project <id> [--checkout <id>] [--role implementer] [--json]` (alias `config check`). It reads existing state and reports effective settings, leaf provenance, pinned skill versions/digests, and actionable prerequisites. Exit 1 means blocked or rejected; readiness launches no command and grants no durable execution capability.
 
-Project settings live in `.astack/config.json` in the registered primary checkout. Fill the file deliberately; Astack reads its current contents directly. Accepted job snapshots remain immutable. Legacy host policy and approval files are not read.
+Project settings live in `.astack/config.json` in the registered primary checkout. Fill the file deliberately; Astack reads its current contents directly. Accepted jobs retain their private saved configuration; later edits apply to new jobs. Job inspection does not print saved command arguments. Legacy host policy and approval files are not read.
 
 Settings resolve defaults → user → approved project → local → request. Objects merge by fields; arrays replace completely. Host-only permissions, timeout limits and mandatory hooks apply after merging. A changed proposal blocks until reviewed; it never grants new permissions. Missing executables, approved environment names or exact protected skill bytes require the reported host action. Never put credential values in JSON, command arguments, skill contents or reports.
 

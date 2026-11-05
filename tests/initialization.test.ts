@@ -34,6 +34,8 @@ import {
   createNodeWorktreeFiles,
   registerProject,
   resolveConfiguration,
+  submitServiceJob,
+  checkConfigurationDispatch,
   inspectSkills,
   reconcileHerdrSpace,
   hostConfigurationPolicySchema,
@@ -90,7 +92,7 @@ async function fixture(
     registry: opened.registry,
     git: createGitInspector({ executable: gitPath, runner: nodeProcessRunner }),
     identity: nodeCheckoutIdentityReader,
-    configuration: createNodeConfigurationReader(opened.registry),
+    configuration: createNodeConfigurationReader(opened.registry, opened.store),
     prerequisites: createNodeConfigurationProbe(() => false),
   };
   const deps: InitializationDependencies = {
@@ -763,6 +765,63 @@ await test(
 );
 
 await test(
+  'real project configuration changes affect new jobs without changing accepted jobs',
+  options,
+  async () => {
+    await fixture(async (f) => {
+      const projectId = 'project-config-flow';
+      view(
+        await initializeProject(
+          { schemaVersion: 1, path: f.source, assignProjectId: projectId },
+          f.deps,
+        ),
+        'initialized',
+      );
+      const path = join(f.source, '.astack', 'config.json');
+      const policy = hostConfigurationPolicySchema.parse(
+        await f.deps.configuration.readPolicy(projectId),
+      );
+      policy.project.roles = { implementer: { runtime: 'fixture', command: 'worker' } };
+      policy.execution.enabled = true;
+      policy.execution.allowedRuntimes = ['fixture'];
+      policy.execution.commands.worker = { executable: process.execPath, args: ['--version'] };
+      const { projectId: _project, repositoryId: _repository, ...config } = policy;
+      await writeFile(path, JSON.stringify(config));
+      let sequence = 0;
+      const deps = {
+        ...f.deps,
+        queue: f.opened.service,
+        now: () => 1000,
+        nextId: (kind: 'job' | 'attempt' | 'effect' | 'claim') => `${kind}-${++sequence}`,
+      };
+      const request = {
+        schemaVersion: 1,
+        projectId,
+        role: 'implementer',
+        key: 'first',
+        branch: 'refs/heads/main',
+        commit: git(f.source, 'rev-parse', 'HEAD'),
+        task: { text: 'fixture' },
+      };
+      const first = await submitServiceJob(request, deps);
+
+      assert.ok(first.outcome === 'persisted', JSON.stringify(first));
+
+      config.execution.enabled = false;
+      await writeFile(path, JSON.stringify(config));
+      const old = await checkConfigurationDispatch(
+        { schemaVersion: 1, job: first.value.job },
+        deps,
+      );
+      const next = await submitServiceJob({ ...request, key: 'second' }, deps);
+
+      assert.ok(old.outcome === 'completed' && old.value.status === 'ready', JSON.stringify(old));
+      assert.ok(next.outcome === 'rejected' && next.error.code === 'configuration_blocked');
+    });
+  },
+);
+
+await test(
   'project configuration is used immediately and changes are read without approval',
   options,
   async () => {
@@ -776,7 +835,7 @@ await test(
         'initialized',
       );
       const config = join(f.source, '.astack', 'config.json');
-      const reader = createNodeConfigurationReader(f.opened.registry);
+      const reader = createNodeConfigurationReader(f.opened.registry, f.opened.store);
       const saved = hostConfigurationPolicySchema.parse(await reader.readPolicy(projectId));
       saved.project.roles = { implementer: { runtime: 'fixture', command: 'worker' } };
       saved.execution.enabled = true;

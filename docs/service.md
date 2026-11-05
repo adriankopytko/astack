@@ -71,7 +71,7 @@ The host sets global and per-role capacity; defaults are one globally and one pe
 
 Claims last 10 seconds and bind the attempt/effect to coordinator session and claim token. Expiry is not authorization for takeover or another launch; uncertain jobs retain their slot. Claiming atomically changes the effect claim and entry to dispatching before the provider call. A storage error or uncertain commit stops the coordinator before another effect; reopen/inspect rather than automatically retrying writes.
 
-Before claiming, the dispatcher rechecks the accepted policy, prerequisites, registered checkout identity and exact current branch/SHA. It then invokes only the explicitly injected adapter matching the approved runtime name. The adapter must consume the trusted command definition covered by the accepted policy digest, construct controlled arguments/environment, and recheck its resource/ownership preconditions immediately before writes. The coordinator's read observations do not authorize arbitrary execution or eliminate filesystem/provider races.
+Before claiming, the dispatcher rechecks the saved job configuration, prerequisites, registered checkout identity and exact current branch/SHA. It then invokes only the explicitly injected adapter matching the approved runtime name. The adapter must consume the trusted command definition covered by the accepted policy digest, construct controlled arguments/environment, and recheck its resource/ownership preconditions immediately before writes. The coordinator's read observations do not authorize arbitrary execution or eliminate filesystem/provider races.
 
 ## Runtime observations and recovery
 

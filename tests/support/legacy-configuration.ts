@@ -3,6 +3,7 @@ import { lstat } from 'node:fs/promises';
 import { basename, dirname, join, isAbsolute } from 'node:path';
 import { projectIdSchema } from '../../src/contracts/project-context.js';
 import type { ConfigurationReader } from '../../src/ports/configuration.js';
+import type { StateStore } from '../../src/ports/state-store.js';
 import {
   canonicalFileRoot,
   hasFileCode,
@@ -103,8 +104,24 @@ function json(file: FileSnapshot | null): unknown {
 }
 
 /** Reads only: never creates config folders, copies proposals, launches hooks or searches cwd. */
-export function createNodeConfigurationReader(stateDirectory: string): ConfigurationReader {
+export function createNodeConfigurationReader(
+  stateDirectory: string,
+  state?: Pick<StateStore, 'readJobConfiguration'>,
+): ConfigurationReader {
   return {
+    async readJobPolicy(jobId) {
+      if (!state) {
+        return null;
+      }
+
+      const result = state.readJobConfiguration(jobId);
+
+      if (result.outcome === 'rejected') {
+        throw new ConfigurationReadError('configuration_unavailable');
+      }
+
+      return result.value;
+    },
     async readPolicy(projectId, signal) {
       if (signal?.aborted) {
         throw new ConfigurationReadError('configuration_unavailable');

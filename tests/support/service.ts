@@ -85,7 +85,7 @@ export async function fixture(
     queue: opened.service,
     git: createGitInspector({ executable: gitPath, runner: nodeProcessRunner }),
     identity: nodeCheckoutIdentityReader,
-    configuration: createNodeConfigurationReader(state),
+    configuration: createNodeConfigurationReader(state, opened.store),
     prerequisites: createNodeConfigurationProbe(() => false),
     now: () => now,
     nextId: (kind) => `${kind}-${String(++sequence).padStart(6, '0')}`,

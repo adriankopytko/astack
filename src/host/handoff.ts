@@ -80,7 +80,7 @@ export async function executeLocalHandoff(
           state: opened.store,
           handoffs: opened.handoffs,
           verifications: opened.verifications,
-          configuration: createNodeConfigurationReader(opened.registry),
+          configuration: createNodeConfigurationReader(opened.registry, opened.store),
           artifacts: nodeRunArtifactReader,
           workerInput: {
             receipt({ attemptId, key }) {
