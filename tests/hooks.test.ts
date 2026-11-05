@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { fixture } from './support/implementation.js';
-import { git } from './support/service.js';
+import { git, writeProjectConfiguration } from './support/service.js';
 import {
   executeHook,
   excludeHookWriter,
@@ -613,6 +613,7 @@ await test(
         JSON.stringify(otherPolicy),
         { mode: 0o600 },
       );
+      await writeProjectConfiguration(f.context, 1);
       const submitted = await submitImplementation(next, f.deps);
 
       assert.ok(submitted.outcome === 'persisted');

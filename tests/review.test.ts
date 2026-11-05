@@ -25,7 +25,7 @@ import {
 } from '../src/index.js';
 import { completed } from '../src/contracts/operation-result.js';
 import { fixture } from './support/implementation.js';
-import { gitPath } from './support/service.js';
+import { gitPath, writeProjectConfiguration } from './support/service.js';
 
 const options = { timeout: 90000 };
 type Context = Parameters<Parameters<typeof fixture>[0]>[0];
@@ -481,6 +481,7 @@ await test(
     await fixture(async (context) => {
       const request = await requestFor(context);
       const state = dependencies(context, request);
+      await writeProjectConfiguration(context.context, 0);
       const service = await startLocalService(
         { schemaVersion: 1, stateDirectory: context.context.state, gitExecutable: gitPath },
         { reviewTargets: state.deps.targets },

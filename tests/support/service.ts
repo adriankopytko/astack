@@ -1,7 +1,7 @@
 import { createNodeConfigurationReader } from './legacy-configuration.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -40,6 +40,22 @@ export function git(cwd: string, ...args: string[]): string {
   assert.equal(result.status, 0, result.stderr);
 
   return result.stdout.trim();
+}
+
+/** Make a fixture policy available to real CLI/service adapters at the primary checkout. */
+export async function writeProjectConfiguration(
+  context: { state: string; sources: string[] },
+  index: number,
+) {
+  const root = context.sources[index];
+
+  assert.ok(root);
+
+  await mkdir(join(root, '.astack'), { recursive: true });
+  await writeFile(
+    join(root, '.astack', 'config.json'),
+    await readFile(join(context.state, 'config', `project-${index}.json`)),
+  );
 }
 
 export async function fixture(

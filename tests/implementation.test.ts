@@ -20,7 +20,7 @@ import {
   type StateWriteResult,
 } from '../src/index.js';
 import { fixture } from './support/implementation.js';
-import { gitPath } from './support/service.js';
+import { gitPath, writeProjectConfiguration } from './support/service.js';
 
 const options = { timeout: 90_000 };
 function accepted(result: StateWriteResult<ImplementationJob>): ImplementationJob {
@@ -460,6 +460,7 @@ await test(
   async () => {
     await fixture(async (context) => {
       const request = await context.prepare();
+      await writeProjectConfiguration(context.context, 0);
       const service = await startLocalService({
         schemaVersion: 1,
         stateDirectory: context.context.state,
