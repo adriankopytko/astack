@@ -18,7 +18,7 @@ import {
   type ServiceJob,
   type WorkerObservation,
 } from '../src/index.js';
-import { fixture, git, gitPath } from './support/service.js';
+import { fixture, git, gitPath, writeProjectConfiguration } from './support/service.js';
 
 const compiled = fileURLToPath(new URL('../dist/index.js', import.meta.url));
 const childFixture = fileURLToPath(new URL('./fixtures/service-child.mjs', import.meta.url));
@@ -478,7 +478,8 @@ await test(
   'socket lifecycle survives client disconnect and preserves accepted jobs; unowned endpoints are refused',
   options,
   async () => {
-    await fixture(async ({ state, request, opened }) => {
+    await fixture(async ({ state, request, opened, sources }) => {
+      await writeProjectConfiguration({ state, sources }, 0);
       const service = await startLocalService({
         schemaVersion: 1,
         stateDirectory: state,
@@ -549,7 +550,8 @@ for (const mode of ['crash-before', 'crash-after'] as const) {
     `real coordinator ${mode} retains effect intent and restarts without duplicate execution`,
     options,
     async () => {
-      await fixture(async ({ state, request, opened }) => {
+      await fixture(async ({ state, request, opened, sources }) => {
+        await writeProjectConfiguration({ state, sources }, 0);
         const child = spawn(process.execPath, [childFixture, compiled, state, gitPath, mode], {
           stdio: ['ignore', 'pipe', 'pipe'],
           env: {},
