@@ -4,7 +4,7 @@ New `codex-herdr` starts require a project-configured role profile and an inject
 
 ## Policy and compatibility
 
-Add `execution.launchProfiles.<role>` to `.astack/config.json` and approve its exact current digest on this host before accepting the job. It has `runtime: "codex-herdr"` and adapter-specific `settings`:
+Add `execution.launchProfiles.<role>` to `.astack/config.json` before accepting the job. Astack reads the current file directly; there is no configuration approval step. It has `runtime: "codex-herdr"` and adapter-specific `settings`:
 
 ```json
 {

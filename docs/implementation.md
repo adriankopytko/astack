@@ -26,7 +26,7 @@ Use global `--state-directory` and `--herdr-executable` to select explicit host 
 
 `--criterion` is repeatable. `--instruction <relative-Markdown-path>` is repeatable and replaces the default instruction path list (`AGENTS.md`, `AGENTS.override.md`). Include the defaults yourself when adding other instruction references. Missing files are explicitly recorded as absent. An empty instruction list is available to library callers; the prompt still requires applicable repository/native instructions. Directory-specific instructions must be read as the worker enters those directories. There is no recursive repository discovery, automatic tracker lookup, or implicit target from ambient cwd/focus.
 
-The role is fixed to `implementer`, resolved under the current trusted host policy. The existing runtime currently blocks hooks, pinned skill delivery and explicit environment requirements that it cannot satisfy. Do not remove required configuration merely to make submission/launch succeed. The checkout must already be registered as a ready Astack-owned worktree in this project, with intact ownership/location, a clean Git status and exact initial branch/SHA. A primary or unowned checkout is refused. Preparation and task acceptance are separate operations, so an unused prepared checkout can remain after a rejected submission; nothing is automatically deleted.
+The role is fixed to `implementer`, resolved under the current project configuration. The existing runtime currently blocks hooks, pinned skill delivery and explicit environment requirements that it cannot satisfy. Do not remove required configuration merely to make submission/launch succeed. The checkout must already be registered as a ready Astack-owned worktree in this project, with intact ownership/location, a clean Git status and exact initial branch/SHA. A primary or unowned checkout is refused. Preparation and task acceptance are separate operations, so an unused prepared checkout can remain after a rejected submission; nothing is automatically deleted.
 
 ## Durable acceptance and idempotency
 
@@ -34,7 +34,7 @@ The role is fixed to `implementer`, resolved under the current trusted host poli
 
 - `schemaVersion: 1`, explicit project/checkout, stable key, full branch ref and initial SHA;
 - selected description, acceptance criteria and repository instruction paths;
-- optional bounded configuration request overrides under host policy.
+- optional bounded configuration request overrides under project configuration.
 
 The job stores a versioned `implementation` task packet: normalized submission, owned worktree ID, canonical checkout path, instruction byte digests/absence and result contract version. The existing service transaction saves the task, role, project/repository/checkout, immutable approved configuration, attempt and pending launch effect atomically before agent launch. No new database migration is needed. Prompt text is reconstructed from that accepted packet and actual job/attempt IDs.
 

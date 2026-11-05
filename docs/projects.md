@@ -72,4 +72,4 @@ Completed context is an observation across Git, filesystem, and database reads, 
 
 ## Project setup
 
-Use [explicit initialization](initialization.md) to compose registration with conservative managed configuration, optional project skills and an explicitly selected primary Herdr space. `project register` retains its state-only behavior. `init --preview` is read-only; applying setup preserves authored files and reports delegation readiness separately.
+Use [explicit initialization](initialization.md) to compose registration with conservative managed configuration, optional project skills and an explicitly selected primary Herdr space. `project register` retains its state-only behavior. `init --dry-run` is read-only; applying setup preserves authored files and reports delegation readiness separately.

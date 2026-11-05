@@ -20,7 +20,7 @@ Managed-file operations can create or upgrade owned generated assets, preserve d
 
 `inspectGitRepository(request, inspector, signal?)` now reads canonical repository/checkout identity, full refs and commit targets, worktree registration, remote endpoint summaries, and tracked/untracked status through an injected Git adapter and process runner. It performs no registration or ownership claim. See [Git inspection](docs/git-inspection.md) for supported selectors, execution controls, and consistency limits. Context and registration consume this API through the CLI.
 
-`openSqliteState(request)` opens private local state with numbered transactional migrations. Library operations persist project identity projections, idempotent job intent, attempts and pending effects, short claims, terminal results, and resource records. The store supplies the original context reader; the returned registry serves project operations. Optional read-only mode supports diagnostics without bootstrap or migration. See [SQLite state](docs/sqlite-state.md) for API contracts, isolated directories, contention, and uncertain-commit handling. Saving intent does not launch an agent or validate a worker report; the generic service dispatcher is implemented separately from runtime adapters. Configured acceptance adds an approved policy snapshot without launching a worker.
+`openSqliteState(request)` opens private local state with numbered transactional migrations. Library operations persist project identity projections, idempotent job intent, attempts and pending effects, short claims, terminal results, and resource records. The store supplies the original context reader; the returned registry serves project operations. Optional read-only mode supports diagnostics without bootstrap or migration. See [SQLite state](docs/sqlite-state.md) for API contracts, isolated directories, contention, and uncertain-commit handling. Saving intent does not launch an agent or validate a worker report; the generic service dispatcher is implemented separately from runtime adapters. Configured acceptance adds a project configuration snapshot without launching a worker.
 
 `project register [path]`, `project list`, and `context` (alias `doctor`) connect Git inspection to explicit local registration. Select a project, checkout, saved attempt, or path from any directory; without selectors, inspect the nearest repository. Read-only diagnostics do not initialize missing state or grant execution authority. See [project registration and context](docs/projects.md) for selectors, stale-location checks, and provider/configuration readiness.
 
@@ -56,7 +56,7 @@ Local planning material is intentionally ignored. Durable contributor requiremen
 - Project selection from an explicit target or an unambiguous registered repository.
 - A primary Herdr workspace per enabled project, with grouped worker workspaces.
 - Shared port and service-name allocation across managed projects.
-- Explicit host-approved setup, verification and service-controller hooks.
+- Explicit project-configured setup, verification and service-controller hooks.
 
 Next, connect remaining project setup and runtime integrations to these run contracts; keep automation and cleanup explicit. Broader task scheduling, automatic fix loops, additional providers, remote execution, and public hosting follow concrete usage.
 
@@ -173,12 +173,12 @@ Explicit host recovery for proven input refusals is available through `runtime a
 
 ## Explicit lifecycle hooks
 
-`astack hooks execute --file <request.json> --json` runs a selected `setup`, `verify`, `start` or `teardown` command under host-approved project configuration in an exact owned checkout. Invocations are saved before effects; unknown/claimed commands never replay. Declared setup/start evidence gates worker dispatch, and integration reviews use independently reserved and verified resources. `hooks inspect`, `exclude-writer` and `reconcile` preserve partial setup and separate controller exclusion from service shutdown. No hooks run implicitly during initialization or service startup. See [policy, requests and recovery](docs/hooks.md).
+`astack hooks execute --file <request.json> --json` runs a selected `setup`, `verify`, `start` or `teardown` command under project configuration in an exact owned checkout. Invocations are saved before effects; unknown/claimed commands never replay. Declared setup/start evidence gates worker dispatch, and integration reviews use independently reserved and verified resources. `hooks inspect`, `exclude-writer` and `reconcile` preserve partial setup and separate controller exclusion from service shutdown. No hooks run implicitly during initialization or service startup. See [policy, requests and recovery](docs/hooks.md).
 
 ## Executed verification before publication
 
 `astack verification run --file <request.json> --json` executes the accepted role's baseline plus selected lane/additional checks through hooks. `verification inspect <id>` reads durable per-check evidence. New `handoff finish` requests reference `{ "source": "executed", "id": "verification-..." }`; missing, failed, changed or expired evidence blocks new push/PR stages. Accepted historical handoffs and claimed-effect recovery remain read-only. Configure private per-role verification before accepting work; see [verification policy and recovery](docs/verification.md).
 
-New Codex starts require a host-approved project role launch profile. [Launch validation](docs/launch-profiles.md) compares executable/version, configuration and environment provenance on the host and in the owned Herdr pane before starting the worker. It preserves authored settings and pending launches; model/reasoning choices come from approved role policy.
+New Codex starts require a configured project role launch profile. [Launch validation](docs/launch-profiles.md) compares executable/version, configuration and environment provenance on the host and in the owned Herdr pane before starting the worker. It preserves authored settings and pending launches; model/reasoning choices come from the configured role profile.
 
 Project settings live in `.astack/config.json`; fill the file and Astack reads it directly, including subsequent edits. Default host state is `~/.astack`. Existing `~/.local/state/astack` remains accessible with `--state-directory` and is not moved automatically.

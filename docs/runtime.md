@@ -17,7 +17,7 @@ astack --state-directory /private/astack --herdr-executable /trusted/bin/herdr s
   --codex-herdr --codex-executable /trusted/bin/codex
 ```
 
-Without `--codex-herdr`, the installed service continues with no built-in runtime. Library hosts may explicitly inject `createCodexHerdrRuntime(dependencies)` instead. Enabling it does not authorize all projects: each saved role must select `codex-herdr` and an approved command under an unchanged, enabled host policy. Provider targets still come from that project's saved settings, never the service cwd or ambient Herdr focus.
+Without `--codex-herdr`, the installed service continues with no built-in runtime. Library hosts may explicitly inject `createCodexHerdrRuntime(dependencies)` instead. Enabling it does not authorize all projects: each saved role must select `codex-herdr` and a configured command under an unchanged, enabled project configuration. Provider targets still come from that project's saved settings, never the service cwd or ambient Herdr focus.
 
 The approved role command's `executable` must equal the host-selected canonical Codex path. Its native `args` must contain each of these flags exactly once (order may vary):
 

@@ -45,7 +45,7 @@ Without `--check`, every observed check must pass and at least one check must ex
 
 `review submit --allow-no-checks` sets the optional gate field `allowNoChecks: true`. It requires private `execution.review.allowNoChecks: true` (alongside the existing `allowGateOverride` field). Only an entirely empty check set with no selected required names qualifies; observed pending/failing/skipped/cancelled checks and missing selected names still block. The optional field is absent on older gates, preserving reconstructed prompts and request digests.
 
-To review before checks pass, the host policy must contain:
+To review before checks pass, the project configuration must contain:
 
 ```json
 { "execution": { "review": { "allowGateOverride": true } } }
@@ -57,7 +57,7 @@ No broad PR scanner or cron is installed. The explicit [CI observer](ci.md) can 
 
 ## Delivery, results and retry
 
-Implementation and review share the durable initial-input delivery mechanism. The review input key is `review:initial:v1`; reconstruction uses only saved task bytes. Acknowledged inputs never resend. Pending or uncertain input remains unknown for inspection, never a reason to launch another worker. Restart can make the first authorized delivery after proving receipt absence and rechecking ownership, instructions, approved policy and target gates.
+Implementation and review share the durable initial-input delivery mechanism. The review input key is `review:initial:v1`; reconstruction uses only saved task bytes. Acknowledged inputs never resend. Pending or uncertain input remains unknown for inspection, never a reason to launch another worker. Restart can make the first authorized delivery after proving receipt absence and rechecking ownership, instructions, configuration and target gates.
 
 The prompt carries the acceptance-time check snapshot, explicitly labeled as historical. Fresh observations after delivery are saved under `entry.observation.evidence.reviewGate`. `entry.readiness` preserves a preflight rejection, while the generic queue reason remains `workflow_blocked`. An overridden review still records failing/pending CI; no check is rewritten as passed.
 

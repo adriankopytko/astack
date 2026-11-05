@@ -3,13 +3,15 @@
 Astack reads a project's settings from **one editable file**, `.astack/config.json` in its registered primary checkout. `astack init` creates a disabled starter and tells the user or agent where to fill it. Astack does not inspect the project to invent commands. Use the project's instructions and tooling to decide which runtime, commands, hooks and verification are appropriate.
 
 ```sh
-astack init /path/to/project --preview --json
+astack init /path/to/project --dry-run --json
 astack init /path/to/project --json
 # Edit /path/to/project/.astack/config.json deliberately.
 astack config inspect --project <project-id> --role implementer --json
 ```
 
 The file is used directly: there is no approval command, digest file or copied host policy. Changes are used for new work. Accepted jobs retain immutable configuration snapshots and are rechecked before dispatch and effects, so a changed configuration can block an existing job rather than silently changing its assignment.
+
+The comparison currently covers the whole resolved policy, so even an unrelated reviewer change can block an existing implementer job. This applies to some worker controls as well as dispatch. The intended direction is for worker jobs to retain their own settings while the long-running orchestrator reads the latest setup for future actions without restarting; this is not implemented yet. Agent instructions and skills may require explicit refresh, and process startup options cannot be assumed to change in place.
 
 The default host state directory is `~/.astack`, shared across projects for registry, jobs and resources. Old host policy and approval files are no longer read; they are left on disk. Existing installations using `~/.local/state/astack` can select that directory explicitly with `--state-directory`. Astack does not automatically delete or migrate old state.
 

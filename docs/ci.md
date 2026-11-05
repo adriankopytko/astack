@@ -4,7 +4,7 @@
 
 Issue #25 adds persistent, shared CI observations for already accepted review work. The CI observer never discovers unrelated PRs, creates a review job, starts an agent, publishes findings or merges. Its progress can wake the separately opted-in [follow-up dispatcher](automatic-review.md). The default service has no CI observer. `service run --observe-ci` explicitly enables the scheduler; `ci watch` separately authorizes waiting for one persisted source.
 
-A source is either an existing manual review job or an accepted implementation handoff containing an explicitly authorized follow-up review. A handoff with `review: null` cannot be watched. Arbitrary repository/PR/SHA targets are not accepted by the enrollment operation. The saved source supplies the exact target and gate; enrollment and every read revalidate it against current trusted host policy and explicit registered project identity.
+A source is either an existing manual review job or an accepted implementation handoff containing an explicitly authorized follow-up review. A handoff with `review: null` cannot be watched. Arbitrary repository/PR/SHA targets are not accepted by the enrollment operation. The saved source supplies the exact target and gate; enrollment and every read revalidate it against current project configuration and explicit registered project identity.
 
 The HTTP adapter runs in the target project's registered primary checkout. Its path/checkout/repository/policy identities are bound at enrollment and rechecked. It never derives the target from the service cwd, ambient Herdr pane, or the presence of a user-managed remote. Cleanup of the implementation worktree does not remove this primary context.
 
@@ -44,7 +44,7 @@ Migration 12 creates `ci_requests`, shared `ci_targets`, and `ci_budgets`. Each 
 | `cancelled` | Host cancelled tracking, or the source review was cancelled                                                                                                                  |
 | `completed` | Host ended tracking, or the source review completed                                                                                                                          |
 
-A completed or decision-blocked source review is checked before its next provider read. Handoff sources refer to the saved authorized follow-up, not the already completed implementer. Failed or needs-decision sources block observation. Resuming a blocked request is explicit; a repaired check or changed host policy does not itself restart it. Policy/context drift requires a newly validated enrollment if the original binding can no longer be restored.
+A completed or decision-blocked source review is checked before its next provider read. Handoff sources refer to the saved authorized follow-up, not the already completed implementer. Failed or needs-decision sources block observation. Resuming a blocked request is explicit; a repaired check or changed project configuration does not itself restart it. Policy/context drift requires a newly validated enrollment if the original binding can no longer be restored.
 
 Shared observations retain the latest successful snapshot/observation time, latest error, next refresh, backoff streak and any in-flight claim. A later failed read preserves the historical successful snapshot with its old timestamp and a separate error. It cannot turn that old snapshot into ready evidence. Request phases apply their own required-check policy to the same result. A ready record is historical: checks may rerun or a PR may move afterward.
 

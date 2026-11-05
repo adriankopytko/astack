@@ -1,12 +1,12 @@
 # Executed implementation verification
 
-`verification run` executes the host-approved baseline and explicitly selected lane/additional checks through lifecycle hooks. It never publishes. A new implementation push or PR publication requires a fresh passed record referenced by `handoff finish`. Worker proposals, a JSON passed claim and host-attestation check lists cannot authorize these new writes. Accepted historical handoffs and already-claimed effect reconciliation retain their existing contracts. See ADR 0025.
+`verification run` executes the configured baseline and explicitly selected lane/additional checks through lifecycle hooks. It never publishes. A new implementation push or PR publication requires a fresh passed record referenced by `handoff finish`. Worker proposals, a JSON passed claim and host-attestation check lists cannot authorize these new writes. Accepted historical handoffs and already-claimed effect reconciliation retain their existing contracts. See ADR 0025.
 
 ## Configure before accepting work
 
-Private host execution policy defines verification per role. The immutable accepted job snapshot retains approved baseline/lane names, definition/command digests and maximum age; it contains no command argv or environment values. Old policies/snapshots without verification retain their old bytes, but do not grant this capability. Configure it before accepting an implementation; a missing or changed approval is not retroactively adopted by an existing job.
+The project configuration defines verification per role. The immutable accepted job snapshot retains approved baseline/lane names, definition/command digests and maximum age; it contains no command argv or environment values. Old policies/snapshots without verification retain their old bytes, but do not grant this capability. Configure it before accepting an implementation; missing or changed verification settings are not retroactively adopted by an existing job.
 
-Example excerpt from an existing complete host policy:
+Example excerpt from a complete project configuration:
 
 ```json
 {
@@ -42,7 +42,7 @@ Example excerpt from an existing complete host policy:
 
 These are placeholders for actual authored project scripts, not commands Astack invents or installs. Existing execution enablement, allowed-environment names, trusted executable checks and maximum timeout still apply. Up to eight approved checks and sixteen lanes are supported; each selection runs at most eight checks. Baseline checks always run first. A selected lane appends its checks, then explicit `additional` approved check names append theirs; duplicates run once, retaining baseline precedence. Unknown names/lanes or missing policy block before execution. `maxAgeMs` must explicitly be 1 second–24 hours. Choose a useful budget for the time between checks and publication.
 
-Portable proposals and worker task text cannot add execution definitions or remove the approved baseline. Hook requests have an optional `verificationCheck` selector usable only in phase `verify`; that selects one named check from the accepted role's current private verification policy. Ordinary setup/verify/start/teardown requests retain their prior behavior. New optional snapshot/request fields are omitted when unused, preserving historical prompt/configuration bytes.
+Worker task text cannot add execution definitions or remove the configured baseline. Hook requests have an optional `verificationCheck` selector usable only in phase `verify`; that selects one named check from the accepted role's current verification configuration. Ordinary setup/verify/start/teardown requests retain their prior behavior. New optional snapshot/request fields are omitted when unused, preserving historical prompt/configuration bytes.
 
 ## Run and inspect
 
@@ -93,7 +93,7 @@ After a passed run, reference its exact ID in the ordinary handoff JSON:
 }
 ```
 
-This is an excerpt; all destination, report and publication authorization fields remain explicit. `handoff finish` never starts verification implicitly. Before preparing a new handoff and before each never-claimed push/PR stage, it requires the matching report/source, current approved private policy and matching repository proposal, complete approved baseline/lane selection, real successful hook evidence and unexpired completion. Existing handoff source checks bracket artifact validation and require the same clean owned commit. SQLite claim transactions independently validate the saved approved plan and hook evidence at the host clock, preventing a manually recorded passed flag or omitted baseline from becoming a claim.
+This is an excerpt; all destination, report and publication authorization fields remain explicit. `handoff finish` never starts verification implicitly. Before preparing a new handoff and before each never-claimed push/PR stage, it requires the matching report/source, matching current project configuration, complete approved baseline/lane selection, real successful hook evidence and unexpired completion. Existing handoff source checks bracket artifact validation and require the same clean owned commit. SQLite claim transactions independently validate the saved approved plan and hook evidence at the host clock, preventing a manually recorded passed flag or omitted baseline from becoming a claim.
 
 Changed SHA, branch, filesystem identity, accepted report/input/artifacts, policy/command digests or expiry invalidate permission for new effects. An expired proof between push and PR blocks the new PR even if the push is confirmed. The push is preserved; there is no automatic repeat. To proceed, execute a deliberately new verification intent and, where needed, a new handoff key with the existing explicit safe `replaces` relation. Do not alter a saved handoff's verification reference or bypass an uncertain effect with a new key.
 
