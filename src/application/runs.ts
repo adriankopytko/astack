@@ -36,7 +36,6 @@ import { configurationDigest } from '../core/configuration.js';
 import { implementationTask } from './implementation.js';
 import { reviewTask, type ReviewDependencies } from './review.js';
 import { inspectOwnedAssignment, OwnedAssignmentFailure } from './owned-assignment.js';
-import { checkConfigurationDispatch } from './configuration.js';
 
 export interface RunDependencies extends ReviewDependencies {
   runs: RunStore;
@@ -423,16 +422,6 @@ export async function resumeRun(
     }
 
     try {
-      const config = read(
-        await checkConfigurationDispatch({ schemaVersion: 1, job: run.job.job }, deps, signal),
-      );
-
-      if (config.status !== 'ready') {
-        throw new RunFailure(
-          rejected('configuration_blocked', 'Resume requires unchanged approved configuration.'),
-        );
-      }
-
       const task = implementationTask(run.job) ?? reviewTask(run.job);
 
       if (!task) {

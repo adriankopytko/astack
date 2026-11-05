@@ -345,6 +345,35 @@ await test(
 );
 
 await test(
+  'configuration edits do not block input or interruption of an already launched worker',
+  options,
+  async () => {
+    await fixture(async ({ prepare, deps, policy, calls }) => {
+      const job = await prepare();
+      const request = { schemaVersion: 1, attemptId: job.attempt.id };
+      const launch = value(await launchRuntime(request, deps));
+
+      assert.equal(launch.state, 'running');
+
+      await policy((value) => {
+        value.execution.enabled = false;
+        value.execution.commands['fixture-worker'].args = [];
+      });
+
+      const input = value(
+        await inputRuntime({ ...request, key: 'after-edit', text: 'Continue' }, deps),
+      );
+      const interrupt = value(await interruptRuntime({ ...request, key: 'stop-after-edit' }, deps));
+
+      assert.equal(input.action?.state, 'acknowledged');
+      assert.equal(interrupt.action?.state, 'acknowledged');
+      assert.equal(calls.filter((call) => call.operation === 'input').length, 1);
+      assert.equal(calls.filter((call) => call.operation === 'interrupt').length, 1);
+    });
+  },
+);
+
+await test(
   'lost input acknowledgement retains one pending action and never resends based on idle state',
   options,
   async () => {

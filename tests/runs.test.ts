@@ -351,6 +351,12 @@ await test(
         assert.ok(responseId);
 
         const request = { schemaVersion: 1, jobId: job.job.id, key: 'resume-1', responseId };
+        const configurationPath = join(context.context.state, 'config', 'project-0.json');
+        const configuration = JSON.parse(await readFile(configurationPath, 'utf8')) as {
+          execution: { enabled: boolean };
+        };
+        configuration.execution.enabled = false;
+        await writeFile(configurationPath, JSON.stringify(configuration));
         const submit = deps.workerInput.submit.bind(deps.workerInput);
         let sends = 0;
         deps.workerInput.submit = async (input, signal) => {

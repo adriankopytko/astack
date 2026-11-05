@@ -726,10 +726,31 @@ async function control(
       checkAutomaticReview(job, deps);
     }
 
-    const command = await approved(job, deps, signal);
+    const role = job.job.configuration?.effective.roles[job.entry.role];
 
-    if (kind === 'input' && !(await profileMatches(session, command, deps, signal))) {
+    if (!role) {
       return status(session, 'blocked', 'policy_blocked');
+    }
+
+    if (kind === 'input' && session.validation?.state !== 'validated') {
+      return status(session, 'blocked', 'policy_blocked');
+    }
+
+    if (kind === 'input') {
+      const currentPolicy = hostConfigurationPolicySchema.safeParse(
+        await deps.configuration.readPolicy(job.job.projectId, signal).catch(() => null),
+      );
+
+      if (
+        currentPolicy.success &&
+        configurationDigest(currentPolicy.data) === job.job.configuration?.policyDigest
+      ) {
+        const command = await approved(job, deps, signal);
+
+        if (!(await profileMatches(session, command, deps, signal))) {
+          return status(session, 'blocked', 'policy_blocked');
+        }
+      }
     }
 
     const observation = await observed(session, deps, signal);
@@ -789,8 +810,15 @@ async function control(
       const bound = { ...session.space, agent: session.agent };
       const response =
         kind === 'input'
-          ? await deps.worker.input(bound, text, controlSignal(command.timeoutMs, signal))
-          : await deps.worker.interrupt(bound, controlSignal(command.timeoutMs, signal));
+          ? await deps.worker.input(
+              bound,
+              text,
+              controlSignal(Math.min(role.timeoutMs, 30_000), signal),
+            )
+          : await deps.worker.interrupt(
+              bound,
+              controlSignal(Math.min(role.timeoutMs, 30_000), signal),
+            );
 
       if (response.outcome === 'rejected') {
         return status(session, 'unknown', 'action_pending', null, acceptedAction);
