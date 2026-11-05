@@ -162,4 +162,4 @@ Migration 18 adds `implementation_verifications`, exposed through `openSqliteSta
 
 Runtime session JSON now optionally includes a launch-validation invocation, profile/argument/context digests and pending/validated state. New reservations require pending validation; a compare-and-set operation records its evidence before native launch. No migration or historical healing is added. Legacy records remain readable; failed validation retains runtime resource holds. See [launch profiles](launch-profiles.md).
 
-Existing state at `~/.local/state/astack` is not automatically moved or deleted; select it explicitly with `--state-directory` until deliberately migrated. New project configuration lives in `.astack/config.json`; host approvals retain only its digest.
+Existing state at `~/.local/state/astack` is not automatically moved or deleted; select it explicitly with `--state-directory` until deliberately migrated. New project configuration lives in `.astack/config.json`; Astack reads it directly without host approval.

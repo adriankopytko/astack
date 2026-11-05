@@ -1,14 +1,5 @@
-import { join, resolve } from 'node:path';
-import { lstat, mkdir, realpath } from 'node:fs/promises';
-import { homedir } from 'node:os';
+import { resolve } from 'node:path';
 import { Command } from 'commander';
-import { selectProjectContext } from '../application/select-project-context.js';
-import { writeManagedFile } from '../application/managed-files.js';
-import { nodeManagedFileStore } from '../core/node-managed-file-store.js';
-import { acquireCoordinatorOwnership } from '../adapters/state/coordinator-ownership.js';
-import { prepareStateDirectory } from '../adapters/state/state-directory.js';
-import { hostConfigurationPolicySchema } from '../contracts/configuration.js';
-import { readProjectConfiguration } from '../adapters/filesystem/configuration.js';
 import { resolveConfiguration } from '../application/configuration.js';
 import { openSqliteState } from '../adapters/state/open-sqlite-state.js';
 import {
@@ -45,13 +36,13 @@ function render(result: OperationResult<ConfigurationResolution>, json?: boolean
 }
 
 export function wireConfigurationCommands(program: Command): void {
-  const config = program.command('config').description('Inspect and approve project configuration');
+  const config = program.command('config').description('Inspect project configuration');
 
   config
     .command('inspect')
     .alias('check')
     .description(
-      'Resolve host-approved configuration and report unmet prerequisites without executing commands',
+      'Resolve project configuration and report unmet prerequisites without executing commands',
     )
     .requiredOption('--project <id>', 'Explicit registered project ID')
     .option('--checkout <id>', 'Explicit registered checkout; default: project primary')
@@ -98,10 +89,7 @@ export function wireConfigurationCommands(program: Command): void {
                 registry: opened.registry,
                 git: createGitInspector({ executable, runner: nodeProcessRunner }),
                 identity: nodeCheckoutIdentityReader,
-                configuration: createNodeConfigurationReader(
-                  opened.stateDirectory,
-                  opened.registry,
-                ),
+                configuration: createNodeConfigurationReader(opened.registry),
                 prerequisites: createNodeConfigurationProbe(
                   (name) => Object.hasOwn(process.env, name) && Boolean(process.env[name]),
                 ),
@@ -119,122 +107,4 @@ export function wireConfigurationCommands(program: Command): void {
         }
       },
     );
-
-  config
-    .command('approve')
-    .description('Approve the current project configuration digest for this host')
-    .requiredOption('--project <id>', 'Explicit registered project ID')
-    .option('--json')
-    .action(async (options: { project: string; json?: boolean }) => {
-      const host = program.opts<{ stateDirectory?: string; gitExecutable?: string }>();
-      const directory =
-        host.stateDirectory === undefined
-          ? join(homedir(), '.astack')
-          : resolve(process.cwd(), host.stateDirectory);
-      let ownership: Awaited<ReturnType<typeof acquireCoordinatorOwnership>> | null = null;
-      let opened: Awaited<ReturnType<typeof openSqliteState>> | null = null;
-
-      try {
-        const state = await prepareStateDirectory(directory, false);
-        ownership = await acquireCoordinatorOwnership(state.root.path);
-        opened = await openSqliteState({ schemaVersion: 1, stateDirectory: state.root.path });
-
-        if (opened.outcome !== 'opened') {
-          process.stdout.write(`${JSON.stringify(opened)}\n`);
-          process.exitCode = 1;
-
-          return;
-        }
-
-        const executable = await gitExecutable(host.gitExecutable);
-
-        if (!executable) {
-          throw new Error('Git unavailable');
-        }
-
-        const selected = await selectProjectContext(
-          { schemaVersion: 1, projectId: options.project },
-          {
-            registry: opened.registry,
-            git: createGitInspector({ executable, runner: nodeProcessRunner }),
-            identity: nodeCheckoutIdentityReader,
-          },
-        );
-
-        if (
-          selected.outcome !== 'completed' ||
-          !selected.value.project ||
-          !selected.value.checkout
-        ) {
-          throw new Error('Project unavailable');
-        }
-
-        const root = selected.value.checkout.checkout.rootPath;
-        const document = await readProjectConfiguration(root);
-        const parsed =
-          document && typeof document.value === 'object' && !Array.isArray(document.value)
-            ? hostConfigurationPolicySchema.safeParse({
-                ...document.value,
-                projectId: options.project,
-                repositoryId: selected.value.project.repository.id,
-              })
-            : null;
-
-        if (!document || !parsed?.success) {
-          throw new Error('Project configuration invalid');
-        }
-
-        const approvalRoot = join(state.root.path, 'approvals');
-        await mkdir(approvalRoot, { mode: 0o700, recursive: true });
-        const approvalInfo = await lstat(approvalRoot);
-
-        if (
-          !approvalInfo.isDirectory() ||
-          approvalInfo.isSymbolicLink() ||
-          (approvalInfo.mode & 0o077) !== 0 ||
-          (process.getuid && approvalInfo.uid !== process.getuid()) ||
-          (await realpath(approvalRoot)) !== approvalRoot
-        ) {
-          throw new Error('Unsafe approvals directory');
-        }
-
-        const result = await writeManagedFile(
-          {
-            schemaVersion: 1,
-            root: approvalRoot,
-            path: `${options.project}.json`,
-            owner: 'astack:config-approval',
-            assetVersion: '1',
-            mode: 0o600,
-            content: JSON.stringify({ schemaVersion: 1, digest: document.digest }) + '\n',
-          },
-          nodeManagedFileStore,
-        );
-        const after = await readProjectConfiguration(root);
-
-        if (
-          !['written', 'unchanged'].includes(result.outcome) ||
-          after?.digest !== document.digest
-        ) {
-          throw new Error('Approval could not be confirmed');
-        }
-
-        process.stdout.write(
-          options.json
-            ? `${JSON.stringify({ schemaVersion: 1, outcome: 'approved', projectId: options.project, digest: document.digest })}\n`
-            : `Approved configuration for ${options.project}: ${document.digest}\n`,
-        );
-      } catch {
-        process.stdout.write(
-          `${JSON.stringify(rejected('configuration_unavailable', 'Could not approve the current project configuration; check the registered project, configuration and coordinator ownership.'))}\n`,
-        );
-        process.exitCode = 1;
-      } finally {
-        if (opened?.outcome === 'opened') {
-          opened.store.close();
-        }
-
-        ownership?.release();
-      }
-    });
 }

@@ -223,7 +223,7 @@ export async function resolveConfiguration(
         diagnostics: [
           diagnostic(
             'policy_missing',
-            'Fill .astack/config.json and approve its current contents with astack config approve; registration alone grants no execution permission.',
+            'Fill .astack/config.json in the registered primary checkout; registration alone does not configure execution.',
           ),
         ],
       });
@@ -234,7 +234,7 @@ export async function resolveConfiguration(
     if (!parsed.success) {
       return rejected(
         'configuration_invalid',
-        'Host policy does not match configuration schemaVersion 1.',
+        'Project configuration does not match schemaVersion 1.',
       );
     }
 

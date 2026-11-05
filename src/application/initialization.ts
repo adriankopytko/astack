@@ -414,29 +414,6 @@ export async function initializeProject(
       view.assets.push(await inspectInitializationAsset(plan, deps));
     }
 
-    if (
-      selected.project &&
-      view.assets.some(
-        (asset) => asset.kind === 'project-config' && ['planned', 'missing'].includes(asset.state),
-      )
-    ) {
-      const legacy = await deps.configuration.readPolicy(selected.project.project.id, signal);
-
-      if (legacy !== null) {
-        const proposal = view.assets.find((asset) => asset.kind === 'project-config');
-
-        if (proposal) {
-          proposal.state = 'preserved';
-          proposal.reason = 'legacy_host_setup';
-          diagnostic(
-            view,
-            'legacy_host_setup',
-            'Existing host configuration was preserved; migrate it deliberately before switching to .astack/config.json.',
-          );
-        }
-      }
-    }
-
     if (request.preview) {
       await readiness(view, deps, signal);
 
@@ -509,21 +486,11 @@ export async function initializeProject(
     selected = registered.value;
     view.target = target(selected);
     view.registration = registration.disposition === 'created' ? 'created' : 'registered';
-    const preserveLegacy = view.assets.some((asset) => asset.reason === 'legacy_host_setup');
     const plans = initializationAssets(selected, request.skills.length > 0);
     view.assets = [];
 
     for (const plan of plans) {
       view.assets.push(await inspectInitializationAsset(plan, deps));
-    }
-
-    if (preserveLegacy) {
-      const proposal = view.assets.find((asset) => asset.kind === 'project-config');
-
-      if (proposal) {
-        proposal.state = 'preserved';
-        proposal.reason = 'legacy_host_setup';
-      }
     }
 
     if (view.assets.some((asset) => ['pending', 'blocked'].includes(asset.state))) {

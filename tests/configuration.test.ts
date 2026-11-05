@@ -1,3 +1,4 @@
+import { createNodeConfigurationReader } from './support/legacy-configuration.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -21,7 +22,6 @@ import {
   createGitInspector,
   nodeProcessRunner,
   nodeCheckoutIdentityReader,
-  createNodeConfigurationReader,
   createNodeConfigurationProbe,
   resolveConfiguration,
   acceptConfiguredJob,

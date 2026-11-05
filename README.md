@@ -181,4 +181,4 @@ Explicit host recovery for proven input refusals is available through `runtime a
 
 New Codex starts require a host-approved project role launch profile. [Launch validation](docs/launch-profiles.md) compares executable/version, configuration and environment provenance on the host and in the owned Herdr pane before starting the worker. It preserves authored settings and pending launches; model/reasoning choices come from approved role policy.
 
-Project settings live in `.astack/config.json`; fill the file and use `astack config approve --project <id>` to record its digest on the host. Default host state is `~/.astack`. Existing `~/.local/state/astack` remains accessible with `--state-directory` and is not moved automatically.
+Project settings live in `.astack/config.json`; fill the file and Astack reads it directly, including subsequent edits. Default host state is `~/.astack`. Existing `~/.local/state/astack` remains accessible with `--state-directory` and is not moved automatically.

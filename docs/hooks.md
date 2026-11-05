@@ -1,12 +1,12 @@
 # Explicit project lifecycle hooks
 
-Hooks execute selected private-host-approved commands in an exact owned checkout. They do not run during initialization, imports, inspection, service startup or ordinary worker dispatch. The orchestrator explicitly executes each hook; declared setup/start completion is then checked before worker dispatch. Publication verification uses the separate explicit [executed-verification consumer](verification.md). See ADR 0024.
+Hooks execute selected project-configured commands in an exact owned checkout. They do not run during initialization, imports, inspection, service startup or ordinary worker dispatch. The orchestrator explicitly executes each hook; declared setup/start completion is then checked before worker dispatch. Publication verification uses the separate explicit [executed-verification consumer](verification.md). See ADR 0024.
 
 ## Phases and policy
 
 `setup` prepares the project, `verify` runs project checks, `start` invokes the service controller, and `teardown` invokes the stop controller. The existing setup/verify/teardown selections retain their meaning. Optional `start` is additive: omitted fields do not add defaults or change historical configuration/prompt bytes. Required-host-hook checking includes start when explicitly declared.
 
-The approved `.astack/config.json` contains both command names and execution definitions. The host approves its exact digest using `astack config approve`; an unapproved change cannot grant execution. For example, within a project configuration:
+The primary checkout’s `.astack/config.json` contains both command names and execution definitions. Astack reads it directly. For example, within a project configuration:
 
 ```json
 {
@@ -51,7 +51,7 @@ The approved `.astack/config.json` contains both command names and execution def
 }
 ```
 
-This is an excerpt, not a complete host policy or a recommendation to invent those scripts. Select actual authored project commands and trusted executable paths. No shell or argument substitution is introduced. Hooks receive literal approved argv, the canonical owned checkout as cwd, and exactly the approved host environment plus resource inputs. No ambient environment is merged. Required names must exist and be host-allowed; secret values are supplied only at execution, never in requests/journals/prompts. Repository changes do not approve executables, new hook bindings or environment names. Missing selections/definitions and policy/proposal drift block execution with diagnostics.
+This is an excerpt, not a complete host policy or a recommendation to invent those scripts. Select actual authored project commands and trusted executable paths. No shell or argument substitution is introduced. Hooks receive literal approved argv, the canonical owned checkout as cwd, and exactly the approved host environment plus resource inputs. No ambient environment is merged. Required names must exist and be host-allowed; secret values are supplied only at execution, never in requests/journals/prompts. Changes to the primary configuration apply to new work. Missing selections or definitions and drift from a saved job snapshot block execution with diagnostics.
 
 Resource environment bindings select logical reservation keys and `port`, `host`, `protocol` or `name`. Pass the exact saved IDs/revisions for precisely those keys. Their project/job/attempt/checkout must match; foreign or stale reservations are rejected. Returned port/name values become environment values directly, without shell interpolation or authored `.env` rewriting. Commands remain project-specific. The core supplies no Node/Python/database bootstrap defaults and never silently installs dependencies; a deliberately approved setup command can itself perform project setup under its declared authority.
 

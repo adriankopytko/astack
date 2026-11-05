@@ -1,3 +1,4 @@
+import { createNodeConfigurationReader } from './legacy-configuration.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
@@ -9,7 +10,6 @@ import {
   createGitInspector,
   nodeProcessRunner,
   nodeCheckoutIdentityReader,
-  createNodeConfigurationReader,
   createNodeConfigurationProbe,
   submitServiceJob,
   type ServiceDependencies,

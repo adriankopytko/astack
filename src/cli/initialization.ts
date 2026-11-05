@@ -122,6 +122,7 @@ function render(result: InitializationResult, json?: boolean) {
 
     if (view.nextSteps?.length) {
       process.stdout.write('Next steps:\n');
+
       for (const [index, step] of view.nextSteps.entries()) {
         process.stdout.write(`${index + 1}. ${step}\n`);
       }
@@ -145,7 +146,7 @@ function compose(
     registry,
     git: createGitInspector({ executable, runner: nodeProcessRunner }),
     identity: nodeCheckoutIdentityReader,
-    configuration: createNodeConfigurationReader(root, registry),
+    configuration: createNodeConfigurationReader(registry),
     prerequisites: createNodeConfigurationProbe((name) => Boolean(process.env[name])),
   };
 

@@ -90,7 +90,7 @@ async function fixture(
     registry: opened.registry,
     git: createGitInspector({ executable: gitPath, runner: nodeProcessRunner }),
     identity: nodeCheckoutIdentityReader,
-    configuration: createNodeConfigurationReader(state, opened.registry),
+    configuration: createNodeConfigurationReader(opened.registry),
     prerequisites: createNodeConfigurationProbe(() => false),
   };
   const deps: InitializationDependencies = {
@@ -148,6 +148,7 @@ await test(
       );
 
       assert.equal(collision.outcome, 'rejected');
+
       if (collision.outcome === 'rejected') {
         assert.equal(collision.error.code, 'project_registration_conflict');
         assert.match(collision.error.message, /--id/);
@@ -264,7 +265,7 @@ await test(
 );
 
 await test(
-  'authored host setup, instructions and ignore files remain unchanged; init does not invent a conflicting proposal',
+  'legacy host setup and authored files remain untouched while init creates project configuration',
   options,
   async () => {
     await fixture(async (f) => {
@@ -300,11 +301,11 @@ await test(
       );
 
       assert.equal(
-        initialized.assets.find((asset) => asset.kind === 'project-config')?.reason,
-        'legacy_host_setup',
+        initialized.assets.find((asset) => asset.kind === 'project-config')?.state,
+        'written',
       );
 
-      await assert.rejects(access(join(f.source, '.astack', 'config.json')), { code: 'ENOENT' });
+      await access(join(f.source, '.astack', 'config.json'));
 
       assert.equal(
         await readFile(join(f.state, 'config', 'existing-project.json'), 'utf8'),
@@ -636,6 +637,7 @@ await test(
       );
 
       assert.ok(previewView.nextSteps?.some((step) => step.includes('astack init')));
+
       await assert.rejects(access(state), { code: 'ENOENT' });
       await assert.rejects(access(userSkills), { code: 'ENOENT' });
       await assert.rejects(access(join(source, '.astack')), { code: 'ENOENT' });
@@ -761,79 +763,29 @@ await test(
 );
 
 await test(
-  'project configuration approval stores only a digest and detects changes',
+  'project configuration is used immediately and changes are read without approval',
   options,
   async () => {
     await fixture(async (f) => {
-      const request = { schemaVersion: 1, path: f.source, assignProjectId: 'approval-project' };
-      view(await initializeProject(request, f.deps), 'initialized');
-      const config = join(f.source, '.astack', 'config.json');
-      const reader = createNodeConfigurationReader(f.state, f.opened.registry);
-
-      assert.equal(await reader.readPolicy('approval-project'), null);
-
-      f.ownership.release();
-      const cli = fileURLToPath(new URL('../dist/cli/main.js', import.meta.url));
-      const approve = () =>
-        spawnSync(
-          process.execPath,
-          [
-            cli,
-            '--state-directory',
-            f.state,
-            'config',
-            'approve',
-            '--project',
-            'approval-project',
-            '--json',
-          ],
-          { cwd: f.root, encoding: 'utf8' },
-        );
-      const first = approve();
-
-      assert.equal(first.status, 0, first.stderr + first.stdout);
-      assert.equal(JSON.parse(first.stdout).outcome, 'approved');
-      assert.ok(await reader.readPolicy('approval-project'));
-
-      const approval = JSON.parse(
-        await readFile(join(f.state, 'approvals', 'approval-project.json'), 'utf8'),
-      ) as { schemaVersion: number; digest: string };
-
-      assert.deepEqual(Object.keys(approval).sort(), ['digest', 'schemaVersion']);
-      assert.match(approval.digest, /^[0-9a-f]{64}$/);
-
-      await writeFile(config, (await readFile(config, 'utf8')) + ' ');
-
-      assert.equal(await reader.readPolicy('approval-project'), null);
-
-      const second = approve();
-
-      assert.equal(second.status, 0, second.stderr + second.stdout);
-      assert.ok(await reader.readPolicy('approval-project'));
-
-      const registered = await f.opened.registry.readProject('approval-project');
-
-      assert.ok(registered.outcome === 'completed' && registered.value);
-
-      const saved = hostConfigurationPolicySchema.parse(
-        await reader.readPolicy('approval-project'),
+      const projectId = 'config-project';
+      view(
+        await initializeProject(
+          { schemaVersion: 1, path: f.source, assignProjectId: projectId },
+          f.deps,
+        ),
+        'initialized',
       );
+      const config = join(f.source, '.astack', 'config.json');
+      const reader = createNodeConfigurationReader(f.opened.registry);
+      const saved = hostConfigurationPolicySchema.parse(await reader.readPolicy(projectId));
       saved.project.roles = { implementer: { runtime: 'fixture', command: 'worker' } };
       saved.execution.enabled = true;
       saved.execution.allowedRuntimes = ['fixture'];
       saved.execution.commands.worker = { executable: process.execPath, args: ['--version'] };
       const { projectId: _project, repositoryId: _repository, ...projectConfig } = saved;
       await writeFile(config, JSON.stringify(projectConfig));
-      const unapproved = await resolveConfiguration(
-        { schemaVersion: 1, projectId: 'approval-project', role: 'implementer' },
-        f.deps,
-      );
-
-      assert.ok(unapproved.outcome === 'completed' && unapproved.value.status === 'blocked');
-      assert.equal(approve().status, 0);
-
       const ready = await resolveConfiguration(
-        { schemaVersion: 1, projectId: 'approval-project', role: 'implementer' },
+        { schemaVersion: 1, projectId, role: 'implementer' },
         f.deps,
       );
 
@@ -843,19 +795,10 @@ await test(
       );
 
       const originalDigest = ready.value.snapshot?.policyDigest;
-      saved.execution.commands.worker.args = ['--help'];
-      const {
-        projectId: _secondProject,
-        repositoryId: _secondRepository,
-        ...changedConfig
-      } = saved;
-      await writeFile(config, JSON.stringify(changedConfig));
-
-      assert.equal(await reader.readPolicy('approval-project'), null);
-      assert.equal(approve().status, 0);
-
+      projectConfig.execution.commands.worker!.args = ['--help'];
+      await writeFile(config, JSON.stringify(projectConfig));
       const changed = await resolveConfiguration(
-        { schemaVersion: 1, projectId: 'approval-project', role: 'implementer' },
+        { schemaVersion: 1, projectId, role: 'implementer' },
         f.deps,
       );
 
@@ -865,9 +808,8 @@ await test(
       );
       assert.notEqual(changed.value.snapshot?.policyDigest, originalDigest);
 
-      await assert.rejects(access(join(f.state, 'config', 'approval-project.json')), {
-        code: 'ENOENT',
-      });
+      await assert.rejects(access(join(f.state, 'approvals')), { code: 'ENOENT' });
+      await assert.rejects(access(join(f.state, 'config')), { code: 'ENOENT' });
     });
   },
 );

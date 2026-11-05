@@ -1,6 +1,6 @@
 # Validated runtime launch profiles
 
-New `codex-herdr` starts require a host-approved project role profile and an injected `RuntimeLaunchValidator`. The built-in CLI/service wire `createCodexLaunchValidator` to the trusted host Node executable, controlled process runner and explicit Herdr pane probe. Repository proposals cannot select or approve these settings. A configuration readiness observation alone is not startup validation.
+New `codex-herdr` starts require a project-configured role profile and an injected `RuntimeLaunchValidator`. The built-in CLI/service wire `createCodexLaunchValidator` to the trusted host Node executable, controlled process runner and explicit Herdr pane probe. The registered primary checkout supplies these settings directly. A configuration readiness observation alone is not startup validation.
 
 ## Policy and compatibility
 
