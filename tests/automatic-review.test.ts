@@ -723,6 +723,13 @@ await test(
     await fixture(async (f) => {
       const { startLocalService, requestLocalService } = await import('../src/index.js');
       const { gitPath } = await import('./support/service.js');
+      const { mkdir, readFile, writeFile } = await import('node:fs/promises');
+      const primary = f.f.context.context.sources[0]!;
+      await mkdir(join(primary, '.astack'), { recursive: true });
+      await writeFile(
+        join(primary, '.astack', 'config.json'),
+        await readFile(join(f.f.context.context.state, 'config', `${f.f.job.job.projectId}.json`)),
+      );
       await f.enable();
       const plan = await f.enqueue(await f.reviewer());
       let reads = 0;

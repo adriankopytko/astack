@@ -685,7 +685,10 @@ await test('configuration is bound to project/repository identity and cancellati
 });
 
 await test('compiled configuration CLI works from neutral cwd, reports blocking reasons, and keeps host arguments private', async () => {
-  await fixture(async ({ root, state, policy, save }) => {
+  await fixture(async ({ root, state, source, policy, save }) => {
+    await mkdir(join(source, '.astack'), { recursive: true });
+    const saveProject = async () =>
+      writeFile(join(source, '.astack', 'config.json'), JSON.stringify(policy));
     policy.execution.commands.worker = {
       executable: process.execPath,
       args: ['fixture-private-argument'],
@@ -708,6 +711,7 @@ await test('compiled configuration CLI works from neutral cwd, reports blocking 
         ],
         { cwd: root, env: {}, encoding: 'utf8', timeout: 20_000 },
       );
+    await saveProject();
     const ready = run();
 
     assert.equal(ready.status, 0, ready.stderr);
@@ -720,6 +724,7 @@ await test('compiled configuration CLI works from neutral cwd, reports blocking 
 
     policy.execution.enabled = false;
     await save();
+    await saveProject();
     const blocked = run();
 
     assert.equal(blocked.status, 1);
