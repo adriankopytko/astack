@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import {
   initializationRequestSchema,
@@ -59,11 +59,12 @@ async function select(
 
   const selected = result.value;
 
-  if (
-    request.assignProjectId !== undefined &&
-    selected.project?.project.id !== request.assignProjectId
-  ) {
-    const collision = await deps.registry.readProject(request.assignProjectId);
+  const assignedId =
+    request.assignProjectId ??
+    (selected.project ? undefined : inferredProjectId(selected.git.checkout.rootPath));
+
+  if (assignedId !== undefined && selected.project?.project.id !== assignedId) {
+    const collision = await deps.registry.readProject(assignedId);
 
     if (collision.outcome === 'rejected') {
       return collision;
@@ -72,7 +73,7 @@ async function select(
     if (selected.project || collision.value) {
       return rejected(
         'project_registration_conflict',
-        'The assigned project ID conflicts with a saved repository.',
+        `Project ID ${assignedId} conflicts with a saved repository; choose another with --id.`,
       );
     }
   }
@@ -103,6 +104,16 @@ async function select(
   }
 
   return result;
+}
+
+function inferredProjectId(root: string): string {
+  const id = basename(root)
+    .toLowerCase()
+    .replace(/[^a-z0-9._:-]+/g, '-')
+    .replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, '')
+    .slice(0, 128);
+
+  return id || 'project';
 }
 
 function target(
@@ -456,7 +467,10 @@ export async function initializeProject(
       {
         schemaVersion: 1,
         path: selected.git.checkout.rootPath,
-        ...(request.assignProjectId === undefined ? {} : { projectId: request.assignProjectId }),
+        projectId:
+          request.assignProjectId ??
+          selected.project?.project.id ??
+          inferredProjectId(selected.git.checkout.rootPath),
       },
       deps,
       signal,

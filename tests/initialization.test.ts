@@ -127,6 +127,36 @@ async function fixture(
 }
 
 await test(
+  'init infers the project ID and detects collisions before applying',
+  options,
+  async () => {
+    await fixture(async (f) => {
+      const initialized = view(
+        await initializeProject({ schemaVersion: 1, path: f.source }, f.deps),
+        'initialized',
+      );
+
+      assert.equal(initialized.target.projectId, 'repository');
+
+      const other = join(f.root, 'other', 'repository');
+      await mkdir(other, { recursive: true });
+      git(other, 'init', '-b', 'main');
+      git(other, 'commit', '--allow-empty', '-m', 'chore: fixture');
+      const collision = await initializeProject(
+        { schemaVersion: 1, path: other, preview: true },
+        f.deps,
+      );
+
+      assert.equal(collision.outcome, 'rejected');
+      if (collision.outcome === 'rejected') {
+        assert.equal(collision.error.code, 'project_registration_conflict');
+        assert.match(collision.error.message, /--id/);
+      }
+    });
+  },
+);
+
+await test(
   'preview is stable and read-only; fresh/repeated init keeps conservative policy without detecting project tooling',
   options,
   async () => {
