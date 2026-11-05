@@ -630,7 +630,12 @@ await test(
 
       assert.equal(preview.status, 0, preview.stderr);
 
-      view(initializationResultSchema.parse(JSON.parse(preview.stdout)), 'previewed');
+      const previewView = view(
+        initializationResultSchema.parse(JSON.parse(preview.stdout)),
+        'previewed',
+      );
+
+      assert.ok(previewView.nextSteps?.some((step) => step.includes('astack init')));
       await assert.rejects(access(state), { code: 'ENOENT' });
       await assert.rejects(access(userSkills), { code: 'ENOENT' });
       await assert.rejects(access(join(source, '.astack')), { code: 'ENOENT' });
@@ -660,6 +665,8 @@ await test(
       );
 
       assert.equal(actual.provider.status, 'blocked');
+      assert.ok(actual.nextSteps?.some((step) => step.includes('.astack/config.json')));
+      assert.ok(actual.nextSteps?.some((step) => step.includes('Herdr')));
 
       assert.equal(actual.target.projectId, 'packed-project');
       assert.equal(actual.delegation, 'not_ready');

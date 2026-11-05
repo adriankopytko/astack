@@ -45,6 +45,36 @@ interface Options {
   json?: boolean;
 }
 function render(result: InitializationResult, json?: boolean) {
+  if (result.outcome !== 'rejected') {
+    const view = result.view;
+    const steps: string[] = [];
+
+    if (result.outcome === 'previewed') {
+      steps.push('Run astack init without the preview option to apply this plan.');
+    } else {
+      steps.push(
+        `Review project instructions and fill in ${join(view.target.root, '.astack', 'config.json')} for this project.`,
+      );
+
+      if (view.provider.status !== 'ready') {
+        steps.push(
+          'Resolve the Herdr workspace diagnostics before delegating; inspect any pending operation before retrying.',
+        );
+      }
+
+      if (view.target.projectId) {
+        steps.push(
+          `Run astack config inspect --project ${view.target.projectId} --role implementer and repeat for reviewer to check readiness.`,
+        );
+        steps.push(
+          'Prepare a dedicated Astack worktree for each implementation or review task before delegating.',
+        );
+      }
+    }
+
+    result = { ...result, view: { ...view, nextSteps: steps } };
+  }
+
   if (json) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } else if (result.outcome === 'rejected') {
@@ -87,6 +117,13 @@ function render(result: InitializationResult, json?: boolean) {
         for (const diagnostic of item.result.value.diagnostics) {
           process.stdout.write(`${item.role}: ${diagnostic.code} — ${diagnostic.nextStep}\n`);
         }
+      }
+    }
+
+    if (view.nextSteps?.length) {
+      process.stdout.write('Next steps:\n');
+      for (const [index, step] of view.nextSteps.entries()) {
+        process.stdout.write(`${index + 1}. ${step}\n`);
       }
     }
   }

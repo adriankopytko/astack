@@ -74,6 +74,7 @@ export const initializationViewSchema = z.strictObject({
     )
     .max(2),
   delegation: z.enum(['not_ready', 'requires_owned_checkout']),
+  nextSteps: z.array(z.string().min(1)).optional(),
   diagnostics: z
     .array(
       z.strictObject({ code: z.string().min(1).max(128), message: z.string().min(1).max(2048) }),
