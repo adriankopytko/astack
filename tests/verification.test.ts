@@ -3,8 +3,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { fixture, persisted, type HandoffFixture } from './support/handoff.js';
 import { git } from './support/service.js';
@@ -14,7 +12,6 @@ import {
   finishImplementation,
   nodeProcessRunner,
   verificationWriteResultSchema,
-  verificationReadResultSchema,
   hostConfigurationPolicySchema,
   type VerificationDependencies,
   type VerificationRecord,
@@ -339,72 +336,46 @@ await test(
     }
   },
 );
-await test(
-  'legacy accepted attestations stay historical reads and the compiled CLI can inspect/reuse saved verification from neutral cwd',
-  options,
-  async () => {
-    await fixture(async (f) => {
-      assert.ok(f.verification);
+await test('legacy accepted attestations remain historical reads', options, async () => {
+  await fixture(async (f) => {
+    assert.ok(f.verification);
 
-      const path = join(f.context.context.root, 'verification-request.json');
-      await writeFile(path, JSON.stringify(f.verification.request));
-      const entry = fileURLToPath(new URL('../dist/cli/main.js', import.meta.url));
-      const call = (...args: string[]) =>
-        spawnSync(
-          process.execPath,
-          [entry, '--state-directory', f.context.context.state, 'verification', ...args, '--json'],
-          { cwd: f.context.context.root, encoding: 'utf8', timeout: 15000 },
-        );
-      const inspected = call('inspect', f.verification.id);
+    const published = persisted(await finishImplementation(f.input, f.deps));
+    const legacy = {
+      ...f.request,
+      verification: {
+        source: 'host-attestation' as const,
+        checks: [{ name: 'historical', outcome: 'passed' as const, artifact: null }],
+      },
+    };
+    const raw = new DatabaseSync(join(f.context.context.state, 'state.sqlite'));
 
-      assert.equal(inspected.status, 0, inspected.stderr);
+    try {
+      raw
+        .prepare(
+          "UPDATE implementation_handoffs SET data=json_set(data,'$.request.verification',json(?)) WHERE id=?",
+        )
+        .run(JSON.stringify(legacy.verification), published.record.id);
+    } finally {
+      raw.close();
+    }
 
-      verificationReadResultSchema.parse(JSON.parse(inspected.stdout));
-      const duplicate = call('run', '--file', path);
-
-      assert.equal(duplicate.status, 0, duplicate.stdout || duplicate.stderr);
-      assert.equal(
-        saved(verificationWriteResultSchema.parse(JSON.parse(duplicate.stdout))).id,
-        f.verification.id,
-      );
-
-      const published = persisted(await finishImplementation(f.input, f.deps));
-      const legacy = {
-        ...f.request,
-        verification: {
-          source: 'host-attestation' as const,
-          checks: [{ name: 'historical', outcome: 'passed' as const, artifact: null }],
+    const { verifications: _historicalProof, ...legacyDependencies } = f.deps;
+    const historical = persisted(
+      await finishImplementation(
+        { ...f.input, request: legacy },
+        {
+          ...legacyDependencies,
+          git: { inspect: async () => assert.fail('Historical acceptance must not inspect Git') },
         },
-      };
-      const raw = new DatabaseSync(join(f.context.context.state, 'state.sqlite'));
+      ),
+    );
 
-      try {
-        raw
-          .prepare(
-            "UPDATE implementation_handoffs SET data=json_set(data,'$.request.verification',json(?)) WHERE id=?",
-          )
-          .run(JSON.stringify(legacy.verification), published.record.id);
-      } finally {
-        raw.close();
-      }
-
-      const { verifications: _historicalProof, ...legacyDependencies } = f.deps;
-      const historical = persisted(
-        await finishImplementation(
-          { ...f.input, request: legacy },
-          {
-            ...legacyDependencies,
-            git: { inspect: async () => assert.fail('Historical acceptance must not inspect Git') },
-          },
-        ),
-      );
-
-      assert.equal(historical.record.phase, 'accepted');
-      assert.equal(f.remote.pushCalls, 1);
-      assert.equal(f.remote.postCalls, 1);
-    });
-  },
-);
+    assert.equal(historical.record.phase, 'accepted');
+    assert.equal(f.remote.pushCalls, 1);
+    assert.equal(f.remote.postCalls, 1);
+  });
+});
 
 await test(
   'a pre-existing reserved check key cannot be recycled into a fresh verification age',

@@ -1,4 +1,3 @@
-import { wireVerificationCommands } from './verification.js';
 import { wireHookCommands } from './hooks.js';
 import { wireResourceCommands } from './resources.js';
 import { wireInitializationCommand } from './initialization.js';
@@ -90,7 +89,6 @@ export function createProgram(version: string): Command {
   wireInitializationCommand(program);
   wireResourceCommands(program);
   wireHookCommands(program);
-  wireVerificationCommands(program);
 
   return program;
 }

@@ -175,10 +175,6 @@ Explicit host recovery for proven input refusals is available through `runtime a
 
 `astack hooks execute --file <request.json> --json` runs a selected `setup`, `verify`, `start` or `teardown` command under project configuration in an exact owned checkout. Invocations are saved before effects; unknown/claimed commands never replay. Declared setup/start evidence gates worker dispatch, and integration reviews use independently reserved and verified resources. `hooks inspect`, `exclude-writer` and `reconcile` preserve partial setup and separate controller exclusion from service shutdown. No hooks run implicitly during initialization or service startup. See [policy, requests and recovery](docs/hooks.md).
 
-## Executed verification before publication
+## Project checks
 
-`astack verification run --file <request.json> --json` executes the accepted role's baseline plus selected lane/additional checks through hooks. `verification inspect <id>` reads durable per-check evidence. Handoff no longer requires an Astack verification record; run the project’s own checks as appropriate. Configure private per-role verification before accepting work; see [verification policy and recovery](docs/verification.md).
-
-Configure each agent’s provider, model, reasoning and optional instructions together in `.astack/config.json`. Astack supplies Codex launch arguments and retains the accepted settings for each job. Implementers default to workspace-write and reviewers to read-only. The Codex/Herdr runtime still requires `service run --codex-herdr`.
-
-Project settings live in `.astack/config.json`; fill the file and Astack reads it directly, including subsequent edits. Default host state is `~/.astack`. Existing `~/.local/state/astack` remains accessible with `--state-directory` and is not moved automatically.
+Agents and orchestrators run project checks using the project’s own tooling. Handoff does not require an Astack verification record.
