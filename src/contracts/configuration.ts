@@ -80,14 +80,26 @@ export const verificationRolePolicySchema = z
       [...v.baseline, ...Object.values(v.lanes).flat()].every((id) => Object.hasOwn(v.checks, id)),
   );
 export const projectAgentSchema = z.strictObject({
-  provider: name,
-  permissions: z.strictObject({ files: z.enum(['readonly', 'write']) }).optional(),
+  provider: name.describe('Agent provider. The built-in provider is codex.'),
+  permissions: z
+    .strictObject({ files: z.enum(['readonly', 'write']).describe('File access for this agent.') })
+    .optional(),
   model: z
     .string()
     .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/)
-    .nullable(),
-  reasoning: name.nullable(),
-  instructions: z.string().min(1).max(4000).optional(),
+    .nullable()
+    .describe('Provider model name. Set this before starting a job.'),
+  reasoning: name
+    .nullable()
+    .describe(
+      'Set before starting a job. Codex supports minimal, low, medium, high, xhigh and max.',
+    ),
+  instructions: z
+    .string()
+    .min(1)
+    .max(4000)
+    .optional()
+    .describe('Additional instructions for the agent.'),
 });
 export const hostConfigurationPolicySchema = z
   .strictObject({
