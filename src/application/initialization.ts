@@ -216,7 +216,7 @@ async function readiness(
     diagnostic(
       view,
       'execution_policy_required',
-      'Review and approve the project configuration and prerequisites; registration does not authorize execution.',
+      'Fill in the project configuration and resolve any reported prerequisites before delegating.',
     );
   }
 
