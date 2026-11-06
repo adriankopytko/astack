@@ -342,10 +342,9 @@ await test('PR-proposed permission escalation never becomes effective execution 
   });
 });
 
-await test('request overrides cannot bypass host timeout, required hooks, commands, environment, or skill approvals', async () => {
+await test('request overrides cannot bypass configured timeout, commands, environment, or skill requirements', async () => {
   await fixture(async ({ request, deps, policy, save }) => {
     policy.project.hooks = { verify: 'worker' };
-    policy.execution.requiredHooks.verify = 'worker';
     await save();
     const value = resolution(
       await resolveConfiguration(
@@ -376,7 +375,6 @@ await test('request overrides cannot bypass host timeout, required hooks, comman
       'environment_not_allowed',
       'skill_not_approved',
       'timeout_not_allowed',
-      'required_hook_changed',
     ]) {
       assert.equal(codes.has(code as (typeof value.diagnostics)[number]['code']), true, code);
     }

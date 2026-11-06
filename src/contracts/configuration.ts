@@ -110,7 +110,6 @@ export const hostConfigurationPolicySchema = z
         .optional(),
       allowedEnvironment: environment,
       maxTimeoutMs: z.number().int().min(1000).max(86_400_000).default(300_000),
-      requiredHooks: hooks.default({ setup: null, verify: null, teardown: null }),
       commands: z
         .record(
           name,
@@ -190,7 +189,6 @@ export const configurationDiagnosticSchema = z.strictObject({
     'policy_changed',
     'snapshot_missing',
     'timeout_not_allowed',
-    'required_hook_changed',
   ]),
   subject: z
     .string()

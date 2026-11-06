@@ -13,7 +13,6 @@ export const initializationProjectConfig = {
   execution: {
     allowedEnvironment: [],
     maxTimeoutMs: 300000,
-    requiredHooks: { setup: null, verify: null, teardown: null },
     commands: {},
     skills: [],
   },

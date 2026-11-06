@@ -4,7 +4,7 @@ Hooks execute selected project-configured commands in an exact owned checkout. T
 
 ## Phases and policy
 
-`setup` prepares the project, `verify` runs project checks, `start` invokes the service controller, and `teardown` invokes the stop controller. The existing setup/verify/teardown selections retain their meaning. Optional `start` is additive: omitted fields do not add defaults or change historical configuration/prompt bytes. Required-host-hook checking includes start when explicitly declared.
+`setup` prepares the project, `verify` runs project checks, `start` invokes the service controller, and `teardown` invokes the stop controller. The existing setup/verify/teardown selections retain their meaning. Optional `start` is additive: omitted fields do not add defaults or change historical configuration/prompt bytes.
 
 The primary checkout’s `.astack/config.json` contains both command names and execution definitions. Astack reads it directly. For example, within a project configuration:
 

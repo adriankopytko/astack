@@ -80,20 +80,6 @@ function prerequisites(
     );
   }
 
-  for (const hook of ['setup', 'verify', 'teardown', 'start'] as const) {
-    const required = policy.execution.requiredHooks[hook];
-
-    if (required != null && snapshot.effective.hooks[hook] !== required) {
-      diagnostics.push(
-        diagnostic(
-          'required_hook_changed',
-          'Restore the hook required by execution.requiredHooks in .astack/config.json.',
-          hook,
-        ),
-      );
-    }
-  }
-
   const commandIds = new Set([role.command, ...Object.values(snapshot.effective.hooks)]);
 
   for (const id of commandIds) {
