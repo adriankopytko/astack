@@ -15,7 +15,6 @@ interface FixturePolicy {
   };
   execution: {
     launchProfiles?: Record<string, { runtime: string; settings: Record<string, string> }>;
-    allowedRuntimes: string[];
     commands: { 'fixture-worker': { executable: string; args: string[] } };
   };
 }
@@ -50,7 +49,6 @@ export async function fixture(
 
     await policy((value) => {
       value.project.roles.implementer = { runtime: 'codex-herdr', command: 'fixture-worker' };
-      value.execution.allowedRuntimes = ['codex-herdr'];
       value.execution.launchProfiles = {
         implementer: { runtime: 'codex-herdr', settings: { model: 'fixture' } },
       };

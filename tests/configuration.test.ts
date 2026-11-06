@@ -147,7 +147,6 @@ async function fixture(
         },
       },
       execution: {
-        allowedRuntimes: ['fixture'],
         allowedEnvironment: [],
         commands: { worker: { executable: process.execPath, args: ['--version'] } },
         skills: [{ id: 'implementation', version: 'v1', digest, path: skillPath }],
@@ -373,7 +372,6 @@ await test('request overrides cannot bypass host timeout, required hooks, comman
     assert.equal(value.status, 'blocked');
 
     for (const code of [
-      'runtime_not_allowed',
       'command_not_allowed',
       'environment_not_allowed',
       'skill_not_approved',

@@ -60,11 +60,11 @@ function prerequisites(
     return { input, diagnostics };
   }
 
-  if (role.runtime === null || !policy.execution.allowedRuntimes.includes(role.runtime)) {
+  if (role.runtime === null) {
     diagnostics.push(
       diagnostic(
         'runtime_not_allowed',
-        'Select a runtime for the role and add it to execution.allowedRuntimes in .astack/config.json.',
+        'Select a runtime for the role in .astack/config.json.',
         snapshot.role,
       ),
     );

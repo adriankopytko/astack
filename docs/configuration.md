@@ -32,7 +32,6 @@ A fresh `.astack/config.json` is disabled and contains null role/hook selections
     "hooks": { "setup": null, "verify": null, "teardown": null }
   },
   "execution": {
-    "allowedRuntimes": [],
     "allowedEnvironment": [],
     "maxTimeoutMs": 300000,
     "requiredHooks": { "setup": null, "verify": null, "teardown": null },
@@ -42,7 +41,7 @@ A fresh `.astack/config.json` is disabled and contains null role/hook selections
 }
 ```
 
-The project and repository identities come from the host registry, not this file. Optional `user`, `project`, `local` and request patches retain their existing merge precedence; they are fields within the single editable project configuration. Objects merge by field, arrays replace whole arrays, and `null` disables optional bindings. Execution controls set allowed runtimes, commands, environment names, timeout ceilings and required hooks. They are not merged from task requests.
+The project and repository identities come from the host registry, not this file. Optional `user`, `project`, `local` and request patches retain their existing merge precedence; they are fields within the single editable project configuration. Objects merge by field, arrays replace whole arrays, and `null` disables optional bindings. Execution controls set commands, environment names, timeout ceilings and required hooks. They are not merged from task requests.
 
 Replace starter values deliberately. Executables and argv are explicit; no shell interpolation or automatic dependency installation is added. Keep credentials and secret environment values out of project configuration, command arguments, prompts and reports. Configuring a command permits the program and its code dependencies to run; it does not establish a sandbox.
 

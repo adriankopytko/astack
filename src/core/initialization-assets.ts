@@ -11,7 +11,6 @@ export const initializationProjectConfig = {
     hooks: { setup: null, verify: null, teardown: null },
   },
   execution: {
-    allowedRuntimes: [],
     allowedEnvironment: [],
     maxTimeoutMs: 300000,
     requiredHooks: { setup: null, verify: null, teardown: null },

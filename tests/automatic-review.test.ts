@@ -527,7 +527,6 @@ async function nativeSetup(f: CiReviewFixture) {
     ...policy.project.roles,
     reviewer: { runtime: 'codex-herdr', command: 'native-review' },
   };
-  policy.execution.allowedRuntimes.push('codex-herdr');
   policy.execution.launchProfiles = {
     reviewer: { runtime: 'codex-herdr', settings: { model: 'fixture' } },
   };
