@@ -1,4 +1,3 @@
-import { createCodexLaunchValidator } from '../adapters/codex/launch-profile.js';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -154,16 +153,6 @@ export function wireHerdrCommands(program: Command): void {
         identity: nodeCheckoutIdentityReader,
         provider,
         worker: provider,
-        launchValidator: createCodexLaunchValidator({
-          runner: nodeProcessRunner,
-          pane: provider,
-          nodeExecutable: process.execPath,
-          environment: Object.fromEntries(
-            Object.entries(process.env).filter(
-              (entry): entry is [string, string] => entry[1] !== undefined,
-            ),
-          ),
-        }),
         queue: opened.service,
         runtime: opened.runtime,
         canonicalCodexExecutable: (await hostExecutable('codex', codexExecutable)) ?? '',

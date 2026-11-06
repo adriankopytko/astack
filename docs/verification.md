@@ -4,7 +4,7 @@
 
 ## Configure before accepting work
 
-The project configuration defines verification per role. Each job retains its accepted settings, including the commands used by verification; its public snapshot contains baseline/lane names, definition/command digests and maximum age, not command argv or environment values. The private job configuration contains configured command arguments and nonsecret launch-profile paths; it does not copy the ambient environment. Configure verification before accepting an implementation. Later changes apply to new jobs.
+The project configuration defines verification per role. Each job retains its accepted settings, including the commands used by verification; its public snapshot contains baseline/lane names, definition/command digests and maximum age, not command argv or environment values. The private job configuration contains configured command arguments; it does not copy the ambient environment. Configure verification before accepting an implementation. Later changes apply to new jobs.
 
 Example excerpt from a complete project configuration:
 

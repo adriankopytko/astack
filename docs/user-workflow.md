@@ -44,7 +44,7 @@ The generated project configuration starts with unset model and reasoning. Befor
 
 Astack reads the current project configuration when it accepts a worker job and stores the accepted settings privately with that job. Queued and running workers keep those settings after project edits; the next accepted worker uses the updated file. The orchestrator does not receive the configuration automatically. It uses the Astack skill and reads the file when setting up or diagnosing a project. The user's coding agent manages its own skill and project-instruction loading.
 
-Astack currently retains the accepted job's verification settings too: checks explicitly run for that job use its saved commands even if the project file has since changed. Start a new job to use a changed verification configuration. Configuration storage does not capture ambient environment values or executable contents; it does retain explicitly configured nonsecret launch-profile paths. The selected executable and other prerequisites must still be available.
+Astack currently retains the accepted job's verification settings too: checks explicitly run for that job use its saved commands even if the project file has since changed. Start a new job to use a changed verification configuration. Configuration storage does not capture ambient environment values or executable contents. The selected executable and other prerequisites must still be available.
 
 ### 2. Select the project and prepare a worker
 
@@ -192,7 +192,7 @@ The friction is also substantial:
 3. **Some important transitions are still manual.** Report collection, publication authorization, shutdown evidence and parts of cleanup require explicit intervention.
 4. **Recovery can be demanding.** “Unknown” is preserved safely, but the next action can require a human to understand which controller or process might still be active.
 5. **The CLI needs some polish.** For example, the top-level `info` help says orchestration is not implemented, which is stale and misleading.
-6. **The latest combined workflow needs a new live pilot.** Launch-profile validation and executed verification were added after the earlier live-provider pilot.
+6. **The latest combined workflow needs a new live pilot.** Executed verification was added after the earlier live-provider pilot.
 
 The bundled skills make Astack more usable for an agent than the command list alone: they explain sequencing, identities and recovery rules. They do not eliminate the need for the agent to coordinate host-only steps.
 
@@ -200,6 +200,6 @@ The bundled skills make Astack more usable for an agent than the command list al
 
 A [supervised disposable-project pilot](verification/2026-10-25-supervised-pilot.md) exercised real Codex workers in Herdr, GitHub PRs and CI, a reviewer finding, an explicitly delegated fix, and a second review. It found a cleanup blocker that was fixed and then reconciled. This is evidence that the earlier core loop works.
 
-The isolated suite uses disposable repositories and fake providers. It does not establish that the newer launch-profile and executed-verification combination works with a live Herdr/Codex setup.
+The isolated suite uses disposable repositories and fake providers. It does not establish that executed verification works with a live Herdr/Codex setup.
 
 Use [#32](https://github.com/adriankopytko/astack/issues/32) as the next usability exercise: have an orchestrator follow the current workflow on Astack itself and a second project, record every manual decision and confusing result, and use that evidence to decide which higher-level commands or workflow improvements are worth building.

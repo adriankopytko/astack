@@ -119,12 +119,7 @@ export function createSqliteRuntimeStore(db: StateDatabase, now: () => number): 
           value.space.id,
         );
 
-        if (
-          value.phase !== 'pending' ||
-          value.agent !== null ||
-          !same(space, value.space) ||
-          (value.validation !== undefined && value.validation.state !== 'pending')
-        ) {
+        if (value.phase !== 'pending' || value.agent !== null || !same(space, value.space)) {
           stateFailure('runtime_conflict');
         }
 
@@ -157,38 +152,6 @@ export function createSqliteRuntimeStore(db: StateDatabase, now: () => number): 
         );
 
         return { value, disposition: 'created' };
-      });
-    },
-    validate(previous, input) {
-      return db.write(() => {
-        const current = checked(previous);
-        active(current);
-        const next = runtimeSessionSchema.parse(input);
-
-        if (
-          !hookPrerequisitesReady(db, current.jobId) ||
-          !automaticReviewAllowed(db, current.jobId)
-        ) {
-          stateFailure('runtime_conflict');
-        }
-
-        if (
-          current.phase !== 'pending' ||
-          current.validation?.state !== 'pending' ||
-          next.validation?.state !== 'validated' ||
-          !same({ ...next, validation: current.validation }, current) ||
-          next.validation.invocationId !== current.validation.invocationId ||
-          next.validation.profileDigest !== current.validation.profileDigest
-        ) {
-          stateFailure('runtime_conflict');
-        }
-
-        db.statement('UPDATE runtime_sessions SET data=? WHERE attempt_id=?').run(
-          canonicalJson(next),
-          next.attemptId,
-        );
-
-        return { value: next, disposition: 'updated' };
       });
     },
     bind(previous, input) {

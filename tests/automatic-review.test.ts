@@ -527,9 +527,6 @@ async function nativeSetup(f: CiReviewFixture) {
     ...policy.project.roles,
     reviewer: { runtime: 'codex-herdr', command: 'native-review' },
   };
-  policy.execution.launchProfiles = {
-    reviewer: { runtime: 'codex-herdr', settings: { model: 'fixture' } },
-  };
   policy.execution.commands['native-review'] = { executable: process.execPath, args };
   await writeFile(path, JSON.stringify(policy), { mode: 0o600 });
   const fake = fakeProvider();
@@ -543,22 +540,6 @@ async function nativeSetup(f: CiReviewFixture) {
     provider: fake.provider,
     allowAutomaticReview: true,
     canonicalCodexExecutable: process.execPath,
-    launchValidator: {
-      async validate(input) {
-        return {
-          schemaVersion: 1,
-          outcome: 'completed',
-          value: { args: input.args, contextDigest: 'a'.repeat(64) },
-        };
-      },
-      async inspect(input) {
-        return {
-          schemaVersion: 1,
-          outcome: 'completed',
-          value: { args: input.args, contextDigest: 'a'.repeat(64) },
-        };
-      },
-    },
     newId: () => `native-test-${++sequence}`,
     worker: {
       async launch({ space, args: actual }) {

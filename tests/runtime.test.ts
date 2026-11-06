@@ -54,7 +54,6 @@ await test(
             permissions: { files: 'readonly' },
           },
         };
-        delete value.execution.launchProfiles;
       });
       const job = await prepare();
       await policy((value) => {
@@ -70,11 +69,9 @@ await test(
       };
 
       const request = { schemaVersion: 1, attemptId: job.attempt.id };
-      const { launchValidator: _unusedValidator, ...withoutValidator } = deps;
-      const result = value(await launchRuntime(request, withoutValidator));
+      const result = value(await launchRuntime(request, deps));
 
       assert.equal(result.state, 'running');
-      assert.equal(result.session?.validation, undefined);
       assert.ok(launchArgs.includes('example-model'));
       assert.ok(launchArgs.includes('model_reasoning_effort="high"'));
       assert.equal(launchArgs[launchArgs.indexOf('--sandbox') + 1], 'read-only');
@@ -101,10 +98,6 @@ await test(
       const job = await prepare();
       await policy((value) => {
         value.execution.commands['fixture-worker'].args = [];
-        value.execution.commands['fixture-worker'].args = [];
-        value.execution.launchProfiles = {
-          implementer: { runtime: 'codex-herdr', settings: { model: 'changed' } },
-        };
       });
 
       const launched = value(
@@ -132,7 +125,6 @@ await test(
         value.execution.agentSettings = {
           implementer: { provider: 'codex', model: 'example-model', reasoning: 'high' },
         };
-        delete value.execution.launchProfiles;
       });
       const job = await prepare();
       const launch = deps.worker.launch.bind(deps.worker);
@@ -473,7 +465,6 @@ await test(
       assert.equal(launch.state, 'running');
 
       await policy((value) => {
-        value.execution.commands['fixture-worker'].args = [];
         value.execution.commands['fixture-worker'].args = [];
       });
 

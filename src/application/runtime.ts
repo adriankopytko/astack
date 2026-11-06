@@ -16,16 +16,10 @@ import {
 import { completed, rejected, type OperationResult } from '../contracts/operation-result.js';
 import type { StateWriteResult } from '../contracts/state.js';
 import type { ServiceJob, WorkerObservation } from '../contracts/service.js';
-import type {
-  RuntimeLaunchValidator,
-  RuntimeLaunchValidationInput,
-  RuntimeStore,
-  InteractiveWorkerProvider,
-} from '../ports/runtime.js';
+import type { RuntimeStore, InteractiveWorkerProvider } from '../ports/runtime.js';
 import type { ServiceStore, ServiceWorkerRuntime } from '../ports/service.js';
 import { workerInputDigest } from '../core/worker-input.js';
 import { parseOperationRequest } from '../core/parse-operation-request.js';
-import { configurationDigest } from '../core/configuration.js';
 import { checkConfigurationDispatch, readJobConfiguration } from './configuration.js';
 import { prepareHerdrWorker, inspectHerdrWorker, bindHerdrAgent } from './herdr.js';
 import { selectProjectContext } from './select-project-context.js';
@@ -33,7 +27,6 @@ import type { HerdrDependencies } from './herdr.js';
 
 export interface RuntimeDependencies extends HerdrDependencies {
   runtime: RuntimeStore;
-  launchValidator?: RuntimeLaunchValidator;
   allowAutomaticReview?: boolean;
   queue: ServiceStore;
   worker: InteractiveWorkerProvider;
@@ -226,8 +219,6 @@ async function approved(job: ServiceJob, deps: RuntimeDependencies, signal?: Abo
         `model_reasoning_effort="${agent.reasoning}"`,
       ],
       timeoutMs: Math.min(role?.timeoutMs ?? 300_000, 30_000),
-      profile: undefined,
-      simple: true as const,
     };
   }
 
@@ -301,80 +292,10 @@ async function approved(job: ServiceJob, deps: RuntimeDependencies, signal?: Abo
     );
   }
 
-  const profile = policy.execution.launchProfiles?.[job.entry.role];
-
   return {
     args: [...args],
     timeoutMs: Math.min(role.timeoutMs, 30_000),
-    profile,
-    simple: false as const,
   };
-}
-
-function validationInput(
-  session: RuntimeSession,
-  command: Awaited<ReturnType<typeof approved>>,
-  deps: RuntimeDependencies,
-): RuntimeLaunchValidationInput {
-  if (
-    !command.profile ||
-    command.profile.runtime !== runtimeCapabilities.runtime ||
-    !deps.launchValidator
-  ) {
-    throw new RuntimeFailure(
-      rejected(
-        'runtime_capability_missing',
-        'Approve a role launch profile and install a context validator before starting a worker.',
-      ),
-    );
-  }
-
-  return {
-    profile: command.profile,
-    executable: deps.canonicalCodexExecutable,
-    args: command.args,
-    space: session.space,
-    invocationId: session.validation?.invocationId ?? session.launchId,
-    timeoutMs: command.timeoutMs,
-  };
-}
-
-function profileDigest(command: Awaited<ReturnType<typeof approved>>, deps: RuntimeDependencies) {
-  return configurationDigest({
-    profile: command.profile,
-    args: command.args,
-    executable: deps.canonicalCodexExecutable,
-  });
-}
-
-async function profileMatches(
-  session: RuntimeSession,
-  command: Awaited<ReturnType<typeof approved>>,
-  deps: RuntimeDependencies,
-  signal?: AbortSignal,
-) {
-  if (!session.validation) {
-    // Legacy bindings remain inspectable, but cannot gain new validated input authority.
-    return false;
-  }
-
-  if (
-    session.validation.state !== 'validated' ||
-    session.validation.profileDigest !== profileDigest(command, deps)
-  ) {
-    return false;
-  }
-
-  const result = await deps.launchValidator?.inspect(
-    validationInput(session, command, deps),
-    signal,
-  );
-
-  return (
-    result?.outcome === 'completed' &&
-    result.value.contextDigest === session.validation.contextDigest &&
-    configurationDigest(result.value.args) === session.validation.argumentsDigest
-  );
 }
 
 async function observed(session: RuntimeSession, deps: RuntimeDependencies, signal?: AbortSignal) {
@@ -436,18 +357,6 @@ export async function inspectRuntime(
       return status(session, 'unknown', 'action_pending', observation.agentStatus, action);
     }
 
-    if (session.validation) {
-      try {
-        const command = await approved(await jobFor(attemptId, deps, true), deps, signal);
-
-        if (!(await profileMatches(session, command, deps, signal))) {
-          return status(session, 'blocked', 'policy_blocked', observation.agentStatus);
-        }
-      } catch {
-        return status(session, 'blocked', 'policy_blocked', observation.agentStatus);
-      }
-    }
-
     return status(
       session,
       'running',
@@ -468,10 +377,6 @@ export async function reconcileRuntime(
 
     if (!session || session.phase === 'ready') {
       return inspectRuntime(input, deps, signal);
-    }
-
-    if (session.validation && session.validation.state !== 'validated') {
-      return status(session, 'unknown', 'launch_pending');
     }
 
     const observation = await observed(session, deps, signal);
@@ -515,18 +420,6 @@ export async function launchRuntime(
     const job = await jobFor(attemptId, deps);
     checkAutomaticReview(job, deps);
     const command = await approved(job, deps, signal);
-
-    if (
-      !command.simple &&
-      (!command.profile ||
-        command.profile.runtime !== runtimeCapabilities.runtime ||
-        !deps.launchValidator)
-    ) {
-      return rejected(
-        'runtime_capability_missing',
-        'Approve a role launch profile and context validator before launching.',
-      );
-    }
 
     if (
       deps.runtime.checkHookPrerequisites ||
@@ -578,7 +471,7 @@ export async function launchRuntime(
       return rejected('cancelled', 'Runtime launch was cancelled before acceptance.');
     }
 
-    let session = runtimeSessionSchema.parse({
+    const session = runtimeSessionSchema.parse({
       schemaVersion: 1,
       runtime: runtimeCapabilities.runtime,
       launchId: `launch-${createHash('sha256').update(`${attemptId}:${job.entry.effectId}`).digest('hex').slice(0, 32)}`,
@@ -588,17 +481,6 @@ export async function launchRuntime(
       space,
       phase: 'pending',
       agent: null,
-      ...(command.simple
-        ? {}
-        : {
-            validation: {
-              invocationId: `validation-${deps.newId()}`,
-              profileDigest: profileDigest(command, deps),
-              state: 'pending',
-              contextDigest: null,
-              argumentsDigest: null,
-            },
-          }),
     });
     checkAutomaticReview(await jobFor(attemptId, deps), deps);
     const reserved = deps.runtime.reserve(session);
@@ -611,77 +493,23 @@ export async function launchRuntime(
     try {
       checkAutomaticReview(await jobFor(attemptId, deps), deps);
 
-      if (command.simple) {
-        const refreshed = await approved(await jobFor(attemptId, deps), deps, signal);
-        const current = read(
-          await selectProjectContext({ schemaVersion: 1, runId: attemptId }, deps, signal),
-        );
-
-        if (
-          !refreshed.simple ||
-          !isDeepStrictEqual(refreshed.args, command.args) ||
-          signal?.aborted ||
-          current.git.checkout.head.commit !== job.entry.commit ||
-          current.git.checkout.head.branch !== job.entry.branch ||
-          current.checkout?.checkout.rootPath !== space.root
-        ) {
-          return status(session, 'unknown', 'identity_changed');
-        }
-
-        const launched = await deps.worker.launch(
-          { space, args: command.args, timeoutMs: command.timeoutMs },
-          controlSignal(command.timeoutMs, signal),
-        );
-
-        if (launched.outcome === 'rejected') {
-          return status(session, 'unknown', 'launch_pending');
-        }
-
-        return await reconcileRuntime(input, deps, signal);
-      }
-
-      const validated = read(
-        await deps.launchValidator!.validate(
-          validationInput(session, command, deps),
-          controlSignal(command.timeoutMs, signal),
-        ),
-      );
       const refreshed = await approved(await jobFor(attemptId, deps), deps, signal);
-
-      if (profileDigest(refreshed, deps) !== session.validation?.profileDigest || signal?.aborted) {
-        return status(session, 'unknown', 'launch_pending');
-      }
-
-      const currentContext = read(
+      const current = read(
         await selectProjectContext({ schemaVersion: 1, runId: attemptId }, deps, signal),
       );
 
       if (
-        currentContext.git.checkout.head.commit !== job.entry.commit ||
-        currentContext.git.checkout.head.branch !== job.entry.branch ||
-        currentContext.checkout?.checkout.rootPath !== space.root
+        !isDeepStrictEqual(refreshed.args, command.args) ||
+        signal?.aborted ||
+        current.git.checkout.head.commit !== job.entry.commit ||
+        current.git.checkout.head.branch !== job.entry.branch ||
+        current.checkout?.checkout.rootPath !== space.root
       ) {
         return status(session, 'unknown', 'identity_changed');
       }
 
-      session = write(
-        deps.runtime.validate(
-          session,
-          runtimeSessionSchema.parse({
-            ...session,
-            validation: {
-              ...session.validation,
-              state: 'validated',
-              contextDigest: validated.contextDigest,
-              argumentsDigest: configurationDigest(validated.args),
-            },
-          }),
-        ),
-      );
-      checkAutomaticReview(await jobFor(attemptId, deps), deps);
-      // Persistence precedes the only launch call. Cancellation/timeout after this point leaves unknown intent.
       const launched = await deps.worker.launch(
-        { space, args: validated.args, timeoutMs: command.timeoutMs },
+        { space, args: command.args, timeoutMs: command.timeoutMs },
         controlSignal(command.timeoutMs, signal),
       );
 
@@ -809,18 +637,6 @@ async function control(
 
     if (!role) {
       return status(session, 'blocked', 'policy_blocked');
-    }
-
-    if (kind === 'input' && session.validation && session.validation.state !== 'validated') {
-      return status(session, 'blocked', 'policy_blocked');
-    }
-
-    if (kind === 'input' && session.validation) {
-      const command = await approved(job, deps, signal);
-
-      if (!(await profileMatches(session, command, deps, signal))) {
-        return status(session, 'blocked', 'policy_blocked');
-      }
     }
 
     const observation = await observed(session, deps, signal);

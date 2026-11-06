@@ -1,4 +1,3 @@
-import { createCodexLaunchValidator } from '../adapters/codex/launch-profile.js';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { createCodexHerdrRuntime } from '../application/runtime.js';
@@ -38,16 +37,6 @@ export function composeCodexHerdrRuntime(input: {
     runtime: input.opened.runtime,
     provider,
     worker: provider,
-    launchValidator: createCodexLaunchValidator({
-      runner: nodeProcessRunner,
-      pane: provider,
-      nodeExecutable: process.execPath,
-      environment: Object.fromEntries(
-        Object.entries(process.env).filter(
-          (entry): entry is [string, string] => entry[1] !== undefined,
-        ),
-      ),
-    }),
     canonicalCodexExecutable: input.codexExecutable,
     files: createNodeWorktreeFiles(join(input.opened.stateDirectory, 'worktrees')),
     newId: () => randomUUID(),

@@ -79,10 +79,6 @@ export const verificationRolePolicySchema = z
       new Set(v.baseline).size === v.baseline.length &&
       [...v.baseline, ...Object.values(v.lanes).flat()].every((id) => Object.hasOwn(v.checks, id)),
   );
-export const runtimeLaunchProfileSchema = z.strictObject({
-  runtime: name,
-  settings: z.record(z.string().max(128), z.json()),
-});
 export const projectAgentSchema = z.strictObject({
   provider: name,
   permissions: z.strictObject({ files: z.enum(['readonly', 'write']) }).optional(),
@@ -103,10 +99,6 @@ export const hostConfigurationPolicySchema = z
     local: configurationPatchSchema.default({}),
     execution: z.strictObject({
       agentSettings: z.record(name, projectAgentSchema).optional(),
-      launchProfiles: z
-        .record(name, runtimeLaunchProfileSchema)
-        .refine((value) => Object.keys(value).length <= 32)
-        .optional(),
       verification: z
         .record(name, verificationRolePolicySchema)
         .refine((v) => Object.keys(v).length <= 32)
@@ -161,7 +153,7 @@ export const projectConfigurationFileSchema = z.strictObject({
   agents: z.record(name, projectAgentSchema).refine((value) => Object.keys(value).length <= 32),
   hooks: configurationPatchSchema.shape.hooks,
   execution: hostConfigurationPolicySchema.shape.execution
-    .omit({ agentSettings: true, launchProfiles: true, skills: true })
+    .omit({ agentSettings: true, skills: true })
     .partial()
     .optional(),
 });
