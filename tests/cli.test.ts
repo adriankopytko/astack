@@ -67,13 +67,23 @@ await test('configuration schema is accessible from any directory', async () => 
 });
 
 await test('unknown commands fail instead of silently accepting work', () => {
-  for (const args of [['unavailable-command'], ['implement', 'invented'], ['review', 'invented']]) {
+  for (const args of [
+    ['unavailable-command'],
+    ['implement', 'invented'],
+    ['review', 'invented'],
+    ['hooks', 'execute'],
+    ['verification', 'run'],
+  ]) {
     const result = spawnSync(process.execPath, [entrypoint, ...args], { encoding: 'utf8' });
 
     assert.notEqual(result.status, 0);
     assert.equal(result.stdout, '');
     assert.match(result.stderr, /error:/);
-    assert.ok(result.stderr.includes(args.at(-1) ?? ''));
+    assert.ok(
+      result.stderr.includes(
+        args[0] === 'hooks' || args[0] === 'verification' ? args[0] : (args.at(-1) ?? ''),
+      ),
+    );
   }
 
   const incomplete = spawnSync(process.execPath, [entrypoint, 'implement', 'submit'], {

@@ -59,10 +59,25 @@ await test('project agent configuration requires model and reasoning and does no
           model: 'example',
           reasoning: 'high',
           hooks: { before: 'pnpm install', after: 'pnpm stop' },
+          ports: { APP_PORT: { range: [20000, 20010] }, OAUTH_PORT: { fixed: 3000 } },
         },
       },
     }).success,
     true,
+  );
+  assert.equal(
+    projectConfigurationFileSchema.safeParse({
+      schemaVersion: 1,
+      agents: {
+        implementer: {
+          provider: 'codex',
+          model: 'example',
+          reasoning: 'high',
+          ports: { APP_PORT: { range: [20010, 20000] } },
+        },
+      },
+    }).success,
+    false,
   );
   assert.equal(
     projectConfigurationFileSchema.safeParse({
