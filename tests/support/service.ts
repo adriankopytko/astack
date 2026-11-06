@@ -71,6 +71,7 @@ export async function writeProjectConfiguration(
     launchProfiles: _profiles,
     agentSettings: _settings,
     skills: _skills,
+    verification: _verification,
     ...execution
   } = policy.execution;
   await mkdir(join(root, '.astack'), { recursive: true });

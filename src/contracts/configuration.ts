@@ -165,7 +165,7 @@ export const projectConfigurationFileSchema = z.strictObject({
   agents: z.record(name, projectAgentSchema).refine((value) => Object.keys(value).length <= 32),
   hooks: configurationPatchSchema.shape.hooks,
   execution: hostConfigurationPolicySchema.shape.execution
-    .omit({ agentSettings: true, skills: true })
+    .omit({ agentSettings: true, skills: true, verification: true })
     .partial()
     .optional(),
 });

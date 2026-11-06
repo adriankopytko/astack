@@ -9,7 +9,7 @@ astack init /path/to/project --json
 astack doctor --project <project-id> --role implementer --json
 ```
 
-The file is used directly: there is no approval command or editable host copy. At job acceptance, Astack saves the resolved project configuration in the private state database alongside the job. The accepted job uses that saved configuration for dispatch, launch, hooks and verification. Editing the project file changes new jobs, not already accepted jobs, and unrelated edits do not block an existing worker.
+The file is used directly: there is no approval command or editable host copy. At job acceptance, Astack saves the resolved project configuration in the private state database alongside the job. The accepted job uses that saved configuration for dispatch, launch and hooks. Editing the project file changes new jobs, not already accepted jobs, and unrelated edits do not block an existing worker.
 
 The saved job record currently includes the project configuration, including configured agent instructions and any optional command arguments. Ambient environment values are not copied. The private data is not returned in ordinary job or configuration inspection output, but is present in the private local database. Do not put credentials, tokens or secret environment values in configuration or command arguments. Existing jobs created before per-job configuration storage do not have the required saved data and must be submitted again; Astack does not silently substitute the mutable project file.
 
@@ -47,7 +47,7 @@ Astack maps `permissions.files` to the provider: Codex `readonly` uses `read-onl
 
 `astack config-schema` prints the current machine-readable JSON Schema for humans, agents and editors. To use it in VS Code, run `astack config-schema > .astack/schema.json` and add `"$schema": "./schema.json"` to `.astack/config.json`. Regenerate the schema after upgrading Astack. Schema validation describes the file shape; `astack doctor` also checks saved project context and prerequisites, including supported Codex reasoning values.
 
-Optional top-level `hooks` and `execution` settings retain the existing lifecycle and verification operations while their redesign is under discussion. See [hooks](hooks.md) and [verification](verification.md). They are not needed merely to delegate a worker. Keep credentials and secret environment values out of project configuration, command arguments, prompts and reports.
+Optional top-level `hooks` and `execution` settings retain the existing explicit lifecycle hooks temporarily while their replacement is developed. See [hooks](hooks.md). Project configurations no longer accept the legacy `execution.verification` settings. They are not needed merely to delegate a worker. Keep credentials and secret environment values out of project configuration, command arguments, prompts and reports.
 
 ## Inspection and job snapshots
 
