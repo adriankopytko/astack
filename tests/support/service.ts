@@ -124,7 +124,6 @@ export async function fixture(
           repositoryId: registration.value.repository.id,
           project: { roles: { implementer: role, reviewer: role } },
           execution: {
-            enabled: true,
             allowedRuntimes: ['fixture'],
             allowedEnvironment: [],
             skills: [],

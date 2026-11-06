@@ -496,9 +496,9 @@ await test(
       const third = await submit(2, 'runtime');
       const path = join(state, 'config/project-0.json');
       const policy = JSON.parse(await readFile(path, 'utf8')) as {
-        execution: { enabled: boolean };
+        execution: { commands: Record<string, { executable: string; args: string[] }> };
       };
-      policy.execution.enabled = false;
+      policy.execution.commands['fixture-worker']!.args = ['--help'];
       await writeFile(path, JSON.stringify(policy));
       git(sources[1] ?? '', 'commit', '--allow-empty', '-m', 'changed');
       const worker = provider();

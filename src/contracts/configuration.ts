@@ -89,7 +89,6 @@ export const hostConfigurationPolicySchema = z
     project: configurationPatchSchema,
     local: configurationPatchSchema.default({}),
     execution: z.strictObject({
-      enabled: z.boolean(),
       launchProfiles: z
         .record(name, runtimeLaunchProfileSchema)
         .refine((value) => Object.keys(value).length <= 32)
@@ -180,7 +179,6 @@ export const configurationSnapshotSchema = z
 export const configurationDiagnosticSchema = z.strictObject({
   code: z.enum([
     'policy_missing',
-    'execution_disabled',
     'role_missing',
     'runtime_not_allowed',
     'command_not_allowed',

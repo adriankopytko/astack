@@ -147,7 +147,6 @@ async function fixture(
         },
       },
       execution: {
-        enabled: true,
         allowedRuntimes: ['fixture'],
         allowedEnvironment: [],
         commands: { worker: { executable: process.execPath, args: ['--version'] } },
@@ -529,7 +528,7 @@ await test('dispatch uses accepted configuration when the project file changes',
 
     assert.equal(ready.status, 'ready');
 
-    policy.execution.enabled = false;
+    policy.execution.commands.worker!.args = ['--version', 'different'];
     await save();
     const revoked = resolution(
       await checkConfigurationDispatch({ schemaVersion: 1, job: accepted.value }, deps),
@@ -538,7 +537,6 @@ await test('dispatch uses accepted configuration when the project file changes',
     assert.equal(revoked.status, 'ready');
     assert.equal(revoked.snapshot?.policyDigest, accepted.value.configuration?.policyDigest);
 
-    policy.execution.enabled = true;
     policy.execution.commands.worker = { executable: process.execPath, args: ['--help'] };
     await save();
     const changedCommand = resolution(
@@ -719,7 +717,7 @@ await test('compiled configuration CLI works from neutral cwd, reports blocking 
       'ready',
     );
 
-    policy.execution.enabled = false;
+    delete policy.execution.commands.worker;
     await save();
     await saveProject();
     const blocked = run();
@@ -728,7 +726,7 @@ await test('compiled configuration CLI works from neutral cwd, reports blocking 
     assert.equal(
       resolution(configurationResultSchema.parse(JSON.parse(blocked.stdout) as unknown))
         .diagnostics[0]?.code,
-      'execution_disabled',
+      'command_not_allowed',
     );
   });
 });

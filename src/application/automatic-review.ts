@@ -60,8 +60,7 @@ async function approved(
   if (
     !value.success ||
     value.data.projectId !== projectId ||
-    value.data.repositoryId !== repositoryId ||
-    !value.data.execution.enabled
+    value.data.repositoryId !== repositoryId
   ) {
     throw new AutomaticFailure();
   }

@@ -34,7 +34,7 @@ astack init /path/to/project --dry-run --json
 astack init /path/to/project --non-interactive --role implementer --role reviewer --json
 ```
 
-Initialization registers the project, creates a disabled `.astack/config.json` starter, optionally installs selected project skills, and ensures its named Herdr workspace. It reuses an existing workspace with that name or creates one. The user or agent inspects the project and fills in its configuration; Astack does not discover tools or execute project scripts during init.
+Initialization registers the project, creates an incomplete `.astack/config.json` starter, optionally installs selected project skills, and ensures its named Herdr workspace. It reuses an existing workspace with that name or creates one. The user or agent inspects the project and fills in its configuration; Astack does not discover tools or execute project scripts during init.
 
 The generated project configuration starts disabled. Before delegation, fill it with the runtime, executable, role settings, verification commands and launch profile. Astack reads its current contents directly. Host state defaults to `~/.astack` and does not store a separate copy of project settings. The launch profile also records the expected Codex executable, model, reasoning setting, relevant environment and configuration-file digests. See [project initialization](initialization.md) and [launch profiles](launch-profiles.md).
 

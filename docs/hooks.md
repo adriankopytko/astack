@@ -19,7 +19,6 @@ The primary checkout’s `.astack/config.json` contains both command names and e
     }
   },
   "execution": {
-    "enabled": true,
     "allowedEnvironment": ["PATH", "APP_PORT"],
     "maxTimeoutMs": 300000,
     "commands": {

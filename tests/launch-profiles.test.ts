@@ -638,7 +638,7 @@ await test(
 
             if (mode === 'policy') {
               await policy((value) => {
-                value.execution.enabled = false;
+                value.execution.commands['fixture-worker'].args = [];
               });
             }
 

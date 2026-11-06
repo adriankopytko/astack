@@ -4,7 +4,6 @@ import { configurationDigest } from './configuration.js';
 
 export function reviewGateConfigurationDigest(policy: HostConfigurationPolicy): string {
   return configurationDigest({
-    enabled: policy.execution.enabled,
     review: policy.execution.review ?? null,
   });
 }

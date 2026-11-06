@@ -262,7 +262,7 @@ await test(
         'rejected',
       );
 
-      p.policy.execution.enabled = false;
+      p.policy.execution.commands['hook-verify']!.args = ['--version'];
       await writeFile(p.path, JSON.stringify(p.policy), { mode: 0o600 });
 
       assert.equal(calls, 0);

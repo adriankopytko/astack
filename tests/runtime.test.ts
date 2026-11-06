@@ -39,7 +39,7 @@ await test(
     await fixture(async ({ prepare, deps, policy, calls }) => {
       const job = await prepare();
       await policy((value) => {
-        value.execution.enabled = false;
+        value.execution.commands['fixture-worker'].args = [];
         value.execution.commands['fixture-worker'].args = [];
         value.execution.launchProfiles = {
           implementer: { runtime: 'codex-herdr', settings: { model: 'changed' } },
@@ -380,7 +380,7 @@ await test(
       assert.equal(launch.state, 'running');
 
       await policy((value) => {
-        value.execution.enabled = false;
+        value.execution.commands['fixture-worker'].args = [];
         value.execution.commands['fixture-worker'].args = [];
       });
 
@@ -524,7 +524,7 @@ await test(
       );
 
       await policy((value) => {
-        value.execution.enabled = false;
+        value.execution.commands['fixture-worker'].args = [];
       });
       const revoked = await launchRuntime(request, deps);
 

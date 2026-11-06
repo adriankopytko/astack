@@ -156,7 +156,6 @@ async function binding(
     !policy.success ||
     policy.data.projectId !== projectId ||
     policy.data.repositoryId !== repositoryId ||
-    !policy.data.execution.enabled ||
     (expectedPolicy !== null && configurationDigest(policy.data) !== expectedPolicy) ||
     (gate.overrideReason !== null && policy.data.execution.review?.allowGateOverride !== true) ||
     (gate.allowNoChecks === true && policy.data.execution.review?.allowNoChecks !== true)

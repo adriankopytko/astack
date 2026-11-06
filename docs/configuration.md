@@ -1,6 +1,6 @@
 # Project configuration
 
-Astack reads a project's settings from **one editable file**, `.astack/config.json` in its registered primary checkout. `astack init` creates a disabled starter and tells the user or agent where to fill it. Astack does not inspect the project to invent commands. Use the project's instructions and tooling to decide which runtime, commands, hooks and verification are appropriate.
+Astack reads a project's settings from **one editable file**, `.astack/config.json` in its registered primary checkout. `astack init` creates an incomplete starter and tells the user or agent where to fill it. Astack does not inspect the project to invent commands. Use the project's instructions and tooling to decide which runtime, commands, hooks and verification are appropriate.
 
 ```sh
 astack init /path/to/project --dry-run --json
@@ -32,7 +32,6 @@ A fresh `.astack/config.json` is disabled and contains null role/hook selections
     "hooks": { "setup": null, "verify": null, "teardown": null }
   },
   "execution": {
-    "enabled": false,
     "allowedRuntimes": [],
     "allowedEnvironment": [],
     "maxTimeoutMs": 300000,
@@ -51,7 +50,7 @@ Optional `execution.hooks` defines named lifecycle commands and resource/environ
 
 ## Inspection and job snapshots
 
-`config inspect` and `config check` are aliases. They read the registered primary checkout configuration and prerequisites without executing commands. Missing or invalid configuration, disabled execution and missing prerequisites block readiness. The operation returns provenance and a snapshot, but not command argv, environment values or skill contents. Readiness is an observation; launch and workflow operations have separate preconditions.
+`config inspect` and `config check` are aliases. They read the registered primary checkout configuration and prerequisites without executing commands. Missing or invalid configuration and missing prerequisites block readiness. The operation returns provenance and a snapshot, but not command argv, environment values or skill contents. Readiness is an observation; launch and workflow operations have separate preconditions.
 
 The primary checkout supplies configuration for new jobs, including jobs using task worktrees. Each accepted job retains its own private configuration and immutable public snapshot. Dispatch rechecks the saved checkout and prerequisites; configuration edits alone do not block the saved job. Unknown or incomplete writes do not replay automatically.
 

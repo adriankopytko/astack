@@ -52,15 +52,6 @@ function prerequisites(
     ? snapshot.effective.roles[snapshot.role]
     : undefined;
 
-  if (!policy.execution.enabled) {
-    diagnostics.push(
-      diagnostic(
-        'execution_disabled',
-        'Set execution.enabled to true in .astack/config.json before accepting work.',
-      ),
-    );
-  }
-
   if (!role) {
     diagnostics.push(
       diagnostic('role_missing', 'Define the selected role in .astack/config.json.', snapshot.role),

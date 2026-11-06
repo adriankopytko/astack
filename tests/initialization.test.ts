@@ -226,7 +226,6 @@ await test(
         repositoryId: applied.target.repositoryId,
       });
 
-      assert.equal(policy.execution.enabled, false);
       assert.deepEqual(policy.execution.commands, {});
       assert.deepEqual(policy.execution.allowedRuntimes, []);
       assert.equal((await stat(policyPath)).mode & 0o777, 0o644);
@@ -285,7 +284,6 @@ await test(
         repositoryId: registered.value.repository.id,
         project: { roles: { implementer: { runtime: 'codex-herdr' } } },
         execution: {
-          enabled: true,
           allowedRuntimes: [],
           allowedEnvironment: [],
           commands: {},
@@ -781,7 +779,6 @@ await test(
         await f.deps.configuration.readPolicy(projectId),
       );
       policy.project.roles = { implementer: { runtime: 'fixture', command: 'worker' } };
-      policy.execution.enabled = true;
       policy.execution.allowedRuntimes = ['fixture'];
       policy.execution.commands.worker = { executable: process.execPath, args: ['--version'] };
       const { projectId: _project, repositoryId: _repository, ...config } = policy;
@@ -806,7 +803,7 @@ await test(
 
       assert.ok(first.outcome === 'persisted', JSON.stringify(first));
 
-      config.execution.enabled = false;
+      delete config.execution.commands.worker;
       await writeFile(path, JSON.stringify(config));
       const old = await checkConfigurationDispatch(
         { schemaVersion: 1, job: first.value.job },
@@ -837,7 +834,6 @@ await test(
       const reader = createNodeConfigurationReader(f.opened.registry, f.opened.store);
       const saved = hostConfigurationPolicySchema.parse(await reader.readPolicy(projectId));
       saved.project.roles = { implementer: { runtime: 'fixture', command: 'worker' } };
-      saved.execution.enabled = true;
       saved.execution.allowedRuntimes = ['fixture'];
       saved.execution.commands.worker = { executable: process.execPath, args: ['--version'] };
       const { projectId: _project, repositoryId: _repository, ...projectConfig } = saved;

@@ -101,7 +101,6 @@ export async function checkImplementationVerification(
     }
 
     if (
-      !policy.execution.enabled ||
       policy.projectId !== record.source.projectId ||
       policy.repositoryId !== record.source.repositoryId ||
       configurationDigest(policy) !== record.policyDigest ||

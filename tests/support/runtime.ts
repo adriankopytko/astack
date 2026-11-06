@@ -14,7 +14,6 @@ interface FixturePolicy {
     };
   };
   execution: {
-    enabled: boolean;
     launchProfiles?: Record<string, { runtime: string; settings: Record<string, string> }>;
     allowedRuntimes: string[];
     commands: { 'fixture-worker': { executable: string; args: string[] } };
