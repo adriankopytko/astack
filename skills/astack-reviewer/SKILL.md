@@ -2,7 +2,7 @@
 name: astack-reviewer
 description: Review an explicitly assigned Astack PR and full commit SHA in a dedicated read-only checkout and return structured findings with the supplied scope and readiness snapshots.
 metadata:
-  asset-version: '1.0.0'
+  asset-version: '1.0.1'
 ---
 
 # Review an Astack assignment
@@ -39,6 +39,6 @@ For example, a finding has this shape:
 
 This is a schema example, not a finding to copy into unrelated reviews. Use actual changed-code evidence. Lines are numbers, not strings such as `"12-14"`. Use a path inside the repository without traversal or an absolute prefix. Keep at most 32 findings, descriptions within 1000 UTF-8 bytes, and at most 16 blockers of 512 bytes each. Use an empty findings array for an independently reviewed scope with no actionable findings; it does not approve/merge the PR or assert that CI passed.
 
-A report remains a proposal until the host validates current assignment, artifacts and acknowledged input. Do not self-accept it through the CLI or publish a GitHub review/comment. The host decides whether to accept historical scope, publish findings, or delegate fixes. Fixes run in a fresh implementation checkout; do not turn this reviewer into an implementer.
+Submit the JSON to `astack run report <job-id> --key <unique-round-key> --stdin --json`; reuse the same key and report on retry. The coordinator validates the report. Return the JSON in your final response too. Do not publish a GitHub review/comment. The host decides whether to accept historical scope, publish findings, or delegate fixes. Fixes run in a fresh implementation checkout; do not turn this reviewer into an implementer.
 
 After returning the report, preserve the checkout and worker for explicit host lifecycle handling. UI done/idle is neither task acceptance nor verified shutdown. Do not remove worktrees, close a project group or release resource holds.

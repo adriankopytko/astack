@@ -20,7 +20,7 @@ function number(value: string): number {
   return Number(value);
 }
 
-function render(result: ServiceRpcResponse, json?: boolean) {
+function render(result: ServiceRpcResponse, json?: boolean, submittedReport = false) {
   if (json) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } else if ('error' in result) {
@@ -46,7 +46,8 @@ function render(result: ServiceRpcResponse, json?: boolean) {
 
   if (
     'error' in result ||
-    (result.value &&
+    (!submittedReport &&
+      result.value &&
       'cleanup' in result.value &&
       ['unknown', 'blocked', 'failed', 'needs_decision'].includes(result.value.status))
   ) {
@@ -63,6 +64,7 @@ export function wireRunCommands(program: Command) {
     action: (
       state: Extract<Awaited<ReturnType<typeof openSqliteState>>, { outcome: 'opened' }>,
     ) => Promise<ServiceRpcResponse>,
+    submittedReport = false,
   ) {
     const options = program.opts<{ stateDirectory?: string }>();
     const state = await openSqliteState({
@@ -80,7 +82,7 @@ export function wireRunCommands(program: Command) {
     }
 
     try {
-      render(await action(state), json);
+      render(await action(state), json, submittedReport);
     } finally {
       state.store.close();
     }
@@ -100,7 +102,8 @@ export function wireRunCommands(program: Command) {
       'Validate and accept a host-supplied worker report; never read arbitrary terminal transcripts',
     )
     .requiredOption('--key <key>', 'Stable report acceptance key')
-    .requiredOption('--file <path>', 'Bounded JSON proposal or {proposal, artifacts} envelope')
+    .option('--file <path>', 'Bounded JSON proposal or {proposal, artifacts} envelope')
+    .option('--stdin', 'Read the JSON proposal from standard input')
     .option(
       '--accept-historical-review',
       'Explicitly retain reviewed findings if the remote review scope moved; never grants publication or readiness',
@@ -109,79 +112,111 @@ export function wireRunCommands(program: Command) {
     .action(
       async (
         jobId: string,
-        options: { key: string; file: string; json?: boolean; acceptHistoricalReview?: boolean },
+        options: {
+          key: string;
+          file?: string;
+          stdin?: boolean;
+          json?: boolean;
+          acceptHistoricalReview?: boolean;
+        },
       ) => {
-        await execute(options.json, async (state) => {
-          try {
-            const path = resolve(process.cwd(), options.file);
-            const info = await lstat(path, { bigint: true });
-
-            if (!info.isFile() || info.isSymbolicLink() || info.size > 48000n) {
-              return rejected('invalid_request', 'Select a regular bounded report JSON file.');
-            }
-
-            const file = await open(
-              path,
-              constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-            );
-            let content: Buffer;
-
+        await execute(
+          options.json,
+          async (state) => {
             try {
-              const bytes = Buffer.alloc(48001);
-              let size = 0;
+              if (Boolean(options.file) === Boolean(options.stdin)) {
+                return rejected('invalid_request', 'Select exactly one of --file or --stdin.');
+              }
 
-              while (size < bytes.length) {
-                const { bytesRead } = await file.read(bytes, size, bytes.length - size, size);
+              let content: Buffer;
 
-                if (bytesRead === 0) {
-                  break;
+              if (options.stdin) {
+                const chunks: Buffer[] = [];
+                let size = 0;
+
+                for await (const bytes of process.stdin as AsyncIterable<Buffer>) {
+                  size += bytes.length;
+
+                  if (size > 48000) {
+                    return rejected('invalid_request', 'Report input exceeds the size limit.');
+                  }
+
+                  chunks.push(bytes);
                 }
 
-                size += bytesRead;
-              }
+                content = Buffer.concat(chunks);
+              } else {
+                const path = resolve(process.cwd(), options.file!);
+                const info = await lstat(path, { bigint: true });
 
-              const after = await file.stat({ bigint: true });
+                if (!info.isFile() || info.isSymbolicLink() || info.size > 48000n) {
+                  return rejected('invalid_request', 'Select a regular bounded report JSON file.');
+                }
 
-              if (
-                size > 48000 ||
-                after.dev !== info.dev ||
-                after.ino !== info.ino ||
-                after.size !== info.size ||
-                after.mtimeNs !== info.mtimeNs ||
-                after.ctimeNs !== info.ctimeNs
-              ) {
-                return rejected(
-                  'invalid_request',
-                  'Report changed or exceeded the bounded input contract.',
+                const file = await open(
+                  path,
+                  constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
                 );
+
+                try {
+                  const bytes = Buffer.alloc(48001);
+                  let size = 0;
+
+                  while (size < bytes.length) {
+                    const { bytesRead } = await file.read(bytes, size, bytes.length - size, size);
+
+                    if (bytesRead === 0) {
+                      break;
+                    }
+
+                    size += bytesRead;
+                  }
+
+                  const after = await file.stat({ bigint: true });
+
+                  if (
+                    size > 48000 ||
+                    after.dev !== info.dev ||
+                    after.ino !== info.ino ||
+                    after.size !== info.size ||
+                    after.mtimeNs !== info.mtimeNs ||
+                    after.ctimeNs !== info.ctimeNs
+                  ) {
+                    return rejected(
+                      'invalid_request',
+                      'Report changed or exceeded the bounded input contract.',
+                    );
+                  }
+
+                  content = bytes.subarray(0, size);
+                } finally {
+                  await file.close();
+                }
               }
 
-              content = bytes.subarray(0, size);
-            } finally {
-              await file.close();
+              const value: unknown = JSON.parse(
+                new TextDecoder('utf8', { fatal: true }).decode(content),
+              );
+              const envelope =
+                value && typeof value === 'object' && 'proposal' in value
+                  ? (value as { proposal: unknown; artifacts?: unknown })
+                  : { proposal: value };
+
+              return requestLocalService(state.stateDirectory, {
+                schemaVersion: 1,
+                operation: 'run_report',
+                jobId,
+                key: options.key,
+                proposal: envelope.proposal,
+                artifacts: envelope.artifacts ?? [],
+                ...(options.acceptHistoricalReview ? { acceptHistoricalReview: true } : {}),
+              });
+            } catch {
+              return rejected('invalid_request', 'Report file could not be read as bounded JSON.');
             }
-
-            const value: unknown = JSON.parse(
-              new TextDecoder('utf8', { fatal: true }).decode(content),
-            );
-            const envelope =
-              value && typeof value === 'object' && 'proposal' in value
-                ? (value as { proposal: unknown; artifacts?: unknown })
-                : { proposal: value };
-
-            return requestLocalService(state.stateDirectory, {
-              schemaVersion: 1,
-              operation: 'run_report',
-              jobId,
-              key: options.key,
-              proposal: envelope.proposal,
-              artifacts: envelope.artifacts ?? [],
-              ...(options.acceptHistoricalReview ? { acceptHistoricalReview: true } : {}),
-            });
-          } catch {
-            return rejected('invalid_request', 'Report file could not be read as bounded JSON.');
-          }
-        });
+          },
+          true,
+        );
       },
     );
   run

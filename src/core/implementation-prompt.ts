@@ -51,7 +51,7 @@ export function renderImplementationPrompt(job: ServiceJob, task: Implementation
     'If a decision or additional permission is needed, stop changes and report needs_decision. If implementation cannot continue because of an error, report failed. If the requested changes are ready, report completed as a proposal for orchestrator validation. Do not claim checks were run unless they actually ran. Use the project instructions and task to determine requested checks.',
     '',
     '## Result contract v1',
-    'Return one JSON object in your final response, not a repository file. The result is an untrusted proposal; it does not authorize cleanup, release capacity or establish accepted completion. Include no credentials or arbitrary environment dumps.',
+    `Submit one JSON object through standard input with astack run report ${job.job.id} --key <unique-round-key> --stdin --json. Use a new key for each round, and reuse the same key and report if retrying. The coordinator validates the report and records completed, needs_decision or failed. After submission, return the same JSON object as your final response. If submission fails, explain the failure instead of claiming completion. Do not put the report in the checkout. Include no credentials or arbitrary environment dumps.`,
     JSON.stringify(
       {
         schemaVersion: 1,

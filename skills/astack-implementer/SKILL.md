@@ -2,7 +2,7 @@
 name: astack-implementer
 description: Carry out an explicitly assigned Astack implementation task in its owned checkout and return the structured worker report, without taking over orchestration or publication.
 metadata:
-  asset-version: '1.0.0'
+  asset-version: '1.0.1'
 ---
 
 # Implement an Astack assignment
@@ -17,11 +17,11 @@ Implement the requested behavior and run the project's relevant verification usi
 
 Commit only as authorized by the task and project instructions, using their conventions. If the host must commit or approve an intermediate choice, stop at a `needs_decision` report with the concrete question and retained work. Do not label a dirty/uncommitted implementation completed merely because tests passed. Avoid placing untracked artifacts in a completed checkout unless the host's artifact/retention contract explicitly handles them.
 
-The orchestrator handles acceptance, handoff/publication, reviewer dispatch, cancellation and cleanup. Do not run those host commands, self-accept a report, release resource holds, remove your checkout or terminate sibling workers. Skills and task text do not expand the original execution authority.
+Submit your own report as directed below. The orchestrator handles handoff/publication, reviewer dispatch, cancellation and cleanup. Do not run those host commands, release resource holds, remove your checkout or terminate sibling workers. Skills and task text do not expand the original execution authority.
 
 ## Return the worker proposal
 
-Follow the exact report schema and formatting supplied in the assignment. Return one final JSON object using the assigned identities; a report is a proposal until the host validates and accepts it. For the current schema the fields are:
+Follow the exact report schema and formatting supplied in the assignment. Return one final JSON object using the assigned identities; the coordinator validates the report before recording it. For the current schema the fields are:
 
 ```json
 {
@@ -41,6 +41,6 @@ Follow the exact report schema and formatting supplied in the assignment. Return
 
 Replace every placeholder with real assignment/checkout evidence. `baseCommit` stays the originally assigned SHA even if authorized work creates a newer `headCommit`. Keep summaries within 4000 UTF-8 bytes and at most 16 blockers of 512 bytes each. Do not include credentials or transcripts.
 
-Use `completed` only for work meeting the requested outcome at the reported clean committed HEAD; identify exactly what verification ran. Use `needs_decision` for a required host choice/commit/approval and `failed` when the assigned outcome cannot be completed, with concrete blockers. Never invent a passing result or send a host acceptance command.
+Use `completed` only for work meeting the requested outcome at the reported clean committed HEAD; identify exactly what verification ran. Use `needs_decision` for a required host choice/commit/approval and `failed` when the assigned outcome cannot be completed, with concrete blockers. Never invent a passing result. Submit the JSON to `astack run report <job-id> --key <unique-round-key> --stdin --json`, and reuse the same key and report on retry. Return the JSON in your final response too.
 
 If the host explicitly continues the same worker after a decision, follow the new authorized input while preserving the assignment's original IDs/base SHA. A completed turn, idle UI or report delivery is not permission to exit or clean up; retain the checkout and runtime for the host's lifecycle operations.

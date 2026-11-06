@@ -826,6 +826,68 @@ await test(
   },
 );
 await test(
+  'a worker can submit a decision request through CLI standard input',
+  options,
+  async () => {
+    await fixture(async (context) => {
+      const { coordinator, job, proposal } = await prepare(context);
+      coordinator.start();
+      await coordinator.idle();
+      await coordinator.stop();
+      const service = await startLocalService(
+        { schemaVersion: 1, stateDirectory: context.context.state, gitExecutable: gitPath },
+        { runtimes: [context.runtime], runWorkerInput: context.workerInput },
+      );
+
+      assert.equal(service.outcome, 'listening', JSON.stringify(service));
+
+      if (service.outcome !== 'listening') {
+        return;
+      }
+
+      try {
+        const entry = fileURLToPath(new URL('../dist/cli/main.js', import.meta.url));
+        const result = await new Promise<{ code: number | null; stdout: string }>(
+          (resolve, reject) => {
+            const child = spawn(process.execPath, [
+              entry,
+              '--state-directory',
+              context.context.state,
+              'run',
+              'report',
+              job.job.id,
+              '--key',
+              'worker-round-1',
+              '--stdin',
+              '--json',
+            ]);
+            let stdout = '';
+            child.stdout.on('data', (chunk: Buffer) => {
+              stdout += chunk.toString();
+            });
+            child.on('error', reject);
+            child.on('close', (code) => resolve({ code, stdout }));
+            child.stdin.end(
+              JSON.stringify({
+                ...proposal,
+                outcome: 'needs_decision',
+                blockers: ['Choose behavior'],
+              }),
+            );
+          },
+        );
+        const response = runWriteResultSchema.parse(JSON.parse(result.stdout) as unknown);
+
+        assert.equal(result.code, 0);
+        assert.ok(response.outcome === 'persisted' && response.value.status === 'needs_decision');
+      } finally {
+        await service.close();
+      }
+    });
+  },
+);
+
+await test(
   'live RPC and compiled CLI expose offline run inspection and bounded events from a neutral cwd',
   options,
   async () => {

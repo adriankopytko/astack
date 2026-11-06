@@ -4,7 +4,7 @@
 
 An orchestrator selects a task, project, ready owned checkout, branch and initial full SHA. `implement submit` accepts a durable implementation job through the local service. The coordinator launches the configured worker and hands it a deterministic initial prompt through the runtime's durable input primitive. `implement inspect` reads saved delivery and blocker evidence, including after the service stops.
 
-This workflow does not select issues, create a checkout implicitly, provision project environments, publish changes, open PRs, trigger review automatically, automatically ingest reports or clean up workers. Worktree preparation is an explicit existing primitive. Successful task completion requires the separate explicit run report acceptance operation; UI idle/done and terminal-input acknowledgement are insufficient.
+This workflow does not select issues, create a checkout implicitly, provision project environments, publish changes, open PRs, trigger review automatically, automatically ingest reports or clean up workers. Worktree preparation is an explicit existing primitive. Workers can submit their own report through `run report --stdin`; the coordinator validates it. UI idle/done and terminal-input acknowledgement are insufficient.
 
 ## CLI sequence
 
@@ -105,4 +105,4 @@ Disposable Git/state and controlled input/runtime fixtures exercise two-project 
 
 Manual PR/SHA review is now a separate explicit workflow; see [review delegation](review.md). It does not reuse an implementation checkout or infer a PR from this task.
 
-[Run operations](runs.md) now validate host-supplied report proposals and provide decisions, explicit continuation, cancellation and events. `acceptedOutcome` reflects accepted terminal control; a response or prompt receipt alone does not establish it.
+[Run operations](runs.md) now validate worker-submitted or host-supplied report proposals and provide decisions, explicit continuation, cancellation and events. `acceptedOutcome` reflects accepted terminal control; a response or prompt receipt alone does not establish it.

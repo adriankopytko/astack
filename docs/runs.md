@@ -4,7 +4,7 @@
 
 A run is the saved service job and execution attempt, its accepted reports, decision responses, continuation attempts, cancellation intents and resource evidence. `run inspect` works offline. `run events` reads or waits for durable local changes without querying GitHub, inspecting an idle pane or injecting a prompt. Report and decision mutations use the owning local service. Explicit shutdown reconciliation runs offline under coordinator ownership.
 
-These operations consume implementation/review assignments. They do not discover tasks, ingest arbitrary terminal transcripts, authenticate remote worker submissions, automatically wake an orchestrator, create replacement workers, publish changes, or clean up work. The private Unix socket has same-host-user authority. `run report` is an explicit orchestrator/host acceptance operation for a supplied proposal, not a restricted worker-report endpoint.
+These operations consume implementation/review assignments. They do not discover tasks, ingest arbitrary terminal transcripts, authenticate remote worker submissions, automatically wake an orchestrator, create replacement workers, publish changes, or clean up work. The private Unix socket has same-host-user authority. `run report` accepts a supplied proposal from the worker or another same-user client; the coordinator validates it. The socket is not a restricted worker-report endpoint.
 
 ## CLI
 
@@ -12,8 +12,10 @@ These operations consume implementation/review assignments. They do not discover
 # Inspect saved assignment, task outcome, worker status and retained resources.
 astack run inspect <job-id> --json
 
-# Validate and accept a versioned worker JSON proposal selected by the orchestrator.
+# Submit a versioned worker JSON proposal.
 astack run report <job-id> --key report-1 --file ./worker-result.json --json
+# Or pipe a JSON proposal to --stdin (useful for a read-only worker).
+cat worker-result.json | astack run report <job-id> --key report-1 --stdin --json
 
 # Alternatively select the exact local Codex session file; collect and validate its final report.
 astack run collect-report <job-id> --key report-1 \
@@ -43,7 +45,7 @@ astack run cursor inspect orchestrator --project project-a --json
 
 All commands honor global `--state-directory`; no target is inferred from an ambient pane. Inspection, cursor reads and event reads/waits open existing state read-only, without bootstrapping or migrating it. Report acceptance (including collected proposals), response, resume, cancellation and cursor acknowledgement require the local service. Reconciliation requires it stopped. No live runtime is needed to inspect/accept already delivered reports. Native input/interrupt requires the explicitly enabled approved runtime; its absence blocks controls.
 
-`--file` accepts either the worker's original report object or `{ "proposal": <report>, "artifacts": [...] }`. CLI reads are bounded at 48,000 bytes and reject symbolic links, nonregular files and detected mutation. Requests/results use strict versioned schemas. Human output distinguishes run state, worker state and retained cleanup; JSON retains the complete evidence. Exit 1 can describe a saved blocked/unknown/failed/needs_decision run, not an absent request.
+`--file` and `--stdin` each accept either the worker's original report object or `{ "proposal": <report>, "artifacts": [...] }`. CLI reads are bounded at 48,000 bytes; file reads reject symbolic links, nonregular files and detected mutation. Requests/results use strict versioned schemas. Human output distinguishes run state, worker state and retained cleanup; JSON retains the complete evidence. Report submission exits zero when the report is saved, including a `needs_decision` or `failed` report; inspection can exit 1 for a saved blocked/unknown/failed/needs_decision run.
 
 ## Report validation and acceptance
 
@@ -55,7 +57,7 @@ Artifact references are bounded relative paths, SHA-256 digests and byte sizes. 
 
 Acceptance atomically stores the report, control revision, terminal result where applicable, and event. `needs_decision` opens a decision without resolving the execution attempt. `completed`/`reviewed` and `failed` create the existing state's terminal result and resolve the attempt. No resource is released from a report alone. A worker still observed running or unknown continues occupying capacity until trusted quiescence evidence exists.
 
-This validates structure, assignment and observed evidence. It does not cryptographically authenticate report authorship, prove the business behavior or independently rerun claimed tests. The same-host orchestrator selects and accepts the proposal. Never accept arbitrary terminal text or treat a reported check as independently verified merely because its JSON parses.
+This validates structure, assignment and observed evidence. It does not cryptographically authenticate report authorship, prove the business behavior or independently rerun claimed tests. A worker or same-host orchestrator submits the proposal. Never accept arbitrary terminal text or treat a reported check as independently verified merely because its JSON parses.
 
 Keys are scoped to job and operation. An identical report retry returns saved acceptance without inspecting a now-modified checkout or revoked policy. Different input under that key conflicts. A new report after terminal completion/cancellation is rejected. Concurrent cancellation or continuation changes the revision and prevents stale acceptance. An unresolved resume input blocks new report acceptance. Existing generic terminal state results also prevent dispatch, without fabricating a validated workflow report.
 

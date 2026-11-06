@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "namespace": "astack",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "skills": [
     {
       "id": "orchestrator",
@@ -15,17 +15,17 @@
       "id": "implementer",
       "name": "astack-implementer",
       "description": "Carry out an explicitly assigned Astack implementation task in its owned checkout and return the structured worker report, without taking over orchestration or publication.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "path": "astack-implementer/SKILL.md",
-      "sha256": "4dd0733552d5e9e63a597d0d7c95685b54b1d233600d0a19f1bce21a6c004180"
+      "sha256": "d7f090b680e5580b617586e81c78913e2b63ad522d7aa4cea243ef211917dd5f"
     },
     {
       "id": "reviewer",
       "name": "astack-reviewer",
       "description": "Review an explicitly assigned Astack PR and full commit SHA in a dedicated read-only checkout and return structured findings with the supplied scope and readiness snapshots.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "path": "astack-reviewer/SKILL.md",
-      "sha256": "7a4b1070997959ef0e7df8e19a669b40dd8c8de28cbe916c92b6aa3418b4b08f"
+      "sha256": "d07fbc773fdbf98be4b4f0f4fd3df743b935f12a84e1ff58803f485b4d8f473b"
     }
   ]
 }

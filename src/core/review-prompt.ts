@@ -28,7 +28,7 @@ export function renderReviewPrompt(job: ServiceJob, task: ReviewTask): string {
     'This is the acceptance-time snapshot, not a promise that checks remain unchanged. The host rechecks readiness before first delivery. Preserve pending, failing, skipped, cancelled and missing checks in your report; an override does not make CI pass. If you inspect current checks, report the exact target and observation separately. A changed head makes this review stale, never authorization to retarget.',
     JSON.stringify({ policy: task.submission.gate, acceptanceSnapshot: task.initialSnapshot }),
     '## Result contract v1',
-    'Return one JSON object in the final response, not a file. This is an untrusted proposal; idle status or this report cannot accept completion, release capacity, clean up or authorize publication. Include no credentials or environment dumps.',
+    `Submit one JSON object through standard input with astack run report ${job.job.id} --key <unique-round-key> --stdin --json. Use a new key for each round, and reuse the same key and report if retrying. The coordinator validates the report and records reviewed, needs_decision or failed. After submission, return the same JSON object as your final response. If submission fails, explain the failure instead of claiming completion. Do not put the report in the checkout. Submission does not publish findings or authorize cleanup. Include no credentials or environment dumps.`,
     JSON.stringify({
       schemaVersion: 1,
       jobId: job.job.id,
