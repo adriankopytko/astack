@@ -26,6 +26,9 @@ const roleFields = {
   timeoutMs: z.number().int().min(1000).max(86_400_000),
   skills: z.array(configurationSkillSchema).max(32),
   environment,
+  model: z.string().min(1).max(128).nullable().optional(),
+  reasoning: name.nullable().optional(),
+  instructions: z.string().min(1).max(4000).optional(),
 };
 export const configurationRoleSchema = z.strictObject(roleFields);
 const hooks = z.strictObject({
@@ -80,6 +83,15 @@ export const runtimeLaunchProfileSchema = z.strictObject({
   runtime: name,
   settings: z.record(z.string().max(128), z.json()),
 });
+export const projectAgentSchema = z.strictObject({
+  provider: name,
+  model: z
+    .string()
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/)
+    .nullable(),
+  reasoning: name.nullable(),
+  instructions: z.string().min(1).max(4000).optional(),
+});
 export const hostConfigurationPolicySchema = z
   .strictObject({
     schemaVersion: z.literal(1),
@@ -89,6 +101,7 @@ export const hostConfigurationPolicySchema = z
     project: configurationPatchSchema,
     local: configurationPatchSchema.default({}),
     execution: z.strictObject({
+      agentSettings: z.record(name, projectAgentSchema).optional(),
       launchProfiles: z
         .record(name, runtimeLaunchProfileSchema)
         .refine((value) => Object.keys(value).length <= 32)
@@ -130,6 +143,15 @@ export const hostConfigurationPolicySchema = z
     }),
   })
   .refine((value) => Buffer.byteLength(JSON.stringify(value)) <= 65_536);
+export const projectConfigurationFileSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  agents: z.record(name, projectAgentSchema).refine((value) => Object.keys(value).length <= 32),
+  hooks: configurationPatchSchema.shape.hooks,
+  execution: hostConfigurationPolicySchema.shape.execution
+    .omit({ agentSettings: true, launchProfiles: true })
+    .partial()
+    .optional(),
+});
 export const configurationRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   projectId: projectIdSchema,
@@ -177,6 +199,8 @@ export const configurationSnapshotSchema = z
 export const configurationDiagnosticSchema = z.strictObject({
   code: z.enum([
     'policy_missing',
+    'agent_model_missing',
+    'agent_reasoning_missing',
     'role_missing',
     'runtime_not_allowed',
     'command_not_allowed',
@@ -212,6 +236,8 @@ export const configurationResolutionSchema = z
   );
 export const configurationResultSchema = createOperationResultSchema(configurationResolutionSchema);
 export type ConfigurationPatch = z.infer<typeof configurationPatchSchema>;
+export type ProjectAgent = z.infer<typeof projectAgentSchema>;
+export type ProjectConfigurationFile = z.infer<typeof projectConfigurationFileSchema>;
 export type EffectiveConfiguration = z.infer<typeof effectiveConfigurationSchema>;
 export type HostConfigurationPolicy = z.infer<typeof hostConfigurationPolicySchema>;
 export type ConfigurationRequest = z.infer<typeof configurationRequestSchema>;

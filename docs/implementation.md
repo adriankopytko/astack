@@ -8,7 +8,7 @@ This workflow does not select issues, create a checkout implicitly, provision pr
 
 ## CLI sequence
 
-Prepare an owned checkout and approve the selected project's host configuration and Herdr target using the existing commands. `worktree prepare` returns the allocated registered checkout ID. Start the service with the explicit runtime opt-in, then submit from any directory:
+Prepare an owned checkout and configure the selected project agent and Herdr target using the existing commands. `worktree prepare` returns the allocated registered checkout ID. Start the service with the explicit runtime opt-in, then submit from any directory:
 
 ```sh
 astack service run --codex-herdr --codex-executable /trusted/bin/codex

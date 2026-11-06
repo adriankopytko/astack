@@ -3,18 +3,9 @@ export const initializationAssetVersion = '1';
 /** One project-owned starter; the registry supplies local identities when it is resolved. */
 export const initializationProjectConfig = {
   schemaVersion: 1,
-  project: {
-    roles: {
-      implementer: { runtime: null, command: null },
-      reviewer: { runtime: null, command: null },
-    },
-    hooks: { setup: null, verify: null, teardown: null },
-  },
-  execution: {
-    allowedEnvironment: [],
-    maxTimeoutMs: 300000,
-    commands: {},
-    skills: [],
+  agents: {
+    implementer: { provider: 'codex', model: null, reasoning: null },
+    reviewer: { provider: 'codex', model: null, reasoning: null },
   },
 };
 

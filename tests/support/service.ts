@@ -51,10 +51,32 @@ export async function writeProjectConfiguration(
 
   assert.ok(root);
 
+  const policy = JSON.parse(
+    await readFile(join(context.state, 'config', `project-${index}.json`), 'utf8'),
+  ) as {
+    project: { roles: Record<string, { runtime: string }>; hooks?: unknown };
+    execution: Record<string, unknown>;
+  };
+  const agents = Object.fromEntries(
+    Object.entries(policy.project.roles).map(([role, value]) => [
+      role,
+      {
+        provider: value.runtime === 'codex-herdr' ? 'codex' : value.runtime,
+        model: 'fixture-model',
+        reasoning: 'high',
+      },
+    ]),
+  );
+  const { launchProfiles: _profiles, agentSettings: _settings, ...execution } = policy.execution;
   await mkdir(join(root, '.astack'), { recursive: true });
   await writeFile(
     join(root, '.astack', 'config.json'),
-    await readFile(join(context.state, 'config', `project-${index}.json`)),
+    JSON.stringify({
+      schemaVersion: 1,
+      agents,
+      ...(policy.project.hooks ? { hooks: policy.project.hooks } : {}),
+      execution,
+    }),
   );
 }
 

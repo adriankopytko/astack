@@ -10,13 +10,11 @@ The primary checkout’s `.astack/config.json` contains both command names and e
 
 ```json
 {
-  "project": {
-    "hooks": {
-      "setup": null,
-      "verify": "project-check",
-      "start": "project-start",
-      "teardown": "project-stop"
-    }
+  "hooks": {
+    "setup": null,
+    "verify": "project-check",
+    "start": "project-start",
+    "teardown": "project-stop"
   },
   "execution": {
     "allowedEnvironment": ["PATH", "APP_PORT"],
@@ -80,7 +78,7 @@ Example execution request:
 
 Select a real full SHA. `allocations` defaults to empty. `writersExcluded: true` is a trusted host attestation that competing checkout/startup controllers and writers are excluded throughout the operation, including native agents that may outlive a stopped service. It is not a worker claim or an automatic conclusion from idleness. Hold coordinator ownership across preflight, command execution, result settlement and drain. The CLI locks before writable open/migration and refuses an active coordinator; inspect uses existing state read-only. Library hosts supply the same exclusion and injected dependencies. There is no arbitrary-command RPC.
 
-The job/attempt selects explicit registered identity; caller cwd/pane does not. A ready owned checkout, matching directory/container identity, branch and explicit current SHA are required. Hooks can run on a completed implementation SHA different from its original base assignment, but never silently retarget the request. Configured job snapshots remain immutable and the current project configuration must still match. Setup/start require an active unresolved attempt; verify supports accepted work states and teardown remains available after cancellation/terminal outcome under the still-matching configuration. Changed configuration is not bypassed for teardown: hosts must arrange an explicit recovery path or stop outside this operation.
+The job/attempt selects explicit registered identity; caller cwd/pane does not. A ready owned checkout, matching directory/container identity, branch and explicit current SHA are required. Hooks can run on a completed implementation SHA different from its original base assignment, but never silently retarget the request. Hooks use the accepted job configuration; subsequent project edits do not change that job's commands. Setup/start require an active unresolved attempt; verify supports accepted work states and teardown remains available after cancellation/terminal outcome under the saved configuration.
 
 ## Intent, execution and evidence
 

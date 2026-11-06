@@ -834,7 +834,7 @@ await test(
         const status = service.status();
 
         assert.ok(status.outcome === 'completed');
-        assert.deepEqual(status.value.runtimes, ['codex-herdr']);
+        assert.deepEqual(status.value.runtimes, ['codex-herdr', 'codex']);
       } finally {
         assert.equal((await service.close()).outcome, 'completed');
       }

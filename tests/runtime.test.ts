@@ -33,6 +33,64 @@ function value(result: OperationResult<RuntimeStatus>): RuntimeStatus {
 }
 
 await test(
+  'configured Codex agent launches with saved model and reasoning without a launch profile',
+  options,
+  async () => {
+    await fixture(async ({ prepare, deps, policy, calls }) => {
+      await policy((value) => {
+        value.project.roles.implementer = {
+          runtime: 'codex',
+          command: null,
+          model: 'example-model',
+          reasoning: 'high',
+          instructions: 'Follow the project plan.',
+        };
+        value.execution.agentSettings = {
+          implementer: {
+            provider: 'codex',
+            model: 'example-model',
+            reasoning: 'high',
+            instructions: 'Follow the project plan.',
+          },
+        };
+        delete value.execution.launchProfiles;
+      });
+      const job = await prepare();
+      await policy((value) => {
+        value.execution.agentSettings!.implementer!.model = 'changed-model';
+      });
+      const launch = deps.worker.launch.bind(deps.worker);
+      let launchArgs: string[] = [];
+      deps.worker.launch = async (input, signal) => {
+        launchArgs = input.args;
+
+        return launch({ ...input, args: nativeArgs }, signal);
+      };
+
+      const request = { schemaVersion: 1, attemptId: job.attempt.id };
+      const { launchValidator: _unusedValidator, ...withoutValidator } = deps;
+      const result = value(await launchRuntime(request, withoutValidator));
+
+      assert.equal(result.state, 'running');
+      assert.equal(result.session?.validation, undefined);
+      assert.ok(launchArgs.includes('example-model'));
+      assert.ok(launchArgs.includes('model_reasoning_effort="high"'));
+      assert.equal(launchArgs.includes('changed-model'), false);
+      assert.equal(
+        job.job.configuration?.effective.roles.implementer?.instructions,
+        'Follow the project plan.',
+      );
+      assert.equal(
+        value(await inputRuntime({ ...request, key: 'simple-input', text: 'Continue' }, deps))
+          .action?.state,
+        'acknowledged',
+      );
+      assert.equal(calls.filter((call) => call.operation === 'launch').length, 1);
+    });
+  },
+);
+
+await test(
   'a queued worker starts with the configuration accepted for its job',
   options,
   async () => {
@@ -51,6 +109,38 @@ await test(
       );
 
       assert.equal(launched.state, 'running');
+      assert.equal(calls.filter((call) => call.operation === 'launch').length, 1);
+    });
+  },
+);
+
+await test(
+  'simple agent launch with an uncertain receipt reconciles without launching twice',
+  options,
+  async () => {
+    await fixture(async ({ prepare, deps, policy, calls, modes }) => {
+      await policy((value) => {
+        value.project.roles.implementer = {
+          runtime: 'codex',
+          command: null,
+          model: 'example-model',
+          reasoning: 'high',
+        };
+        value.execution.agentSettings = {
+          implementer: { provider: 'codex', model: 'example-model', reasoning: 'high' },
+        };
+        delete value.execution.launchProfiles;
+      });
+      const job = await prepare();
+      const launch = deps.worker.launch.bind(deps.worker);
+      deps.worker.launch = (input, signal) => launch({ ...input, args: nativeArgs }, signal);
+      modes.launch = 'after';
+      const request = { schemaVersion: 1, attemptId: job.attempt.id };
+      const first = value(await launchRuntime(request, deps));
+
+      assert.equal(first.state, 'unknown');
+      assert.equal(value(await reconcileRuntime(request, deps)).state, 'running');
+      assert.equal(value(await launchRuntime(request, deps)).state, 'running');
       assert.equal(calls.filter((call) => call.operation === 'launch').length, 1);
     });
   },

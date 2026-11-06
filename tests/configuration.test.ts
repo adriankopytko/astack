@@ -676,15 +676,17 @@ await test('configuration is bound to project/repository identity and cancellati
 });
 
 await test('compiled configuration CLI works from neutral cwd, reports blocking reasons, and keeps host arguments private', async () => {
-  await fixture(async ({ root, state, source, policy, save }) => {
+  await fixture(async ({ root, state, source, policy }) => {
     await mkdir(join(source, '.astack'), { recursive: true });
-    const saveProject = async () =>
-      writeFile(join(source, '.astack', 'config.json'), JSON.stringify(policy));
-    policy.execution.commands.worker = {
-      executable: process.execPath,
-      args: ['fixture-private-argument'],
+    const projectConfig: {
+      schemaVersion: number;
+      agents: { implementer: { provider: string; model: string | null; reasoning: string } };
+    } = {
+      schemaVersion: 1,
+      agents: { implementer: { provider: 'fixture', model: 'fixture-model', reasoning: 'high' } },
     };
-    await save();
+    const saveProject = async () =>
+      writeFile(join(source, '.astack', 'config.json'), JSON.stringify(projectConfig));
     const run = () =>
       spawnSync(
         process.execPath,
@@ -713,8 +715,7 @@ await test('compiled configuration CLI works from neutral cwd, reports blocking 
       'ready',
     );
 
-    delete policy.execution.commands.worker;
-    await save();
+    projectConfig.agents.implementer.model = null;
     await saveProject();
     const blocked = run();
 
@@ -722,7 +723,7 @@ await test('compiled configuration CLI works from neutral cwd, reports blocking 
     assert.equal(
       resolution(configurationResultSchema.parse(JSON.parse(blocked.stdout) as unknown))
         .diagnostics[0]?.code,
-      'command_not_allowed',
+      'agent_model_missing',
     );
   });
 });

@@ -68,7 +68,7 @@ export function wireServiceCommands(program: Command): void {
     .option('--codex-herdr', 'Trust Herdr-owned Codex execution in each configured project server')
     .option(
       '--codex-executable <absolute-path>',
-      'Approved canonical Codex path resolved by the selected servers',
+      'Host Codex path; Herdr resolves its own Codex for project agents',
     )
     .option('--capacity <count>', 'Global active/uncertain capacity', integer, 1)
     .option('--role-capacity <count>', 'Default capacity per role', integer, 1)

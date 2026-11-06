@@ -2,6 +2,7 @@ import { constants } from 'node:fs';
 import { access, lstat, stat } from 'node:fs/promises';
 import { basename, dirname, join, isAbsolute } from 'node:path';
 import { projectIdSchema } from '../../contracts/project-context.js';
+import { projectConfigurationFileSchema } from '../../contracts/configuration.js';
 import type { ProjectRegistry } from '../../ports/project-registry.js';
 import type { StateStore } from '../../ports/state-store.js';
 import type { ConfigurationDiagnostic } from '../../contracts/configuration.js';
@@ -169,11 +170,43 @@ export function createNodeConfigurationReader(
           const value = config?.value ?? null;
 
           if (value !== null) {
-            if (typeof value !== 'object' || Array.isArray(value)) {
+            const projectConfig = projectConfigurationFileSchema.safeParse(value);
+
+            if (!projectConfig.success) {
               throw new ConfigurationReadError('configuration_invalid');
             }
 
-            return { ...value, projectId, repositoryId: project.value.repository.id };
+            const roles = Object.fromEntries(
+              Object.entries(projectConfig.data.agents).map(([role, agent]) => [
+                role,
+                {
+                  runtime: agent.provider,
+                  command: null,
+                  model: agent.model,
+                  reasoning: agent.reasoning,
+                  ...(agent.instructions === undefined ? {} : { instructions: agent.instructions }),
+                },
+              ]),
+            );
+
+            return {
+              schemaVersion: 1,
+              projectId,
+              repositoryId: project.value.repository.id,
+              project: {
+                roles,
+                ...(projectConfig.data.hooks === undefined
+                  ? {}
+                  : { hooks: projectConfig.data.hooks }),
+              },
+              execution: {
+                agentSettings: projectConfig.data.agents,
+                allowedEnvironment: [],
+                commands: {},
+                skills: [],
+                ...projectConfig.data.execution,
+              },
+            };
           }
         }
 

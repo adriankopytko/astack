@@ -123,7 +123,7 @@ export function createSqliteRuntimeStore(db: StateDatabase, now: () => number): 
           value.phase !== 'pending' ||
           value.agent !== null ||
           !same(space, value.space) ||
-          value.validation?.state !== 'pending'
+          (value.validation !== undefined && value.validation.state !== 'pending')
         ) {
           stateFailure('runtime_conflict');
         }

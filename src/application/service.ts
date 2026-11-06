@@ -206,7 +206,10 @@ export function createServiceCoordinator(input: {
   onFailure: () => void;
 }) {
   const limits = serviceLimitsSchema.parse(input.limits);
-  const runtimes = new Map(input.runtimes.map((runtime) => [runtime.id, runtime]));
+  const runtimeEntries = input.runtimes.flatMap((runtime) =>
+    [runtime.id, ...(runtime.aliases ?? [])].map((name) => [name, runtime] as const),
+  );
+  const runtimes = new Map(runtimeEntries);
   const controller = new AbortController();
   let phase: ServiceStatus['phase'] = 'recovering';
   let pending = false;
@@ -215,7 +218,7 @@ export function createServiceCoordinator(input: {
   let started = false;
   const { dependencies } = input;
 
-  if (runtimes.size !== input.runtimes.length) {
+  if (runtimes.size !== runtimeEntries.length) {
     throw new Error('Runtime IDs must be unique');
   }
 

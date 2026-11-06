@@ -11,7 +11,7 @@ astack config inspect --project <project-id> --role implementer --json
 
 The file is used directly: there is no approval command or editable host copy. At job acceptance, Astack saves the resolved project configuration in the private state database alongside the job. The accepted job uses that saved configuration for dispatch, launch, hooks and verification. Editing the project file changes new jobs, not already accepted jobs, and unrelated edits do not block an existing worker.
 
-The saved job record currently includes the project configuration, including configured command arguments and launch profiles. Explicitly configured nonsecret launch-profile paths such as `HOME` and `PATH` are included; ambient environment values are not copied. The private data is not returned in ordinary job or configuration inspection output, but is present in the private local database. Do not put credentials, tokens or secret environment values in configuration or command arguments. Existing jobs created before per-job configuration storage do not have the required saved data and must be submitted again; Astack does not silently substitute the mutable project file.
+The saved job record currently includes the project configuration, including configured agent instructions and any optional command arguments. Ambient environment values are not copied. The private data is not returned in ordinary job or configuration inspection output, but is present in the private local database. Do not put credentials, tokens or secret environment values in configuration or command arguments. Existing jobs created before per-job configuration storage do not have the required saved data and must be submitted again; Astack does not silently substitute the mutable project file.
 
 The orchestrator does not receive the file automatically: it uses Astack's commands and reads or edits the project file when needed. Astack reads the latest file when accepting a new job. The user's coding agent is responsible for loading its own skills and project instructions.
 
@@ -19,32 +19,23 @@ The default host state directory is `~/.astack`, shared across projects for regi
 
 ## Starter
 
-A fresh `.astack/config.json` is disabled and contains null role/hook selections and empty execution controls. Its shape is:
+A fresh `.astack/config.json` contains agent entries without a model or reasoning level. Fill in both for each agent you want to use:
 
 ```json
 {
   "schemaVersion": 1,
-  "project": {
-    "roles": {
-      "implementer": { "runtime": null, "command": null },
-      "reviewer": { "runtime": null, "command": null }
-    },
-    "hooks": { "setup": null, "verify": null, "teardown": null }
-  },
-  "execution": {
-    "allowedEnvironment": [],
-    "maxTimeoutMs": 300000,
-    "commands": {},
-    "skills": []
+  "agents": {
+    "implementer": { "provider": "codex", "model": null, "reasoning": null },
+    "reviewer": { "provider": "codex", "model": null, "reasoning": null }
   }
 }
 ```
 
-The project and repository identities come from the host registry, not this file. Optional `user`, `project`, `local` and request patches retain their existing merge precedence; they are fields within the single editable project configuration. Objects merge by field, arrays replace whole arrays, and `null` disables optional bindings. Execution controls set commands, environment names and timeout ceilings. They are not merged from task requests.
+Each agent selects a `provider`, `model` and `reasoning`. Model and reasoning are required to accept that agent's job. An optional `instructions` string is included in that worker's assignment. Other named agents can be configured; a matching runtime adapter must be available. The built-in provider is `codex` through Herdr. Supported Codex reasoning values are `minimal`, `low`, `medium`, `high`, `xhigh` and `max`.
 
-Replace starter values deliberately. Executables and argv are explicit; no shell interpolation or automatic dependency installation is added. Keep credentials and secret environment values out of project configuration, command arguments, prompts and reports. Configuring a command permits the program and its code dependencies to run; it does not establish a sandbox.
+Astack provides the Codex launch arguments. The implementer defaults to `workspace-write`; the reviewer defaults to `read-only`; both use Codex's `on-request` approval mode. These are current defaults, not configurable project options. No executable/version/file digest or approval profile is required. The service still requires `--codex-herdr` to install the built-in runtime.
 
-Optional `execution.hooks` defines named lifecycle commands and resource/environment bindings; see [hooks](hooks.md). `execution.verification[role]` defines required baseline checks and allowed lane/additional checks; see [verification](verification.md). `execution.launchProfiles` supplies adapter-specific Codex role settings; see [launch profiles](launch-profiles.md). Optional `execution.review.allowNoChecks` grants explicit no-CI handling under the [review gate contract](review.md).
+Optional top-level `hooks` and `execution` settings retain the existing lifecycle and verification operations while their redesign is under discussion. See [hooks](hooks.md) and [verification](verification.md). They are not needed merely to delegate a worker. Keep credentials and secret environment values out of project configuration, command arguments, prompts and reports.
 
 ## Inspection and job snapshots
 

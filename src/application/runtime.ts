@@ -189,6 +189,45 @@ async function approved(job: ServiceJob, deps: RuntimeDependencies, signal?: Abo
 
   const effective = job.job.configuration.effective;
   const role = effective.roles[job.entry.role];
+  const agent = policy.execution.agentSettings?.[job.entry.role];
+
+  if (agent) {
+    if (
+      agent.provider !== 'codex' ||
+      role?.runtime !== 'codex' ||
+      role.model !== agent.model ||
+      role.reasoning !== agent.reasoning ||
+      !agent.model ||
+      !agent.reasoning ||
+      !['minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(agent.reasoning)
+    ) {
+      throw new RuntimeFailure(
+        rejected(
+          'runtime_capability_missing',
+          'Configure a supported Codex model and reasoning level for this agent.',
+        ),
+      );
+    }
+
+    return {
+      args: [
+        '--sandbox',
+        job.entry.role === 'reviewer' ? 'read-only' : 'workspace-write',
+        '--ask-for-approval',
+        'on-request',
+        '--no-daemon',
+        '--no-alt-screen',
+        '--model',
+        agent.model,
+        '-c',
+        `model_reasoning_effort="${agent.reasoning}"`,
+      ],
+      timeoutMs: Math.min(role?.timeoutMs ?? 300_000, 30_000),
+      profile: undefined,
+      simple: true as const,
+    };
+  }
+
   const command = role?.command ? policy.execution.commands[role.command] : undefined;
 
   if (
@@ -261,7 +300,12 @@ async function approved(job: ServiceJob, deps: RuntimeDependencies, signal?: Abo
 
   const profile = policy.execution.launchProfiles?.[job.entry.role];
 
-  return { args: [...args], timeoutMs: Math.min(role.timeoutMs, 30_000), profile };
+  return {
+    args: [...args],
+    timeoutMs: Math.min(role.timeoutMs, 30_000),
+    profile,
+    simple: false as const,
+  };
 }
 
 function validationInput(
@@ -470,9 +514,10 @@ export async function launchRuntime(
     const command = await approved(job, deps, signal);
 
     if (
-      !command.profile ||
-      command.profile.runtime !== runtimeCapabilities.runtime ||
-      !deps.launchValidator
+      !command.simple &&
+      (!command.profile ||
+        command.profile.runtime !== runtimeCapabilities.runtime ||
+        !deps.launchValidator)
     ) {
       return rejected(
         'runtime_capability_missing',
@@ -540,13 +585,17 @@ export async function launchRuntime(
       space,
       phase: 'pending',
       agent: null,
-      validation: {
-        invocationId: `validation-${deps.newId()}`,
-        profileDigest: profileDigest(command, deps),
-        state: 'pending',
-        contextDigest: null,
-        argumentsDigest: null,
-      },
+      ...(command.simple
+        ? {}
+        : {
+            validation: {
+              invocationId: `validation-${deps.newId()}`,
+              profileDigest: profileDigest(command, deps),
+              state: 'pending',
+              contextDigest: null,
+              argumentsDigest: null,
+            },
+          }),
     });
     checkAutomaticReview(await jobFor(attemptId, deps), deps);
     const reserved = deps.runtime.reserve(session);
@@ -558,8 +607,38 @@ export async function launchRuntime(
 
     try {
       checkAutomaticReview(await jobFor(attemptId, deps), deps);
+
+      if (command.simple) {
+        const refreshed = await approved(await jobFor(attemptId, deps), deps, signal);
+        const current = read(
+          await selectProjectContext({ schemaVersion: 1, runId: attemptId }, deps, signal),
+        );
+
+        if (
+          !refreshed.simple ||
+          !isDeepStrictEqual(refreshed.args, command.args) ||
+          signal?.aborted ||
+          current.git.checkout.head.commit !== job.entry.commit ||
+          current.git.checkout.head.branch !== job.entry.branch ||
+          current.checkout?.checkout.rootPath !== space.root
+        ) {
+          return status(session, 'unknown', 'identity_changed');
+        }
+
+        const launched = await deps.worker.launch(
+          { space, args: command.args, timeoutMs: command.timeoutMs },
+          controlSignal(command.timeoutMs, signal),
+        );
+
+        if (launched.outcome === 'rejected') {
+          return status(session, 'unknown', 'launch_pending');
+        }
+
+        return await reconcileRuntime(input, deps, signal);
+      }
+
       const validated = read(
-        await deps.launchValidator.validate(
+        await deps.launchValidator!.validate(
           validationInput(session, command, deps),
           controlSignal(command.timeoutMs, signal),
         ),
@@ -729,11 +808,11 @@ async function control(
       return status(session, 'blocked', 'policy_blocked');
     }
 
-    if (kind === 'input' && session.validation?.state !== 'validated') {
+    if (kind === 'input' && session.validation && session.validation.state !== 'validated') {
       return status(session, 'blocked', 'policy_blocked');
     }
 
-    if (kind === 'input') {
+    if (kind === 'input' && session.validation) {
       const command = await approved(job, deps, signal);
 
       if (!(await profileMatches(session, command, deps, signal))) {
@@ -888,6 +967,7 @@ export function createCodexHerdrRuntime(deps: RuntimeDependencies): ServiceWorke
 
   return {
     id: runtimeCapabilities.runtime,
+    aliases: ['codex'],
     start: (job, signal) => observation(job, true, signal),
     inspect: (job, signal) => observation(job, false, signal),
   };

@@ -31,7 +31,7 @@ The implementer skill consumes the exact assigned run/attempt/checkout/branch/ba
 
 The reviewer skill consumes the exact PR/full SHA/base/gate/snapshots in a dedicated read-only checkout. It returns numeric-line findings and preserves historical scope. It cannot edit code, start services, approve/merge, publish findings or convert itself into an implementer. The original assignment's result schema remains authoritative; these optional guides do not change saved runtime prompt bytes or delivery generations.
 
-These are instructions, not an OS security boundary. Native profiles, private host controls, current assignment/report validation and actual process permissions still enforce operation authority. Installing a guide does not attach it to accepted jobs or approve its path/digest automatically. Hosts can deliberately reference the returned version/digest using the existing configuration skill pins and approve the installed absolute path through private execution policy. Updates do not rewrite those pins or immutable job snapshots; changed bytes can block fresh dispatch under an old approval. Coordinate upgrades with affected pinned jobs or select a separate root for another profile.
+These are instructions, not an OS security boundary. Native profiles, private host controls, current assignment/report validation and actual process permissions still enforce operation authority. Installing a guide does not attach it to accepted jobs or approve its path/digest automatically. The project agent configuration does not pin or inject skills. The coding agent discovers its own user and project skills; explicit per-worker skill selection remains future work.
 
 ## Bundle and provenance
 

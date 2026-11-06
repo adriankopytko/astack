@@ -36,6 +36,7 @@ export interface ServiceStore extends ReviewRequestLookup {
 /** Injected trusted adapter. Never infer launch absence from a missing process or expired claim. */
 export interface ServiceWorkerRuntime {
   id: string;
+  aliases?: readonly string[];
   workflows?: readonly string[];
   /** Read-only workflow prerequisites, checked before capacity claim or provider launch. */
   preflight?(job: ServiceJob, signal: AbortSignal): Promise<OperationResult<{ ready: true }>>;

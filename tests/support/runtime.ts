@@ -9,11 +9,21 @@ interface FixturePolicy {
   project: {
     hooks?: { setup: string };
     roles: {
-      implementer: { runtime: string; command: string };
-      reviewer: { runtime: string; command: string };
+      implementer: {
+        runtime: string;
+        command: string | null;
+        model?: string | null;
+        reasoning?: string | null;
+        instructions?: string;
+      };
+      reviewer: { runtime: string; command: string | null; instructions?: string };
     };
   };
   execution: {
+    agentSettings?: Record<
+      string,
+      { provider: string; model: string | null; reasoning: string | null; instructions?: string }
+    >;
     launchProfiles?: Record<string, { runtime: string; settings: Record<string, string> }>;
     commands: { 'fixture-worker': { executable: string; args: string[] } };
   };

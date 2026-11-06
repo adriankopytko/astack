@@ -3,12 +3,14 @@ import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { mkdtemp, writeFile, symlink, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, symlink, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import {
   submitImplementation,
   inspectImplementation,
   createServiceCoordinator,
+  createImplementationRuntime,
+  createNodeConfigurationReader,
   implementationSubmitResultSchema,
   implementationReadResultSchema,
   implementationWorkerReportSchema,
@@ -23,6 +25,64 @@ import { fixture } from './support/implementation.js';
 import { gitPath, writeProjectConfiguration } from './support/service.js';
 
 const options = { timeout: 90_000 };
+
+await test(
+  'project agent instructions reach an implementation worker through a provider alias',
+  options,
+  async () => {
+    await fixture(async (context) => {
+      await writeProjectConfiguration(context.context, 0);
+      const path = join(context.context.sources[0]!, '.astack', 'config.json');
+      const config = JSON.parse(await readFile(path, 'utf8')) as {
+        agents: {
+          implementer: {
+            provider: string;
+            model: string;
+            reasoning: string;
+            instructions?: string;
+          };
+        };
+      };
+      config.agents.implementer = {
+        provider: 'codex',
+        model: 'fixture-model',
+        reasoning: 'high',
+        instructions: 'Follow the local implementation plan.',
+      };
+      await writeFile(path, JSON.stringify(config));
+      const deps = {
+        ...context.deps,
+        configuration: createNodeConfigurationReader(
+          context.context.opened.registry,
+          context.context.opened.store,
+        ),
+      };
+      const runtime = createImplementationRuntime({
+        runtime: { ...context.base, aliases: ['codex'] },
+        dependencies: deps,
+        workerInput: context.workerInput,
+      });
+      const request = await context.prepare();
+      const submitted = await submitImplementation(request, deps);
+
+      assert.ok(submitted.outcome === 'persisted', JSON.stringify(submitted));
+
+      const service = createServiceCoordinator({
+        sessionId: 'agent-instructions',
+        limits: { global: 1, defaultRole: 1, perRole: {} },
+        runtimes: [runtime],
+        dependencies: deps,
+        onFailure: () => assert.fail('Coordinator failed'),
+      });
+      service.start();
+      await service.idle();
+      await service.stop();
+
+      assert.equal(context.prompts.length, 1);
+      assert.match(context.prompts[0]!.text, /Follow the local implementation plan/);
+    });
+  },
+);
 function accepted(result: StateWriteResult<ImplementationJob>): ImplementationJob {
   implementationSubmitResultSchema.parse(result);
 

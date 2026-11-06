@@ -219,14 +219,30 @@ await test(
         ),
       );
 
-      const policyPath = join(f.source, '.astack', 'config.json');
-      const policy = hostConfigurationPolicySchema.parse({
-        ...JSON.parse(await readFile(policyPath, 'utf8')),
-        projectId: applied.target.projectId,
-        repositoryId: applied.target.repositoryId,
-      });
+      for (const item of applied.configuration) {
+        assert.ok(item.result.outcome === 'completed');
+        assert.ok(
+          item.result.value.diagnostics.some((entry) => entry.code === 'agent_model_missing'),
+        );
+        assert.ok(
+          item.result.value.diagnostics.some((entry) => entry.code === 'agent_reasoning_missing'),
+        );
+      }
 
-      assert.deepEqual(policy.execution.commands, {});
+      const policyPath = join(f.source, '.astack', 'config.json');
+      const config = JSON.parse(await readFile(policyPath, 'utf8')) as {
+        agents: Record<
+          string,
+          { provider: string; model: string | null; reasoning: string | null }
+        >;
+      };
+
+      assert.deepEqual(config.agents.implementer, {
+        provider: 'codex',
+        model: null,
+        reasoning: null,
+      });
+      assert.deepEqual(config.agents.reviewer, { provider: 'codex', model: null, reasoning: null });
       assert.equal((await stat(policyPath)).mode & 0o777, 0o644);
 
       await assert.rejects(access(join(f.state, 'config', 'project-init.json')), {
@@ -773,12 +789,15 @@ await test(
         'initialized',
       );
       const path = join(f.source, '.astack', 'config.json');
-      const policy = hostConfigurationPolicySchema.parse(
-        await f.deps.configuration.readPolicy(projectId),
-      );
-      policy.project.roles = { implementer: { runtime: 'fixture', command: 'worker' } };
-      policy.execution.commands.worker = { executable: process.execPath, args: ['--version'] };
-      const { projectId: _project, repositoryId: _repository, ...config } = policy;
+      const config: {
+        schemaVersion: number;
+        agents: {
+          implementer: { provider: string; model: string | null; reasoning: string | null };
+        };
+      } = {
+        schemaVersion: 1,
+        agents: { implementer: { provider: 'fixture', model: 'first-model', reasoning: 'high' } },
+      };
       await writeFile(path, JSON.stringify(config));
       let sequence = 0;
       const deps = {
@@ -800,7 +819,7 @@ await test(
 
       assert.ok(first.outcome === 'persisted', JSON.stringify(first));
 
-      delete config.execution.commands.worker;
+      config.agents.implementer.model = null;
       await writeFile(path, JSON.stringify(config));
       const old = await checkConfigurationDispatch(
         { schemaVersion: 1, job: first.value.job },
@@ -829,10 +848,13 @@ await test(
       );
       const config = join(f.source, '.astack', 'config.json');
       const reader = createNodeConfigurationReader(f.opened.registry, f.opened.store);
-      const saved = hostConfigurationPolicySchema.parse(await reader.readPolicy(projectId));
-      saved.project.roles = { implementer: { runtime: 'fixture', command: 'worker' } };
-      saved.execution.commands.worker = { executable: process.execPath, args: ['--version'] };
-      const { projectId: _project, repositoryId: _repository, ...projectConfig } = saved;
+
+      assert.ok(await reader.readPolicy(projectId));
+
+      const projectConfig = {
+        schemaVersion: 1,
+        agents: { implementer: { provider: 'fixture', model: 'first-model', reasoning: 'high' } },
+      };
       await writeFile(config, JSON.stringify(projectConfig));
       const ready = await resolveConfiguration(
         { schemaVersion: 1, projectId, role: 'implementer' },
@@ -845,7 +867,7 @@ await test(
       );
 
       const originalDigest = ready.value.snapshot?.policyDigest;
-      projectConfig.execution.commands.worker!.args = ['--help'];
+      projectConfig.agents.implementer.model = 'second-model';
       await writeFile(config, JSON.stringify(projectConfig));
       const changed = await resolveConfiguration(
         { schemaVersion: 1, projectId, role: 'implementer' },

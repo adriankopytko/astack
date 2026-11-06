@@ -53,7 +53,7 @@ function render(result: InitializationResult, json?: boolean) {
       steps.push('Run astack init without --dry-run to apply this plan.');
     } else {
       steps.push(
-        `Review project instructions and fill in ${join(view.target.root, '.astack', 'config.json')} for this project.`,
+        `Review project instructions and set each agent's provider, model and reasoning in ${join(view.target.root, '.astack', 'config.json')}.`,
       );
 
       if (view.provider.status !== 'ready') {

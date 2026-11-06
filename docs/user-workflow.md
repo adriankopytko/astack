@@ -36,7 +36,7 @@ astack init /path/to/project --non-interactive --role implementer --role reviewe
 
 Initialization registers the project, creates an incomplete `.astack/config.json` starter, optionally installs selected project skills, and ensures its named Herdr workspace. It reuses an existing workspace with that name or creates one. The user or agent inspects the project and fills in its configuration; Astack does not discover tools or execute project scripts during init.
 
-The generated project configuration starts disabled. Before delegation, fill it with the runtime, executable, role settings, verification commands and launch profile. Astack reads its current contents directly. Host state defaults to `~/.astack` and does not store a separate copy of project settings. The launch profile also records the expected Codex executable, model, reasoning setting, relevant environment and configuration-file digests. See [project initialization](initialization.md) and [launch profiles](launch-profiles.md).
+The generated project configuration starts with unset model and reasoning. Before delegation, fill each agent entry with its provider, model and reasoning. Optional instructions and project checks can be added when needed. Astack reads its current contents directly. Host state defaults to `~/.astack`; it has no separately editable copy of project settings, though accepted jobs retain private snapshots. Astack supplies the Codex launch arguments; executable and local file digests are not required in the project config. See [project initialization](initialization.md) and [runtime](runtime.md).
 
 **User experience:** setup is deliberately conservative, but substantial. A knowledgeable orchestrator needs to understand project configuration and assemble several settings before the first worker can start. There is not yet a polished “initialize and delegate” experience.
 
@@ -187,7 +187,7 @@ Its strengths are substantial:
 
 The friction is also substantial:
 
-1. **First-time setup has many moving parts.** The project, Herdr target, project configuration, Codex profile, executable/configuration digests, verification and optional automation all need to align.
+1. **First-time setup has many moving parts.** The project, Herdr target, agent model and reasoning, verification and optional automation still need to align.
 2. **The complete path spans many commands.** An orchestrator must prepare a checkout, submit, inspect, collect a report, verify, publish, prepare or select a reviewer checkout, and later reconcile and clean up.
 3. **Some important transitions are still manual.** Report collection, publication authorization, shutdown evidence and parts of cleanup require explicit intervention.
 4. **Recovery can be demanding.** “Unknown” is preserved safely, but the next action can require a human to understand which controller or process might still be active.

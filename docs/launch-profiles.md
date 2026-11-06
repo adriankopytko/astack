@@ -1,10 +1,12 @@
-# Validated runtime launch profiles
+# Legacy validated runtime launch profiles
+
+> The project agent configuration no longer requires or accepts these profiles. This document describes the retained library-level legacy validator, not the current init workflow. New project-agent launches use the configured provider, model and reasoning directly.
 
 New `codex-herdr` starts require a project-configured role profile and an injected `RuntimeLaunchValidator`. The built-in CLI/service wire `createCodexLaunchValidator` to the trusted host Node executable, controlled process runner and explicit Herdr pane probe. The registered primary checkout supplies these settings directly. A configuration readiness observation alone is not startup validation.
 
 ## Policy and compatibility
 
-Add `execution.launchProfiles.<role>` to `.astack/config.json` before accepting the job. Astack reads the current file directly; there is no configuration approval step. It has `runtime: "codex-herdr"` and adapter-specific `settings`:
+Legacy library hosts can construct an internal role profile directly. It is not accepted in `.astack/config.json`. It has `runtime: "codex-herdr"` and adapter-specific `settings`:
 
 ```json
 {

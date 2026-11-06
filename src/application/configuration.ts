@@ -64,7 +64,29 @@ function prerequisites(
     diagnostics.push(
       diagnostic(
         'runtime_not_allowed',
-        'Select a runtime for the role in .astack/config.json.',
+        'Configure this agent with a provider, model and reasoning in .astack/config.json.',
+        snapshot.role,
+      ),
+    );
+  }
+
+  const agent = policy.execution.agentSettings?.[snapshot.role];
+
+  if (agent && agent.model === null) {
+    diagnostics.push(
+      diagnostic(
+        'agent_model_missing',
+        'Set the agent model in .astack/config.json.',
+        snapshot.role,
+      ),
+    );
+  }
+
+  if (agent && agent.reasoning === null) {
+    diagnostics.push(
+      diagnostic(
+        'agent_reasoning_missing',
+        'Set the agent reasoning level in .astack/config.json.',
         snapshot.role,
       ),
     );
@@ -104,7 +126,7 @@ function prerequisites(
     }
   }
 
-  if (role.command === null) {
+  if (role.command === null && !agent) {
     diagnostics.push(
       diagnostic(
         'command_not_allowed',

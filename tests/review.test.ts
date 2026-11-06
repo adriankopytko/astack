@@ -166,6 +166,12 @@ await test(
       assert.equal(job.job.entry.role, 'reviewer');
       assert.equal(job.review.acceptedOutcome, null);
       assert.ok(job.job.job.configuration);
+
+      const withInstructions = structuredClone(job.job);
+      withInstructions.job.configuration!.effective.roles.reviewer!.instructions =
+        'Focus on reliability.';
+
+      assert.match(renderReviewPrompt(withInstructions, job.assignment), /Focus on reliability\./);
       assert.equal(context.launches.length, 0);
       assert.equal(context.prompts.length, 0);
       assert.equal(
