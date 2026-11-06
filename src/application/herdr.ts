@@ -253,15 +253,6 @@ export async function prepareHerdrWorker(
       return rejected('resource_blocked', 'Agent port allocation is unavailable for this worker.');
     }
 
-    const ports =
-      role && dependencies.agentPorts
-        ? await dependencies.agentPorts.environment(job.record.id, attemptId, role, signal)
-        : null;
-
-    if (ports?.outcome === 'rejected') {
-      return ports;
-    }
-
     const previous = read(dependencies.herdr.worker(attemptId));
 
     if (previous) {
@@ -292,6 +283,15 @@ export async function prepareHerdrWorker(
       run.branch !== selected.git.checkout.head.branch
     ) {
       return result('blocked', null, 'managed_checkout_required');
+    }
+
+    const ports =
+      role && dependencies.agentPorts
+        ? await dependencies.agentPorts.environment(job.record.id, attemptId, role, signal)
+        : null;
+
+    if (ports?.outcome === 'rejected') {
+      return ports;
     }
 
     const primaryResult = await ensureHerdrProject(
