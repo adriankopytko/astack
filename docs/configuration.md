@@ -49,7 +49,7 @@ Astack maps `permissions.files` to the provider: Codex `readonly` uses `read-onl
 
 `astack config-schema` prints the current machine-readable JSON Schema for humans, agents and editors. To use it in VS Code, run `astack config-schema > .astack/schema.json` and add `"$schema": "./schema.json"` to `.astack/config.json`. Regenerate the schema after upgrading Astack. Schema validation describes the file shape; `astack doctor` also checks saved project context and prerequisites, including supported Codex reasoning values.
 
-Optional top-level `hooks` and `execution` settings retain the existing explicit lifecycle hooks temporarily while their replacement is developed. See [hooks](hooks.md). Project configurations no longer accept the legacy `execution.verification` settings. They are not needed merely to delegate a worker. Keep credentials and secret environment values out of project configuration, command arguments, prompts and reports.
+Legacy top-level hook and verification settings are not accepted. Keep credentials and secret environment values out of project configuration, command arguments, prompts and reports.
 
 ## Inspection and job snapshots
 

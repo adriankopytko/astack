@@ -1,17 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readFile, writeFile, access } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { fixture } from './support/implementation.js';
-import { git, writeProjectConfiguration } from './support/service.js';
+import { git } from './support/service.js';
 import {
   executeHook,
   excludeHookWriter,
   reconcileHook,
   hookExecutionResultSchema,
-  hookRecordSchema,
   hostConfigurationPolicySchema,
   submitImplementation,
   submitReview,
@@ -21,7 +18,6 @@ import {
   releaseAllocation,
   createReviewRuntime,
   nodeProcessRunner,
-  acquireCoordinatorOwnership,
   type HostConfigurationPolicy,
   type HookDependencies,
   type HookRequest,
@@ -591,83 +587,6 @@ await test(
     });
   },
 );
-await test(
-  'hook CLI holds coordinator ownership, persists explicit execution and resolves from a neutral directory',
-  options,
-  async () => {
-    await fixture(async (f) => {
-      const p = await profile(f, 0, ['verify']);
-      // This CLI fixture has no required external environment values.
-      p.policy.execution.hooks!.verify!.environment = [];
-      await writeFile(p.path, JSON.stringify(p.policy), { mode: 0o600 });
-      const next = await f.prepare(1, 'cli-hooks');
-      const otherPolicy = hostConfigurationPolicySchema.parse(
-        JSON.parse(await readFile(join(f.context.state, 'config', 'project-1.json'), 'utf8')),
-      );
-      otherPolicy.project.hooks = { setup: null, verify: 'hook-verify', teardown: null };
-      otherPolicy.execution.commands['hook-verify'] = {
-        executable: process.execPath,
-        args: ['-e', 'process.exit(0)'],
-      };
-      otherPolicy.execution.hooks = {
-        verify: { command: 'hook-verify', timeoutMs: 1000, environment: [], resources: {} },
-      };
-      await writeFile(
-        join(f.context.state, 'config', 'project-1.json'),
-        JSON.stringify(otherPolicy),
-        { mode: 0o600 },
-      );
-      await writeProjectConfiguration(f.context, 1);
-      const submitted = await submitImplementation(next, f.deps);
-
-      assert.ok(submitted.outcome === 'persisted');
-
-      const path = join(f.context.root, 'hook-request.json');
-      await writeFile(path, JSON.stringify(request(submitted.value.job, 'verify')));
-      const entry = fileURLToPath(new URL('../dist/cli/main.js', import.meta.url));
-      const call = (...args: string[]) =>
-        spawnSync(
-          process.execPath,
-          [entry, '--state-directory', f.context.state, 'hooks', ...args, '--json'],
-          { cwd: f.context.root, encoding: 'utf8', timeout: 60000 },
-        );
-      const lock = await acquireCoordinatorOwnership(f.context.state);
-
-      try {
-        const blocked = call('execute', '--file', path);
-
-        assert.equal(blocked.status, 1, blocked.stdout || blocked.stderr);
-
-        const parsed: unknown = JSON.parse(blocked.stdout);
-
-        assert.ok(
-          parsed &&
-            typeof parsed === 'object' &&
-            'outcome' in parsed &&
-            parsed.outcome === 'rejected',
-        );
-      } finally {
-        lock.release();
-      }
-
-      const executed = call('execute', '--file', path);
-
-      assert.equal(executed.status, 0, executed.stdout || executed.stderr);
-
-      const record = hook(hookExecutionResultSchema.parse(JSON.parse(executed.stdout)));
-
-      assert.equal(record.status, 'succeeded');
-
-      const inspected = call('inspect', record.id);
-
-      assert.equal(inspected.status, 0, inspected.stderr);
-
-      hookRecordSchema.parse((JSON.parse(inspected.stdout) as { value: unknown }).value);
-      await assert.rejects(access(join(f.context.root, '.astack')), { code: 'ENOENT' });
-    });
-  },
-);
-
 await test(
   'deadline and cancellation keep process cause separate from task success and service shutdown',
   options,

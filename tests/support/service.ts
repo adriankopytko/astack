@@ -72,6 +72,7 @@ export async function writeProjectConfiguration(
     agentSettings: _settings,
     skills: _skills,
     verification: _verification,
+    hooks: _hooks,
     ...execution
   } = policy.execution;
   await mkdir(join(root, '.astack'), { recursive: true });
@@ -80,7 +81,6 @@ export async function writeProjectConfiguration(
     JSON.stringify({
       schemaVersion: 1,
       agents,
-      ...(policy.project.hooks ? { hooks: policy.project.hooks } : {}),
       execution,
     }),
   );

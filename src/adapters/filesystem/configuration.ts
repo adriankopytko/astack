@@ -195,9 +195,6 @@ export function createNodeConfigurationReader(
               repositoryId: project.value.repository.id,
               project: {
                 roles,
-                ...(projectConfig.data.hooks === undefined
-                  ? {}
-                  : { hooks: projectConfig.data.hooks }),
               },
               execution: {
                 agentSettings: projectConfig.data.agents,

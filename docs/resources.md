@@ -1,6 +1,6 @@
 # Shared host resource allocation
 
-`resources` manages cooperating port and name reservations in the selected shared host state database. It does not launch/stop services, install software, change environment files or grant execution policy. Explicit [project hooks](hooks.md) consume these operations separately. Use one state directory for all projects sharing a host; separate databases are separate allocation domains, not distributed coordination. See ADR 0023.
+`resources` manages cooperating port and name reservations in the selected shared host state database. It does not launch/stop services, install software, change environment files or grant execution policy. Automatic agent hooks do not yet consume these reservations. Use one state directory for all projects sharing a host; separate databases are separate allocation domains, not distributed coordination. See ADR 0023.
 
 ## Requests and binding
 

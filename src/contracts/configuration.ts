@@ -185,9 +185,8 @@ export const projectConfigurationFileSchema = z.strictObject({
   $schema: z.string().min(1).max(1024).optional(),
   schemaVersion: z.literal(1),
   agents: z.record(name, projectAgentSchema).refine((value) => Object.keys(value).length <= 32),
-  hooks: configurationPatchSchema.shape.hooks,
   execution: hostConfigurationPolicySchema.shape.execution
-    .omit({ agentSettings: true, skills: true, verification: true })
+    .omit({ agentSettings: true, skills: true, verification: true, hooks: true })
     .partial()
     .optional(),
 });

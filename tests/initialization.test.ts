@@ -94,6 +94,22 @@ await test('project agent configuration requires model and reasoning and does no
     }).success,
     false,
   );
+  assert.equal(
+    projectConfigurationFileSchema.safeParse({
+      schemaVersion: 1,
+      agents: {},
+      hooks: { setup: 'old-command' },
+    }).success,
+    false,
+  );
+  assert.equal(
+    projectConfigurationFileSchema.safeParse({
+      schemaVersion: 1,
+      agents: {},
+      execution: { hooks: {} },
+    }).success,
+    false,
+  );
 });
 const repo = fileURLToPath(new URL('../', import.meta.url));
 function view(result: InitializationResult, outcome?: string) {
