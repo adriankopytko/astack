@@ -3,7 +3,6 @@ export const initializationAssetVersion = '1';
 /** One project-owned starter; the registry supplies local identities when it is resolved. */
 export const initializationProjectConfig = {
   schemaVersion: 1,
-  revision: 'init-v1',
   project: {
     roles: {
       implementer: { runtime: null, command: null },

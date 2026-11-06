@@ -277,7 +277,6 @@ export async function resolveConfiguration(
       repositoryId: project.repository.id,
       checkoutId: checkout.checkout.id,
       role: request.value.role,
-      policyRevision: policy.revision,
       ...(approvedVerification ? { verification: approvedVerification } : {}),
       policyDigest: configurationDigest(policy),
       effectiveDigest: configurationDigest(merged.effective),

@@ -137,7 +137,6 @@ async function fixture(
       schemaVersion: 1,
       projectId: registration.value.project.id,
       repositoryId: registration.value.repository.id,
-      revision: 'v1',
       project: {
         roles: {
           implementer: {
@@ -423,7 +422,6 @@ await test('configured job acceptance stores immutable policy provenance and exa
       assert.fail(JSON.stringify(accepted));
     }
 
-    assert.equal(accepted.value.configuration?.policyRevision, 'v1');
     assert.equal(
       accepted.value.configuration?.skills[0]?.digest,
       policy.execution.skills[0]?.digest,
@@ -437,7 +435,7 @@ await test('configured job acceptance stores immutable policy provenance and exa
 
     assert.equal(repeated.outcome === 'persisted' && repeated.disposition, 'existing');
 
-    policy.revision = 'v2';
+    policy.execution.commands.worker!.args = ['--help'];
     await save();
     const changed = await acceptConfiguredJob(
       { schemaVersion: 1, job, role: request.role, request: {} },
@@ -451,8 +449,8 @@ await test('configured job acceptance stores immutable policy provenance and exa
     assert.equal(
       saved.outcome === 'completed' &&
         saved.value?.entity === 'job' &&
-        saved.value.record.configuration?.policyRevision,
-      'v1',
+        saved.value.record.configuration?.policyDigest,
+      accepted.value.configuration?.policyDigest,
     );
 
     const reopened = await openSqliteState({

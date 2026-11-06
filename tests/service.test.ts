@@ -104,7 +104,6 @@ await test(
       assert.equal(current.effect.state, 'pending');
       assert.equal(current.effect.claim, null);
       assert.equal(current.attempt.number, 1);
-      assert.equal(current.job.configuration?.policyRevision, 'v1');
 
       const conflict = await submitServiceJob({ ...input, commit: 'a'.repeat(40) }, deps);
 
@@ -133,10 +132,8 @@ await test(
 
       const path = join(state, 'config', 'project-0.json');
       const policy = JSON.parse(await readFile(path, 'utf8')) as {
-        revision: string;
         execution: { commands: Record<string, { executable: string; args: string[] }> };
       };
-      policy.revision = 'v2';
       policy.execution.commands['fixture-worker']!.args = ['--help'];
       await writeFile(path, JSON.stringify(policy));
       const retry = await submitServiceJob(request(0, 'before-edit'), deps);
@@ -155,8 +152,10 @@ await test(
       const second = await submitServiceJob(request(0, 'after-edit'), deps);
 
       assert.ok(second.outcome === 'persisted');
-      assert.equal(first.value.job.configuration?.policyRevision, 'v1');
-      assert.equal(second.value.job.configuration?.policyRevision, 'v2');
+      assert.notEqual(
+        first.value.job.configuration?.policyDigest,
+        second.value.job.configuration?.policyDigest,
+      );
       assert.equal(JSON.stringify(first.value).includes('--version'), false);
       assert.equal(JSON.stringify(second.value).includes('--help'), false);
 
@@ -172,7 +171,11 @@ await test(
         const stored = reopened.store.readJobConfiguration(first.value.job.id);
 
         assert.ok(stored.outcome === 'completed' && stored.value);
-        assert.equal((stored.value as { revision: string }).revision, 'v1');
+        assert.deepEqual(
+          (stored.value as { execution: { commands: Record<string, { args: string[] }> } })
+            .execution.commands['fixture-worker']?.args,
+          ['--version'],
+        );
       } finally {
         reopened.store.close();
       }

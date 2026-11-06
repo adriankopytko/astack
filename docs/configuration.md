@@ -24,7 +24,6 @@ A fresh `.astack/config.json` is disabled and contains null role/hook selections
 ```json
 {
   "schemaVersion": 1,
-  "revision": "init-v1",
   "project": {
     "roles": {
       "implementer": { "runtime": null, "command": null },

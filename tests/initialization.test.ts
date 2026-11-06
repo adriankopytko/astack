@@ -283,7 +283,6 @@ await test(
         schemaVersion: 1,
         projectId: registered.value.project.id,
         repositoryId: registered.value.repository.id,
-        revision: 'authored',
         project: { roles: { implementer: { runtime: 'codex-herdr' } } },
         execution: {
           enabled: true,

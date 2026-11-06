@@ -114,7 +114,7 @@ The [SQLite state operations](sqlite-state.md) now export typed local job-intent
 
 ### Identity, acceptance, and effects
 
-- Bind a job to stable project/repository/checkout identity, role, requester, task or PR, effective policy revision, and creation time. Bind execution attempts separately to runtime/workspace/resource handles. IDs supplied in an environment variable alone do not authorize worker operations.
+- Bind a job to stable project/repository/checkout identity, role, requester, task or PR, effective policy digest, and creation time. Bind execution attempts separately to runtime/workspace/resource handles. IDs supplied in an environment variable alone do not authorize worker operations.
 - A submission has an idempotency key scoped to requester/project/operation. Reusing it with the same intent returns the existing receipt; differing intent is a conflict. Intentional retry or repeat review gets an explicit attempt identity and retains lineage.
 - Persist accepted intent and pending effects in one short transaction before acknowledgement. A receipt identifies the job and whether it is queued or already started. Neither acceptance nor process exit proves completed work.
 - Execute provider effects after commit, persist handles/evidence as soon as known, and reconcile unknown effects before retry. Crashing between launch and handle persistence must not create another writer blindly. Exactly-once external execution is not promised.

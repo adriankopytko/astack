@@ -122,7 +122,6 @@ export async function fixture(
           schemaVersion: 1,
           projectId: registration.value.project.id,
           repositoryId: registration.value.repository.id,
-          revision: 'v1',
           project: { roles: { implementer: role, reviewer: role } },
           execution: {
             enabled: true,

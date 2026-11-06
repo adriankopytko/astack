@@ -65,10 +65,8 @@ await test(
       const plan = await f.enqueue(await f.reviewer());
       const path = join(f.f.context.context.state, 'config', `${f.f.job.job.projectId}.json`);
       const policy = JSON.parse(await readFile(path, 'utf8')) as {
-        revision: string;
         project: { roles: { reviewer: { timeoutMs?: number } } };
       };
-      policy.revision = 'reviewer-updated';
       policy.project.roles.reviewer.timeoutMs = 60000;
       await writeFile(path, JSON.stringify(policy));
       await ready(f, plan.id);
@@ -80,7 +78,6 @@ await test(
       const job = f.opened.service.read(queued.reviewJobId);
 
       assert.ok(job.outcome === 'completed' && job.value);
-      assert.equal(job.value.job.configuration?.policyRevision, 'reviewer-updated');
       assert.equal(job.value.job.configuration?.effective.roles.reviewer?.timeoutMs, 60000);
     });
   },

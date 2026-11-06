@@ -20,7 +20,7 @@ function render(result: OperationResult<ConfigurationResolution>, json?: boolean
     process.stdout.write(`${result.error.code}: ${result.error.message}\n`);
   } else {
     process.stdout.write(
-      `Configuration: ${result.value.status}\nProposal: ${result.value.proposal}\nPolicy revision: ${result.value.snapshot?.policyRevision ?? 'none'}\n`,
+      `Configuration: ${result.value.status}\nProposal: ${result.value.proposal}\n`,
     );
 
     for (const diagnostic of result.value.diagnostics) {

@@ -50,7 +50,7 @@ The host holds ownership while inspecting prior effects, serving requests, dispa
 
 `submitServiceJob(request, dependencies, signal?)` validates a versioned request and resolves project configuration using explicit project/checkout identities. Only a ready policy permits persistence. It creates one job, its first numbered attempt, one pending worker-launch effect and its queue entry in **one SQLite transaction**, using migration 4. No provider runs inside a transaction.
 
-The saved assignment includes project/repository/checkout, role, exact branch and full SHA, task, policy revision/digests/provenance/skills, job/attempt/effect IDs and scoped idempotency key. Request overrides are saved with the policy snapshot. Project/provider specifics remain outside the generic store and dispatcher.
+The saved assignment includes project/repository/checkout, role, exact branch and full SHA, task, policy digests/provenance/skills, job/attempt/effect IDs and scoped idempotency key. Request overrides are saved with the policy snapshot. Project/provider specifics remain outside the generic store and dispatcher.
 
 A retry with the same host requester/project/role/key and equivalent task/assignment/policy returns the original job and current queue evidence. Generated IDs/times from a retry do not create another attempt. Changed task, branch, commit or policy under the same key returns a conflict. Legacy low-level jobs without service entries are not silently adopted. Submission claims durable intent, not worker start or domain completion.
 
