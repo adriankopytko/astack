@@ -76,6 +76,88 @@ const endpointPort = (record: AllocationRecord) => {
 };
 
 await test(
+  'managed ranges share unique database reservations without probing external processes',
+  options,
+  async () => {
+    await fixture(async (f) => {
+      const first = await f.submit(0, 'managed-first');
+      const second = await f.submit(1, 'managed-second');
+      const reopened = await openSqliteState({ schemaVersion: 1, stateDirectory: f.state });
+
+      assert.ok(reopened.outcome === 'opened');
+
+      try {
+        const deps: AllocationDependencies = {
+          allocations: f.opened.allocations,
+          ports: {
+            inspect: async () => assert.fail('Managed ports do not inspect external listeners'),
+          },
+        };
+        const other = { ...deps, allocations: reopened.allocations };
+        const request = (
+          jobId: string,
+          attemptId: string,
+          key: string,
+          range: [number, number],
+        ): AllocationRequest => ({
+          schemaVersion: 1,
+          jobId,
+          attemptId,
+          key,
+          spec: { kind: 'managed-port', protocol: 'tcp', host: '127.0.0.1', range },
+        });
+        const allocated: AllocationRecord[] = [];
+
+        for (let index = 0; index < 17; index++) {
+          allocated.push(
+            saved(
+              await reserveAllocation(
+                request(first.job.id, first.attempt.id, `port-${index}`, [31000, 31020]),
+                deps,
+              ),
+            ),
+          );
+        }
+
+        const another = saved(
+          await reserveAllocation(
+            request(second.job.id, second.attempt.id, 'api', [31000, 31020]),
+            other,
+          ),
+        );
+
+        assert.equal(endpointPort(another), 31017);
+        assert.equal(another.probe, null);
+        assert.equal(
+          (
+            await reserveAllocation(
+              request(second.job.id, second.attempt.id, 'fixed', [31000, 31000]),
+              deps,
+            )
+          ).outcome,
+          'rejected',
+        );
+
+        const released = await releaseAllocation(release(allocated[0]!), deps);
+
+        assert.equal(released.outcome, 'persisted');
+
+        const reused = saved(
+          await reserveAllocation(
+            request(second.job.id, second.attempt.id, 'reuse', [31000, 31020]),
+            deps,
+          ),
+        );
+
+        assert.equal(endpointPort(reused), 31000);
+      } finally {
+        reopened.store.close();
+      }
+    });
+  },
+);
+
+await test(
   'shared claims isolate projects, serialize fixed endpoints, and produce scoped names without ambient targets',
   options,
   async () => {

@@ -11,6 +11,10 @@ export function allocationValue(
 ): AllocatedValue {
   const spec = request.spec;
 
+  if (spec.kind === 'managed-port') {
+    return { kind: 'port', protocol: spec.protocol, host: spec.host, port: spec.range[0] + index };
+  }
+
   return spec.kind === 'port'
     ? { kind: 'port', protocol: spec.protocol, host: spec.host, port: spec.candidates[index]! }
     : {

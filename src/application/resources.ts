@@ -159,6 +159,10 @@ export async function startAllocation(
     );
   }
 
+  if (read.value.request.spec.kind === 'managed-port') {
+    return deps.allocations.start(parsed.value);
+  }
+
   const observed = await probe(read.value, deps, signal);
 
   if (observed.outcome !== 'completed' || observed.value !== 'free' || signal?.aborted) {
@@ -196,6 +200,10 @@ export async function confirmAllocationRunning(
 
   if (!read.value) {
     return rejected('state_not_found', 'Allocation was not found.');
+  }
+
+  if (read.value.request.spec.kind === 'managed-port') {
+    return deps.allocations.running(parsed.value);
   }
 
   const observed = await probe(read.value, deps, signal);
@@ -261,6 +269,10 @@ export async function releaseAllocation(
       'state_conflict',
       'Shutdown evidence must select the exact allocation revision and startup receipt.',
     );
+  }
+
+  if (read.value.request.spec.kind === 'managed-port') {
+    return deps.allocations.release(parsed.value);
   }
 
   const observed = await probe(read.value, deps, signal);

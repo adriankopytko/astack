@@ -11,6 +11,14 @@ export const portEndpointSchema = z.strictObject({
 });
 export const allocationSpecSchema = z.discriminatedUnion('kind', [
   z.strictObject({
+    kind: z.literal('managed-port'),
+    protocol: portEndpointSchema.shape.protocol,
+    host: portEndpointSchema.shape.host,
+    range: z
+      .tuple([portEndpointSchema.shape.port, portEndpointSchema.shape.port])
+      .refine(([first, last]) => first <= last),
+  }),
+  z.strictObject({
     kind: z.literal('port'),
     protocol: portEndpointSchema.shape.protocol,
     host: portEndpointSchema.shape.host,
@@ -66,7 +74,7 @@ export const allocationRecordSchema = z
       'released',
     ]),
     revision,
-    candidateIndex: z.number().int().min(0).max(15),
+    candidateIndex: z.number().int().min(0).max(64511),
     startup: z
       .strictObject({ key: stateIdSchema, controller: stateIdSchema, authorizedRevision: revision })
       .nullable(),
@@ -88,16 +96,21 @@ export const allocationRecordSchema = z
     const spec = record.request.spec;
     const value = record.value;
     const selected =
-      spec.kind === 'port' && value.kind === 'port'
+      spec.kind === 'managed-port' && value.kind === 'port'
         ? spec.protocol === value.protocol &&
           spec.host === value.host &&
-          spec.candidates[record.candidateIndex] === value.port
-        : spec.kind === 'name' &&
-          value.kind === 'name' &&
-          record.candidateIndex === 0 &&
-          spec.namespace === value.namespace &&
-          value.name ===
-            (spec.fixed ? spec.prefix : `${spec.prefix.slice(0, 30)}-${record.id.slice(-32)}`);
+          value.port === spec.range[0] + record.candidateIndex &&
+          value.port <= spec.range[1]
+        : spec.kind === 'port' && value.kind === 'port'
+          ? spec.protocol === value.protocol &&
+            spec.host === value.host &&
+            spec.candidates[record.candidateIndex] === value.port
+          : spec.kind === 'name' &&
+            value.kind === 'name' &&
+            record.candidateIndex === 0 &&
+            spec.namespace === value.namespace &&
+            value.name ===
+              (spec.fixed ? spec.prefix : `${spec.prefix.slice(0, 30)}-${record.id.slice(-32)}`);
     const unstarted = ['probing', 'reserved', 'blocked'].includes(record.phase);
 
     return (
@@ -111,7 +124,9 @@ export const allocationRecordSchema = z
       (!['running', 'retained'].includes(record.phase) || record.endpointVerifiedAt !== null) &&
       (record.phase !== 'probing' || (value.kind === 'port' && record.probe === null)) &&
       (record.phase !== 'reserved' ||
-        (value.kind === 'name' ? record.probe === null : record.probe === 'free'))
+        (value.kind === 'name' || spec.kind === 'managed-port'
+          ? record.probe === null
+          : record.probe === 'free'))
     );
   });
 

@@ -103,7 +103,32 @@ export function createSqliteAllocationStore(db: StateDatabase, now: () => number
         .get(key, id),
     );
   function candidate(request: AllocationRecord['request'], id: string, from: number) {
-    const count = request.spec.kind === 'port' ? request.spec.candidates.length : 1;
+    const spec = request.spec;
+    const count =
+      spec.kind === 'managed-port'
+        ? spec.range[1] - spec.range[0] + 1
+        : spec.kind === 'port'
+          ? spec.candidates.length
+          : 1;
+
+    if (spec.kind === 'managed-port') {
+      const rows = db
+        .statement(
+          "SELECT allocation_key FROM resource_allocations WHERE phase!='released' AND id<>?",
+        )
+        .all(id);
+      const used = new Set(rows.map((row) => row.allocation_key));
+
+      for (let index = from; index < count; index++) {
+        const value = allocationValue(request, id, index);
+
+        if (!used.has(allocationKey(value))) {
+          return { value, candidateIndex: index };
+        }
+      }
+
+      return stateFailure('resource_conflict');
+    }
 
     for (let index = from; index < count; index++) {
       const value = allocationValue(request, id, index);
