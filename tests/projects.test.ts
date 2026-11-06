@@ -496,11 +496,8 @@ await test(
         (withHooks.value as { configuration: unknown }).configuration,
       );
 
-      assert.equal(withHooks.status, 1);
-      assert.equal(
-        hookConfig.outcome === 'completed' && hookConfig.value.diagnostics[0]?.code,
-        'agent_hooks_unavailable',
-      );
+      assert.equal(withHooks.status, 0);
+      assert.equal(hookConfig.outcome === 'completed' && hookConfig.value.status, 'ready');
 
       await writeFile(
         join(path, '.astack/config.json'),

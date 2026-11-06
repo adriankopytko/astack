@@ -32,6 +32,12 @@ function render(result: ServiceRpcResponse, json?: boolean, submittedReport = fa
     process.stdout.write(
       `Job: ${value.job.job.id}\nAttempt: ${value.job.attempt.id}\nState: ${value.status}\nWorker: ${value.job.entry.state}\nReport: ${value.control.reportId ?? 'none'}\nBlocker: ${value.job.entry.readiness?.message ?? value.job.entry.reason ?? 'none'}\nCleanup: ${value.cleanup.state} (${value.cleanup.retainedResourceCount} holds)\n`,
     );
+
+    for (const resource of value.cleanup.resources) {
+      if (resource.hookOutcome) {
+        process.stdout.write(`${resource.kind}: ${resource.hookOutcome}\n`);
+      }
+    }
   } else if ('events' in result.value) {
     for (const event of result.value.events) {
       process.stdout.write(

@@ -35,8 +35,182 @@ import {
 } from '../src/index.js';
 import { completed } from '../src/contracts/operation-result.js';
 import { fixture } from './support/implementation.js';
+import { createAgentHooks } from '../src/host/agent-hooks.js';
 import { git, gitPath } from './support/service.js';
 const options = { timeout: 90000 };
+
+await test(
+  'agent hooks run around a completed task but not while it needs a decision',
+  options,
+  async () => {
+    await fixture(async (context) => {
+      const path = join(context.context.state, 'config', 'project-0.json');
+      const marker = join(context.context.root, 'lifecycle-marker');
+      const policy = JSON.parse(await readFile(path, 'utf8')) as {
+        execution: { agentSettings?: Record<string, unknown> };
+      };
+      policy.execution.agentSettings = {
+        implementer: {
+          provider: 'fixture',
+          model: 'fixture-model',
+          reasoning: 'high',
+          hooks: {
+            before: `printf before >> ${JSON.stringify(marker)}`,
+            after: `printf after >> ${JSON.stringify(marker)}`,
+          },
+        },
+      };
+      await writeFile(path, JSON.stringify(policy));
+      const { deps, job, proposal } = await prepare(context);
+      const hooks = createAgentHooks({ ...deps, state: context.context.opened.store });
+      const coordinator = createServiceCoordinator({
+        sessionId: 'lifecycle-test',
+        dependencies: { ...deps, agentHooks: hooks },
+        runtimes: [context.runtime],
+        limits: { global: 1, defaultRole: 1, perRole: {} },
+        onFailure: () => assert.fail('coordinator failed'),
+      });
+      coordinator.start();
+      await coordinator.idle();
+
+      try {
+        assert.equal(await readFile(marker, 'utf8'), 'before');
+
+        const decision = accepted(
+          await acceptRunReport(
+            {
+              schemaVersion: 1,
+              jobId: job.job.id,
+              key: 'decision',
+              proposal: { ...proposal, outcome: 'needs_decision' },
+            },
+            deps,
+          ),
+        );
+        coordinator.wake();
+        await coordinator.idle();
+
+        assert.equal(await readFile(marker, 'utf8'), 'before');
+
+        const answer = accepted(
+          respondToRun(
+            {
+              schemaVersion: 1,
+              jobId: job.job.id,
+              key: 'answer',
+              decisionId: decision.control.reportId,
+              text: 'Continue.',
+            },
+            deps,
+          ),
+        );
+
+        assert.ok(answer.responses[0]);
+
+        accepted(
+          await resumeRun(
+            {
+              schemaVersion: 1,
+              jobId: job.job.id,
+              key: 'resume',
+              responseId: answer.responses[0].id,
+            },
+            deps,
+          ),
+        );
+        accepted(
+          await acceptRunReport(
+            { schemaVersion: 1, jobId: job.job.id, key: 'finished', proposal },
+            deps,
+          ),
+        );
+        coordinator.wake();
+        await coordinator.idle();
+
+        assert.equal(await readFile(marker, 'utf8'), 'beforeafter');
+
+        const after = saved(job.job.id, deps).cleanup.resources.find(
+          (resource) => resource.kind === 'agent-hook-after',
+        );
+
+        assert.equal(after?.hookOutcome, 'succeeded');
+
+        const events = await readRunEvents(
+          { schemaVersion: 1, jobId: job.job.id, after: 0, limit: 100, waitMs: 0 },
+          { runs: deps.runs, now: Date.now, waiter: { pause: async () => {} } },
+        );
+
+        assert.ok(
+          events.outcome === 'completed' &&
+            events.value.events.some(
+              (event) =>
+                event.kind === 'hook_changed' &&
+                event.detail.phase === 'after' &&
+                event.detail.status === 'succeeded',
+            ),
+        );
+      } finally {
+        await coordinator.stop();
+      }
+    });
+  },
+);
+
+await test(
+  'an after hook failure preserves the completed report and is visible in run inspection',
+  options,
+  async () => {
+    await fixture(async (context) => {
+      const path = join(context.context.state, 'config', 'project-0.json');
+      const policy = JSON.parse(await readFile(path, 'utf8')) as {
+        execution: { agentSettings?: Record<string, unknown> };
+      };
+      policy.execution.agentSettings = {
+        implementer: {
+          provider: 'fixture',
+          model: 'fixture-model',
+          reasoning: 'high',
+          hooks: { after: 'exit 9' },
+        },
+      };
+      await writeFile(path, JSON.stringify(policy));
+      const { deps, job, proposal } = await prepare(context);
+      const coordinator = createServiceCoordinator({
+        sessionId: 'failed-after-test',
+        dependencies: {
+          ...deps,
+          agentHooks: createAgentHooks({ ...deps, state: context.context.opened.store }),
+        },
+        runtimes: [context.runtime],
+        limits: { global: 1, defaultRole: 1, perRole: {} },
+        onFailure: () => assert.fail('coordinator failed'),
+      });
+      coordinator.start();
+      await coordinator.idle();
+
+      try {
+        accepted(
+          await acceptRunReport(
+            { schemaVersion: 1, jobId: job.job.id, key: 'completed', proposal },
+            deps,
+          ),
+        );
+        coordinator.wake();
+        await coordinator.idle();
+        const run = saved(job.job.id, deps);
+
+        assert.equal(run.status, 'completed');
+        assert.equal(run.report?.request.proposal.outcome, 'completed');
+        assert.equal(
+          run.cleanup.resources.find((item) => item.kind === 'agent-hook-after')?.hookOutcome,
+          'failed',
+        );
+      } finally {
+        await coordinator.stop();
+      }
+    });
+  },
+);
 type Context = Parameters<Parameters<typeof fixture>[0]>[0];
 function accepted(result: StateWriteResult<RunView>): RunView {
   runWriteResultSchema.parse(result);
@@ -886,6 +1060,71 @@ await test(
     });
   },
 );
+
+await test('the local service runs hooks around a worker report', options, async () => {
+  await fixture(async (context) => {
+    const path = join(context.context.state, 'config', 'project-0.json');
+    const marker = join(context.context.root, 'service-hook-marker');
+    const policy = JSON.parse(await readFile(path, 'utf8')) as {
+      execution: { agentSettings?: Record<string, unknown> };
+    };
+    policy.execution.agentSettings = {
+      implementer: {
+        provider: 'fixture',
+        model: 'fixture-model',
+        reasoning: 'high',
+        hooks: {
+          before: `printf before >> ${JSON.stringify(marker)}`,
+          after: `printf after >> ${JSON.stringify(marker)}`,
+        },
+      },
+    };
+    await writeFile(path, JSON.stringify(policy));
+    const { job, proposal } = await prepare(context);
+    const service = await startLocalService(
+      { schemaVersion: 1, stateDirectory: context.context.state, gitExecutable: gitPath },
+      { runtimes: [context.runtime], runWorkerInput: context.workerInput },
+    );
+
+    assert.equal(service.outcome, 'listening', JSON.stringify(service));
+
+    if (service.outcome !== 'listening') {
+      return;
+    }
+
+    try {
+      for (let count = 0; count < 100 && context.prompts.length === 0; count++) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+
+      assert.equal(context.prompts.length, 1);
+      assert.equal(await readFile(marker, 'utf8'), 'before');
+
+      const report = await requestLocalService(context.context.state, {
+        schemaVersion: 1,
+        operation: 'run_report',
+        jobId: job.job.id,
+        key: 'service-report',
+        proposal,
+        artifacts: [],
+      });
+
+      assert.equal(report.outcome, 'persisted', JSON.stringify(report));
+
+      for (let count = 0; count < 100; count++) {
+        if ((await readFile(marker, 'utf8')) === 'beforeafter') {
+          break;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+
+      assert.equal(await readFile(marker, 'utf8'), 'beforeafter');
+    } finally {
+      await service.close();
+    }
+  });
+});
 
 await test(
   'live RPC and compiled CLI expose offline run inspection and bounded events from a neutral cwd',

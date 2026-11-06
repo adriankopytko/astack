@@ -1,4 +1,5 @@
 import { requestCleanup, controlCleanup, inspectCleanup } from '../application/cleanup.js';
+import { createAgentHooks } from './agent-hooks.js';
 import { createCleanupExecutor, suspendCleanupExecutor } from '../application/automatic-cleanup.js';
 import { composeCleanupDependencies } from './cleanup.js';
 import {
@@ -160,6 +161,7 @@ export async function startLocalService(
       now: Date.now,
       nextId: (kind) => `${kind}-${randomUUID()}`,
     };
+    dependencies.agentHooks = createAgentHooks({ ...dependencies, state: opened.store });
     const cleanupDependencies = composeCleanupDependencies(
       opened,
       executable,
@@ -541,8 +543,13 @@ export async function startLocalService(
 
           case 'run_report': {
             const { operation: _operation, ...value } = request;
+            const result = await acceptRunReport(value, runDependencies, signal);
 
-            return acceptRunReport(value, runDependencies, signal);
+            if (result.outcome === 'persisted') {
+              coordinator.wake();
+            }
+
+            return result;
           }
 
           case 'run_respond': {
@@ -559,8 +566,13 @@ export async function startLocalService(
 
           case 'run_cancel': {
             const { operation: _operation, ...value } = request;
+            const result = await cancelRun(value, runDependencies, signal);
 
-            return cancelRun(value, runDependencies, signal);
+            if (result.outcome === 'persisted') {
+              coordinator.wake();
+            }
+
+            return result;
           }
 
           case 'status':

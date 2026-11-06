@@ -80,7 +80,7 @@ export function createSqliteRunStore(db: StateDatabase, now: () => number): RunS
       .map((row) => db.data(runResumeSchema, row) ?? stateFailure('state_invalid_data'));
     const resourceRows = db
       .statement(
-        'SELECT id,kind,released_at FROM resources WHERE attempt_id=? ORDER BY id LIMIT 100',
+        'SELECT id,kind,released_at,release_evidence FROM resources WHERE attempt_id=? ORDER BY id LIMIT 100',
       )
       .all(selected.attempt.id);
     const resourceCount = Number(
@@ -129,11 +129,23 @@ export function createSqliteRunStore(db: StateDatabase, now: () => number): RunS
             )
             .get(selected.attempt.id)?.count ?? 0,
         ),
-        resources: resourceRows.map((row) => ({
-          id: row.id,
-          kind: row.kind,
-          releasedAt: row.released_at,
-        })),
+        resources: resourceRows.map((row) => {
+          if (row.kind === 'agent-hook-before' || row.kind === 'agent-hook-after') {
+            const evidence =
+              typeof row.release_evidence === 'string'
+                ? (JSON.parse(row.release_evidence) as { outcome?: string })
+                : null;
+
+            return {
+              id: row.id,
+              kind: row.kind,
+              releasedAt: row.released_at,
+              hookOutcome: evidence?.outcome ?? 'unknown',
+            };
+          }
+
+          return { id: row.id, kind: row.kind, releasedAt: row.released_at };
+        }),
       },
     });
   }

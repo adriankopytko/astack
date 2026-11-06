@@ -124,7 +124,12 @@ export const runViewSchema = z.strictObject({
     retainedResourceCount: offset,
     resources: z
       .array(
-        z.strictObject({ id: stateIdSchema, kind: stateIdSchema, releasedAt: offset.nullable() }),
+        z.strictObject({
+          id: stateIdSchema,
+          kind: stateIdSchema,
+          releasedAt: offset.nullable(),
+          hookOutcome: z.enum(['succeeded', 'failed', 'unknown']).optional(),
+        }),
       )
       .max(100),
   }),

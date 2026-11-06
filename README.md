@@ -171,6 +171,10 @@ Explicit host recovery for proven input refusals is available through `runtime a
 
 `astack resources reserve --file <request.json> --json` reserves a port or service/container/cache name for an accepted implementation attempt. All projects use one shared host state directory. Explicit startup receipts, running verification, retention and shutdown-verified release keep allocation separate from actual service execution. Fixed ports serialize; managed port lists allow bounded fallback before startup. No services are launched or authored environments rewritten. See [resource allocation](docs/resources.md) and `astack resources --help`. Explicit [lifecycle hooks](docs/hooks.md) consume these reservations separately.
 
+## Agent lifecycle hooks
+
+Per-agent `hooks.before` and `hooks.after` are optional shell command strings. The service runs them from the task checkout before worker launch and after a completed, failed or cancelled task. An agent awaiting a decision keeps its environment. Hook outcomes appear in `astack run inspect`; failed or uncertain hooks are not silently retried. The older explicit hook commands remain available pending removal. See [project configuration](docs/configuration.md).
+
 ## Explicit lifecycle hooks
 
 `astack hooks execute --file <request.json> --json` runs a selected `setup`, `verify`, `start` or `teardown` command under project configuration in an exact owned checkout. Invocations are saved before effects; unknown/claimed commands never replay. Declared setup/start evidence gates worker dispatch, and integration reviews use independently reserved and verified resources. `hooks inspect`, `exclude-writer` and `reconcile` preserve partial setup and separate controller exclusion from service shutdown. No hooks run implicitly during initialization or service startup. See [policy, requests and recovery](docs/hooks.md).

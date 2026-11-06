@@ -32,6 +32,13 @@ import { hostConfigurationPolicySchema } from '../contracts/configuration.js';
 import { configurationDigest } from '../core/configuration.js';
 
 export interface ServiceDependencies extends ConfigurationDependencies {
+  agentHooks?: {
+    run(
+      job: ServiceJob,
+      phase: 'before' | 'after',
+      signal: AbortSignal,
+    ): Promise<OperationResult<null>>;
+  };
   hooks?: Pick<HookStore, 'prerequisitesReady' | 'integrationReady'>;
   automaticReviews?: Pick<AutomaticReviewStore, 'authorize'>;
   queue: ServiceStore;
@@ -321,6 +328,12 @@ export function createServiceCoordinator(input: {
   }
 
   async function cycle(): Promise<void> {
+    await visit(async (job) => {
+      if (['completed', 'failed', 'cancelled'].includes(job.entry.control?.phase ?? '')) {
+        await dependencies.agentHooks?.run(job, 'after', controller.signal);
+      }
+    });
+
     // Always inspect existing effects before assigning capacity to new writers.
     await visit(async (job) => {
       if (activeStates.has(job.entry.state)) {
@@ -465,6 +478,63 @@ export function createServiceCoordinator(input: {
 
         if (!ready) {
           written(dependencies.queue.block(job.job.id, 'workflow_blocked', readiness));
+
+          return;
+        }
+      }
+
+      // Avoid preparing another worker's environment while capacity or its checkout is in use.
+      let activeCount = 0;
+      let roleCount = 0;
+      let checkoutInUse = false;
+      await visit(async (other) => {
+        if (!activeStates.has(other.entry.state)) {
+          return;
+        }
+
+        activeCount++;
+
+        if (other.entry.role === job.entry.role) {
+          roleCount++;
+        }
+
+        if (
+          other.job.checkoutId === job.job.checkoutId ||
+          (other.job.repositoryId === job.job.repositoryId &&
+            other.entry.branch === job.entry.branch)
+        ) {
+          checkoutInUse = true;
+        }
+      });
+      const roleLimit = limits.perRole[job.entry.role] ?? limits.defaultRole;
+
+      if (checkoutInUse || activeCount >= limits.global || roleCount >= roleLimit) {
+        return;
+      }
+
+      if (dependencies.agentHooks) {
+        const hook = await dependencies.agentHooks.run(job, 'before', controller.signal);
+
+        if (hook.outcome === 'rejected') {
+          written(dependencies.queue.block(job.job.id, 'workflow_blocked', hook.error));
+
+          return;
+        }
+      } else {
+        const savedPolicy = hostConfigurationPolicySchema.safeParse(
+          await dependencies.configuration.readJobPolicy?.(job.job.id, controller.signal),
+        );
+
+        if (
+          savedPolicy.success &&
+          savedPolicy.data.execution.agentSettings?.[job.entry.role]?.hooks?.before
+        ) {
+          written(
+            dependencies.queue.block(job.job.id, 'workflow_blocked', {
+              code: 'hook_unavailable',
+              message: 'The service does not provide automatic agent hooks.',
+            }),
+          );
 
           return;
         }

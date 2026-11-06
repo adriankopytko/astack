@@ -21,11 +21,243 @@ import {
   type WorkerObservation,
 } from '../src/index.js';
 import { fixture, git, gitPath, writeProjectConfiguration } from './support/service.js';
+import { createAgentHooks } from '../src/host/agent-hooks.js';
 
 const compiled = fileURLToPath(new URL('../dist/index.js', import.meta.url));
 const childFixture = fileURLToPath(new URL('./fixtures/service-child.mjs', import.meta.url));
 const cli = fileURLToPath(new URL('../dist/cli/main.js', import.meta.url));
 const options = { timeout: 90_000 };
+
+await test(
+  'agent before and after scripts run once from the saved job configuration',
+  options,
+  async () => {
+    await fixture(async ({ deps, request, opened, state, root }) => {
+      const marker = join(root, 'hooks-output');
+      const path = join(state, 'config', 'project-0.json');
+      const policy = JSON.parse(await readFile(path, 'utf8')) as {
+        execution: { agentSettings?: Record<string, unknown> };
+      };
+      policy.execution.agentSettings = {
+        implementer: {
+          provider: 'fixture',
+          model: 'fixture-model',
+          reasoning: 'high',
+          hooks: {
+            before: `printf before >> ${JSON.stringify(marker)}`,
+            after: `printf after >> ${JSON.stringify(marker)}`,
+          },
+        },
+      };
+      await writeFile(path, JSON.stringify(policy));
+      const submitted = await submitServiceJob(request(0, 'agent-hooks'), deps);
+
+      assert.equal(submitted.outcome, 'persisted');
+
+      if (submitted.outcome !== 'persisted') {
+        assert.fail(JSON.stringify(submitted));
+      }
+
+      policy.execution.agentSettings = {
+        implementer: {
+          provider: 'fixture',
+          model: 'fixture-model',
+          reasoning: 'high',
+          hooks: { before: 'exit 4', after: 'exit 4' },
+        },
+      };
+      await writeFile(path, JSON.stringify(policy));
+
+      const hooks = createAgentHooks({ ...deps, state: opened.store });
+      const worker = provider();
+      const coordinator = createServiceCoordinator({
+        sessionId: 'agent-hook-test',
+        dependencies: { ...deps, agentHooks: hooks },
+        limits: { global: 1, defaultRole: 1, perRole: {} },
+        runtimes: [worker.runtime],
+        onFailure: () => assert.fail('coordinator failed'),
+      });
+      coordinator.start();
+      await coordinator.idle();
+
+      assert.deepEqual(worker.started, [submitted.value.job.id]);
+      assert.equal(await readFile(marker, 'utf8'), 'before');
+      assert.equal(
+        (await hooks.run(submitted.value, 'before', new AbortController().signal)).outcome,
+        'completed',
+      );
+      assert.equal(
+        (await hooks.run(submitted.value, 'after', new AbortController().signal)).outcome,
+        'completed',
+      );
+      assert.equal(
+        (await hooks.run(submitted.value, 'after', new AbortController().signal)).outcome,
+        'completed',
+      );
+      assert.equal(await readFile(marker, 'utf8'), 'beforeafter');
+
+      await coordinator.stop();
+    });
+  },
+);
+
+await test(
+  'a failing before hook blocks worker launch and records the failure',
+  options,
+  async () => {
+    await fixture(async ({ deps, request, opened, state }) => {
+      const path = join(state, 'config', 'project-0.json');
+      const policy = JSON.parse(await readFile(path, 'utf8')) as {
+        execution: { agentSettings?: Record<string, unknown> };
+      };
+      policy.execution.agentSettings = {
+        implementer: {
+          provider: 'fixture',
+          model: 'fixture-model',
+          reasoning: 'high',
+          hooks: { before: 'exit 7' },
+        },
+      };
+      await writeFile(path, JSON.stringify(policy));
+      const submitted = await submitServiceJob(request(0, 'failing-hook'), deps);
+
+      assert.ok(submitted.outcome === 'persisted');
+
+      const hooks = createAgentHooks({ ...deps, state: opened.store });
+      const worker = provider();
+      const coordinator = createServiceCoordinator({
+        sessionId: 'failing-hook-test',
+        dependencies: { ...deps, agentHooks: hooks },
+        limits: { global: 1, defaultRole: 1, perRole: {} },
+        runtimes: [worker.runtime],
+        onFailure: () => assert.fail('coordinator failed'),
+      });
+      coordinator.start();
+      await coordinator.idle();
+
+      assert.deepEqual(worker.started, []);
+
+      const job = saved(opened.service.read(submitted.value.job.id));
+
+      assert.equal(job.entry.state, 'blocked');
+      assert.equal(job.entry.readiness?.code, 'hook_blocked');
+
+      const run = opened.runs.inspect(job.job.id);
+
+      assert.ok(run.outcome === 'completed' && run.value);
+      assert.equal(
+        run.value.cleanup.resources.find((item) => item.kind === 'agent-hook-before')?.hookOutcome,
+        'failed',
+      );
+
+      await coordinator.stop();
+    });
+  },
+);
+
+await test(
+  'a before script can start a background process that its after script stops',
+  options,
+  async () => {
+    await fixture(async ({ deps, request, opened, state, root }) => {
+      const pidFile = join(root, 'background.pid');
+      const path = join(state, 'config', 'project-0.json');
+      const policy = JSON.parse(await readFile(path, 'utf8')) as {
+        execution: { agentSettings?: Record<string, unknown> };
+      };
+      policy.execution.agentSettings = {
+        implementer: {
+          provider: 'fixture',
+          model: 'fixture-model',
+          reasoning: 'high',
+          hooks: {
+            before: `${JSON.stringify(process.execPath)} -e 'setInterval(() => {}, 1000)' & echo $! > ${JSON.stringify(pidFile)}`,
+            after: `kill "$(cat ${JSON.stringify(pidFile)})"`,
+          },
+        },
+      };
+      await writeFile(path, JSON.stringify(policy));
+      const submitted = await submitServiceJob(request(0, 'background-hook'), deps);
+
+      assert.ok(submitted.outcome === 'persisted');
+
+      const hooks = createAgentHooks({ ...deps, state: opened.store });
+      let pid: number | undefined;
+
+      try {
+        assert.equal(
+          (await hooks.run(submitted.value, 'before', new AbortController().signal)).outcome,
+          'completed',
+        );
+
+        pid = Number(await readFile(pidFile, 'utf8'));
+
+        assert.ok(Number.isInteger(pid) && pid > 1);
+        assert.doesNotThrow(() => process.kill(pid!, 0));
+        assert.equal(
+          (await hooks.run(submitted.value, 'after', new AbortController().signal)).outcome,
+          'completed',
+        );
+      } finally {
+        if (pid) {
+          try {
+            process.kill(pid, 'SIGTERM');
+          } catch {}
+        }
+      }
+    });
+  },
+);
+
+await test('a timed-out before hook blocks the worker and is not run again', options, async () => {
+  await fixture(async ({ deps, request, opened, state, root }) => {
+    const path = join(state, 'config', 'project-0.json');
+    const marker = join(root, 'timed-hook');
+    const policy = JSON.parse(await readFile(path, 'utf8')) as {
+      execution: { agentSettings?: Record<string, unknown> };
+    };
+    policy.execution.agentSettings = {
+      implementer: {
+        provider: 'fixture',
+        model: 'fixture-model',
+        reasoning: 'high',
+        hooks: { before: `printf run >> ${JSON.stringify(marker)}; sleep 10` },
+        hookTimeouts: { before: 1000 },
+      },
+    };
+    await writeFile(path, JSON.stringify(policy));
+    const submitted = await submitServiceJob(request(0, 'timed-hook'), deps);
+
+    assert.ok(submitted.outcome === 'persisted');
+
+    const hooks = createAgentHooks({ ...deps, state: opened.store });
+    const worker = provider();
+    const coordinator = createServiceCoordinator({
+      sessionId: 'timed-hook-test',
+      dependencies: { ...deps, agentHooks: hooks },
+      limits: { global: 1, defaultRole: 1, perRole: {} },
+      runtimes: [worker.runtime],
+      onFailure: () => assert.fail('coordinator failed'),
+    });
+    coordinator.start();
+    await coordinator.idle();
+    coordinator.wake();
+    await coordinator.idle();
+
+    assert.deepEqual(worker.started, []);
+    assert.equal(await readFile(marker, 'utf8'), 'run');
+
+    const run = opened.runs.inspect(submitted.value.job.id);
+
+    assert.ok(run.outcome === 'completed' && run.value);
+    assert.equal(
+      run.value.cleanup.resources.find((item) => item.kind === 'agent-hook-before')?.hookOutcome,
+      'unknown',
+    );
+
+    await coordinator.stop();
+  });
+});
 
 function saved(
   result: ReturnType<import('../src/ports/service.js').ServiceStore['read']>,
@@ -838,6 +1070,52 @@ await test(
       } finally {
         assert.equal((await service.close()).outcome, 'completed');
       }
+    });
+  },
+);
+
+await test(
+  'a queued worker does not run its before hook while capacity is full',
+  options,
+  async () => {
+    await fixture(async ({ deps, request, opened, state, root }) => {
+      const markers = [join(root, 'first-hook'), join(root, 'second-hook')];
+
+      for (const index of [0, 1]) {
+        const path = join(state, 'config', `project-${index}.json`);
+        const policy = JSON.parse(await readFile(path, 'utf8')) as {
+          execution: { agentSettings?: Record<string, unknown> };
+        };
+        policy.execution.agentSettings = {
+          implementer: {
+            provider: 'fixture',
+            model: 'fixture-model',
+            reasoning: 'high',
+            hooks: { before: `printf started > ${JSON.stringify(markers[index])}` },
+          },
+        };
+        await writeFile(path, JSON.stringify(policy));
+        const submission = await submitServiceJob(request(index, `capacity-${index}`), deps);
+
+        assert.equal(submission.outcome, 'persisted');
+      }
+
+      const worker = provider();
+      const coordinator = createServiceCoordinator({
+        sessionId: 'hook-capacity-test',
+        dependencies: { ...deps, agentHooks: createAgentHooks({ ...deps, state: opened.store }) },
+        limits: { global: 1, defaultRole: 1, perRole: {} },
+        runtimes: [worker.runtime],
+        onFailure: () => assert.fail('coordinator failed'),
+      });
+      coordinator.start();
+      await coordinator.idle();
+
+      assert.equal(worker.started.length, 1);
+      assert.equal(await readFile(markers[0]!, 'utf8'), 'started');
+
+      await assert.rejects(readFile(markers[1]!, 'utf8'), { code: 'ENOENT' });
+      await coordinator.stop();
     });
   },
 );

@@ -23,6 +23,7 @@ import { canonicalJson, type StateDatabase } from './database.js';
 import { StateError, stateFailure } from './errors.js';
 import { hostConfigurationPolicySchema } from '../../contracts/configuration.js';
 import { configurationDigest } from '../../core/configuration.js';
+import { appendRunEvent } from './run-events.js';
 
 function valid<T extends z.ZodType>(schema: T, value: unknown): z.output<T> {
   const parsed = schema.safeParse(value);
@@ -186,6 +187,30 @@ export function createStateStore(db: StateDatabase, clock: () => number): StateS
   };
 
   const requiredEffect = (id: string) => readEffect(id) ?? stateFailure('state_not_found');
+  const agentHookEvent = (resource: StateResource['intent'], status: string) => {
+    if (resource.kind !== 'agent-hook-before' && resource.kind !== 'agent-hook-after') {
+      return;
+    }
+
+    const attempt = db.get(
+      stateAttemptSchema,
+      'SELECT data FROM attempts WHERE id=?',
+      resource.attemptId,
+    );
+    const job =
+      attempt && db.get(stateJobSchema, 'SELECT data FROM jobs WHERE id=?', attempt.jobId);
+
+    if (!attempt || !job) {
+      stateFailure('state_not_found');
+    }
+
+    appendRunEvent(db, { job, attempt }, 'hook_changed', now(), {
+      hookId: resource.id,
+      phase: resource.key,
+      status,
+    });
+  };
+
   const readResource = (id: string): StateResource | null => {
     const row = db.statement('SELECT * FROM resources WHERE id=?').get(id);
 
@@ -472,6 +497,7 @@ export function createStateStore(db: StateDatabase, clock: () => number): StateS
           resource.key,
           canonicalJson(resource),
         );
+        agentHookEvent(resource, 'running');
 
         return {
           value: { intent: resource, releasedAt: null, releaseEvidence: null },
@@ -500,6 +526,10 @@ export function createStateStore(db: StateDatabase, clock: () => number): StateS
           releasedAt,
           canonicalJson(request.evidence),
           request.resourceId,
+        );
+        agentHookEvent(
+          resource.intent,
+          typeof request.evidence.outcome === 'string' ? request.evidence.outcome : 'unknown',
         );
 
         return {

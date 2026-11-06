@@ -110,6 +110,12 @@ export const projectAgentSchema = z.strictObject({
         .optional(),
     })
     .optional(),
+  hookTimeouts: z
+    .strictObject({
+      before: z.number().int().min(1000).max(86_400_000).optional(),
+      after: z.number().int().min(1000).max(86_400_000).optional(),
+    })
+    .optional(),
   instructions: z
     .string()
     .min(1)
@@ -235,7 +241,6 @@ export const configurationDiagnosticSchema = z.strictObject({
     'agent_model_missing',
     'agent_reasoning_missing',
     'agent_reasoning_unsupported',
-    'agent_hooks_unavailable',
     'role_missing',
     'runtime_not_allowed',
     'command_not_allowed',
