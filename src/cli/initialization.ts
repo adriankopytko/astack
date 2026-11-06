@@ -64,7 +64,7 @@ function render(result: InitializationResult, json?: boolean) {
 
       if (view.target.projectId) {
         steps.push(
-          `Run astack config inspect --project ${view.target.projectId} --role implementer and repeat for reviewer to check readiness.`,
+          `Run astack doctor --project ${view.target.projectId} --role implementer and repeat for reviewer to check readiness.`,
         );
         steps.push(
           'Prepare a dedicated Astack worktree for each implementation or review task before delegating.',

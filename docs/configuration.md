@@ -6,7 +6,7 @@ Astack reads a project's settings from **one editable file**, `.astack/config.js
 astack init /path/to/project --dry-run --json
 astack init /path/to/project --json
 # Edit /path/to/project/.astack/config.json deliberately.
-astack config inspect --project <project-id> --role implementer --json
+astack doctor --project <project-id> --role implementer --json
 ```
 
 The file is used directly: there is no approval command or editable host copy. At job acceptance, Astack saves the resolved project configuration in the private state database alongside the job. The accepted job uses that saved configuration for dispatch, launch, hooks and verification. Editing the project file changes new jobs, not already accepted jobs, and unrelated edits do not block an existing worker.
@@ -39,7 +39,7 @@ Optional top-level `hooks` and `execution` settings retain the existing lifecycl
 
 ## Inspection and job snapshots
 
-`config inspect` and `config check` are aliases. They read the registered primary checkout configuration and prerequisites without executing commands. Missing or invalid configuration and missing prerequisites block readiness. The operation returns provenance and a snapshot, but not command argv, environment values or skill contents. Readiness is an observation; launch and workflow operations have separate preconditions.
+`doctor` reads the registered primary checkout configuration and prerequisites without executing commands. Missing or invalid configuration and missing prerequisites block readiness. The configuration result includes provenance and a snapshot, but not command argv, environment values or skill contents. Readiness is an observation; launch and workflow operations have separate preconditions.
 
 The primary checkout supplies configuration for new jobs, including jobs using task worktrees. Each accepted job retains its own private configuration and immutable public snapshot. Dispatch rechecks the saved checkout and prerequisites; configuration edits alone do not block the saved job. Unknown or incomplete writes do not replay automatically.
 

@@ -9,7 +9,6 @@ import { Command } from 'commander';
 import { getApplicationInfo } from '../application/get-application-info.js';
 import { wireProjectCommands } from './projects.js';
 import { wireWorktreeCommands } from './worktrees.js';
-import { wireConfigurationCommands } from './configuration.js';
 import { wireServiceCommands } from './service.js';
 import { wireRunCommands } from './runs.js';
 import { wireReviewCommands } from './review.js';
@@ -68,7 +67,6 @@ export function createProgram(version: string): Command {
 
   wireProjectCommands(program);
   wireWorktreeCommands(program);
-  wireConfigurationCommands(program);
   wireServiceCommands(program);
   wireHerdrCommands(program);
   wireImplementationCommands(program);

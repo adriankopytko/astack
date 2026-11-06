@@ -6,6 +6,11 @@ import { Command, InvalidArgumentError } from 'commander';
 import { registerProject } from '../application/register-project.js';
 import { selectProjectContext } from '../application/select-project-context.js';
 import { listProjects } from '../application/list-projects.js';
+import { resolveConfiguration } from '../application/configuration.js';
+import {
+  createNodeConfigurationReader,
+  createNodeConfigurationProbe,
+} from '../adapters/filesystem/configuration.js';
 import { createGitInspector } from '../adapters/git/git-inspector.js';
 import { nodeCheckoutIdentityReader } from '../adapters/filesystem/checkout-identity.js';
 import { emptyProjectRegistry } from '../adapters/state/empty-project-registry.js';
@@ -59,7 +64,7 @@ function render(
   } else {
     const value = result.value;
     process.stdout.write(
-      `Source: ${value.source}\nRegistration: ${value.registration}\nProject: ${value.project?.project.id ?? 'unregistered'}\nCheckout: ${value.checkout?.checkout.id ?? 'unregistered'}\nRoot: ${value.git.checkout.rootPath}\nBranch: ${value.git.checkout.head.branch ?? 'detached'}\nCommit: ${value.git.checkout.head.commit ?? 'unborn'}\nGit: ready\nCodex / Herdr / GitHub: not checked\nConfiguration: not checked (use config inspect)\nDelegation: unavailable\n`,
+      `Source: ${value.source}\nRegistration: ${value.registration}\nProject: ${value.project?.project.id ?? 'unregistered'}\nCheckout: ${value.checkout?.checkout.id ?? 'unregistered'}\nRoot: ${value.git.checkout.rootPath}\nBranch: ${value.git.checkout.head.branch ?? 'detached'}\nCommit: ${value.git.checkout.head.commit ?? 'unborn'}\nGit: ready\nCodex / Herdr / GitHub: not checked\nConfiguration: use doctor for checks\nDelegation: unavailable\n`,
     );
   }
 
@@ -183,7 +188,6 @@ export function wireProjectCommands(program: Command): void {
     });
   program
     .command('context')
-    .alias('doctor')
     .description('Inspect target identity, selection source, and orchestration readiness')
     .option('--project <project-id>', 'Select a registered project')
     .option('--checkout <checkout-id>', 'Select a registered checkout')
@@ -221,6 +225,89 @@ export function wireProjectCommands(program: Command): void {
           ),
           options.json,
         );
+      });
+    });
+
+  program
+    .command('doctor')
+    .description('Check project identity and configuration without starting workers')
+    .option('--project <project-id>', 'Select a registered project')
+    .option('--checkout <checkout-id>', 'Select a registered checkout')
+    .option('--path <path>', 'Inspect or assert an explicit checkout path')
+    .option('--role <name>', 'Agent configuration to check', 'implementer')
+    .option('--json', 'Print context and configuration diagnostics as JSON')
+    .action(async (options: SelectionOptions & { role: string }) => {
+      await withRegistry(program, false, options.json, async (registry, host) => {
+        const executable = await gitExecutable(host.gitExecutable);
+
+        if (executable === null) {
+          render(
+            rejected('git_unavailable', 'Select an absolute Git executable or add Git to PATH.'),
+            options.json,
+          );
+
+          return;
+        }
+
+        const dependencies = {
+          registry,
+          git: createGitInspector({ executable, runner: nodeProcessRunner }),
+          identity: nodeCheckoutIdentityReader,
+        };
+        const context = await selectProjectContext(
+          {
+            schemaVersion: 1,
+            callerDirectory: process.cwd(),
+            ...(options.project === undefined ? {} : { projectId: options.project }),
+            ...(options.checkout === undefined ? {} : { checkoutId: options.checkout }),
+            ...(options.path === undefined ? {} : { path: resolve(process.cwd(), options.path) }),
+          },
+          dependencies,
+        );
+
+        if (context.outcome !== 'completed' || !context.value.project) {
+          render(context, options.json);
+
+          return;
+        }
+
+        const configuration = await resolveConfiguration(
+          {
+            schemaVersion: 1,
+            projectId: context.value.project.project.id,
+            role: options.role,
+            ...(context.value.checkout ? { checkoutId: context.value.checkout.checkout.id } : {}),
+          },
+          {
+            ...dependencies,
+            configuration: createNodeConfigurationReader(registry),
+            prerequisites: createNodeConfigurationProbe(
+              (name) => Object.hasOwn(process.env, name) && Boolean(process.env[name]),
+            ),
+          },
+        );
+
+        if (options.json) {
+          process.stdout.write(`${JSON.stringify({ schemaVersion: 1, context, configuration })}\n`);
+        } else {
+          render(context, false);
+
+          if (configuration.outcome === 'rejected') {
+            process.stdout.write(`${configuration.error.code}: ${configuration.error.message}\n`);
+          } else {
+            process.stdout.write(
+              `Agent ${options.role} configuration: ${configuration.value.status}\n`,
+            );
+
+            for (const item of configuration.value.diagnostics) {
+              process.stdout.write(`${item.code}: ${item.nextStep}\n`);
+            }
+          }
+        }
+
+        if (configuration.outcome === 'rejected' || configuration.value.status === 'blocked') {
+          process.exitCode = 1;
+        }
       });
     });
 }

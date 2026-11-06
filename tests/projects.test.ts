@@ -18,6 +18,7 @@ import {
   projectRegistrationResultSchema,
   projectSelectionResultSchema,
   projectListResultSchema,
+  configurationResultSchema,
   acceptStateJob,
   prepareStateAttempt,
   type ProjectRegistration,
@@ -435,6 +436,46 @@ await test(
 
       assert.equal(registration.status, 0);
       assert.equal(receipt.outcome, 'persisted');
+
+      await mkdir(join(path, '.astack'));
+      await writeFile(
+        join(path, '.astack/config.json'),
+        JSON.stringify({
+          schemaVersion: 1,
+          agents: { implementer: { provider: 'codex', model: null, reasoning: null } },
+        }),
+      );
+      const missing = cli(root, statePath, 'doctor', '--project', 'cli-project');
+      const missingConfig = configurationResultSchema.parse(
+        (missing.value as { configuration: unknown }).configuration,
+      );
+
+      assert.equal(missing.status, 1);
+      assert.equal(missingConfig.outcome, 'completed');
+
+      if (missingConfig.outcome !== 'completed') {
+        assert.fail('Expected configuration diagnostics');
+      }
+
+      assert.deepEqual(
+        missingConfig.value.diagnostics.map((diagnostic) => diagnostic.code),
+        ['agent_model_missing', 'agent_reasoning_missing'],
+      );
+
+      await writeFile(
+        join(path, '.astack/config.json'),
+        JSON.stringify({
+          schemaVersion: 1,
+          agents: { implementer: { provider: 'codex', model: 'example-model', reasoning: 'high' } },
+        }),
+      );
+      const ready = cli(root, statePath, 'doctor', '--project', 'cli-project');
+      const readyConfig = configurationResultSchema.parse(
+        (ready.value as { configuration: unknown }).configuration,
+      );
+
+      assert.equal(ready.status, 0);
+      assert.equal(readyConfig.outcome === 'completed' && readyConfig.value.status, 'ready');
 
       const selected = cli(root, statePath, 'context', '--project', 'cli-project');
       const result = projectSelectionResultSchema.parse(selected.value);

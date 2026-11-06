@@ -2,7 +2,7 @@
 name: astack-orchestrator
 description: Delegate implementation and code review through Astack, inspect accepted results, and choose explicit follow-up or recovery actions across registered projects.
 metadata:
-  asset-version: '1.0.11'
+  asset-version: '1.0.12'
 ---
 
 # Orchestrate with Astack
@@ -15,7 +15,7 @@ Read `astack --skill` for the installed command contracts when you need details;
 
 - `astack project list --json` finds registered identities. `astack context --project <project-id> --json` observes the selected checkout; explicit checkout/path/attempt selectors must agree. Invoking Astack from a directory containing several projects does not scan or choose one.
 - `astack project register <path> --json` deliberately registers an unregistered canonical checkout. Registration does not install files, approve configuration or authorize workers.
-- `astack config inspect --project <project-id> --role implementer --json` checks current project configuration and prerequisites. Accepted jobs keep their own settings; edits apply to new jobs. Keep secrets out of descriptions, overrides, reports and logs.
+- `astack doctor --project <project-id> --role implementer --json` checks current project configuration and prerequisites. Accepted jobs keep their own settings; edits apply to new jobs. Keep secrets out of descriptions, overrides, reports and logs.
 - Prepare a dedicated owned checkout with `astack worktree prepare --project <project-id> --key <checkout-key> --branch <branch> --base <full-sha> --json`. Select its returned checkout ID explicitly. Preparing a worktree does not start a worker or provision services.
 
 ## Delegate and inspect

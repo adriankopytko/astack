@@ -29,8 +29,7 @@ A blocked installation can preserve existing files; pending means publication ma
 | `astack project register [path] [--id <project-id>] [--json]`                                     | Deliberately register a canonical checkout in local state; default path is caller directory |
 | `astack project list [--limit <count>] [--after <project-id>] [--json]`                           | Paginated recorded project identities and primary checkout paths                            |
 | `astack context [selectors] [--json]`                                                             | Inspect target identity, selection source, Git state, and readiness                         |
-| `astack doctor [selectors] [--json]`                                                              | Alias for `context`                                                                         |
-| `astack config inspect --project <id> [--role <name>] [--json]`                                   | Resolve project configuration, provenance, and prerequisites; alias `config check`          |
+| `astack doctor --project <id> [--role <name>] [--json]`                                           | Check project identity, configuration, and prerequisites                                    |
 | `astack service run [--codex-herdr] [--capacity <count>] [--role-capacity <count>]`               | Foreground local coordinator; opt-in codex-herdr runtime                                    |
 | `astack service status / wake [--json]`                                                           | Live coordinator evidence / request a reconciliation pass                                   |
 | `astack service submit <required options> [--json]`                                               | Persist configured intent, attempt and pending effect atomically                            |
@@ -79,7 +78,7 @@ Read commands emit `{ schemaVersion: 1, outcome: 'completed', value: ... }` or `
 
 After `uncertain`, inspect the registry and supplied identities before retrying persistence. No provider effect or automatic retry is implied. Missing state permits empty-registry diagnostics; unsafe/corrupt/incompatible state remains an error. Read-only commands do not migrate old schemas; deliberate registration or an explicit library read-write open can migrate them.
 
-Doctor reports Git readiness, other providers as `not_checked`, configuration provenance as `none`/`not_checked`, and delegation as unavailable. Use `config inspect` for separate configuration evidence. Do not interpret registration or a clean checkout as execution authorization.
+Context reports Git readiness while provider and configuration checks remain `not_checked`. Doctor additionally checks the selected agent configuration for registered projects. Do not interpret registration or a clean checkout as execution authorization.
 
 ## Owned worktrees
 
@@ -93,7 +92,7 @@ Worktree creation currently rejects configured content-filter commands and spars
 
 ## Project agent configuration
 
-Use `astack config inspect --project <id> [--checkout <id>] [--role implementer] [--json]` (alias `config check`). It reads existing state and reports effective settings, leaf provenance, pinned skill versions/digests, and actionable prerequisites. Exit 1 means blocked or rejected; readiness launches no command and grants no durable execution capability.
+Use `astack doctor --project <id> [--checkout <id>] [--role implementer] [--json]`. It reads existing state and reports effective settings, leaf provenance, and actionable prerequisites. Exit 1 means blocked or rejected; readiness launches no command and grants no durable execution capability.
 
 Project settings live in `.astack/config.json` in the registered primary checkout. Fill the file deliberately; Astack reads its current contents directly. Accepted jobs retain their private saved configuration; later edits apply to new jobs. Job inspection does not print saved command arguments. Legacy host policy and approval files are not read.
 

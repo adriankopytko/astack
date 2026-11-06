@@ -10,7 +10,7 @@ astack context --path /projects/example/src --json
 astack doctor --json
 ```
 
-`doctor` is an alias for `context`. These commands provide local identity and diagnostics, not delegation. Global `--state-directory <path>` selects isolated state; global `--git-executable <absolute-path>` selects a trusted Git binary. Otherwise the CLI chooses Git from absolute host PATH entries. Library operations never perform ambient executable lookup or infer a project from service cwd.
+`context` reports local identity; `doctor` also checks the selected agent configuration for registered projects. Neither command delegates work. Global `--state-directory <path>` selects isolated state; global `--git-executable <absolute-path>` selects a trusted Git binary. Otherwise the CLI chooses Git from absolute host PATH entries. Library operations never perform ambient executable lookup or infer a project from service cwd.
 
 `project register [path]` defaults to the caller directory. `--id` assigns or asserts a project ID; omission generates opaque IDs. Paths may be relative at the CLI boundary and are made absolute before calling the library. Registration writes only private local state, not project configuration, skills, hooks, Git branches, or tracked files. It does not initialize execution policy or authorize worker launch.
 
@@ -56,7 +56,7 @@ Unregistered repositories can be inspected without registration. A linked checko
 
 ## Doctor evidence and configuration provenance
 
-Context reports selection source, registration state, project/checkout IDs, Git facts, saved-attempt binding where requested, and readiness. Git is marked ready only after successful inspection. Codex, Herdr, and GitHub are `not_checked`: their adapters/readiness probes are not implemented. Configuration provenance is `{ source: 'none', status: 'not_checked' }`, with reason `execution_policy_not_checked`: this identity operation does not resolve execution policy. Use `config inspect --project <id>` for the separate [trusted configuration operation](configuration.md). Repository configuration is never read as execution authority.
+Context reports selection source, registration state, project/checkout IDs, Git facts, saved-attempt binding where requested, and readiness. Git is marked ready only after successful inspection. Codex, Herdr, and GitHub are `not_checked`: their adapters/readiness probes are not implemented. Configuration provenance is `{ source: 'none', status: 'not_checked' }`, with reason `execution_policy_not_checked`: this identity operation does not resolve execution policy. Use `doctor --project <id>` to also check the [project configuration](configuration.md).
 
 Delegation is always `unavailable` in this version. Reasons include missing registration when applicable, and unimplemented execution policy/delegation. Registration, a clean worktree, available Git, or a completed context read is not authority to execute project hooks or agents. Owned worktree lifecycle is available through [separate operations](worktrees.md). Project profiles, trusted host execution policy, Herdr spaces, and worker dispatch arrive in their respective issues.
 
