@@ -787,6 +787,7 @@ export function createCodexHerdrRuntime(deps: RuntimeDependencies): ServiceWorke
   return {
     id: runtimeCapabilities.runtime,
     aliases: ['codex'],
+    supportsAgentPorts: deps.agentPorts !== undefined,
     start: (job, signal) => observation(job, true, signal),
     inspect: (job, signal) => observation(job, false, signal),
   };

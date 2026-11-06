@@ -38,6 +38,7 @@ export interface ServiceWorkerRuntime {
   id: string;
   aliases?: readonly string[];
   workflows?: readonly string[];
+  supportsAgentPorts?: boolean;
   /** Read-only workflow prerequisites, checked before capacity claim or provider launch. */
   preflight?(job: ServiceJob, signal: AbortSignal): Promise<OperationResult<{ ready: true }>>;
   start(job: ServiceJob, signal: AbortSignal): Promise<WorkerObservation>;

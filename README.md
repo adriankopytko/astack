@@ -169,7 +169,7 @@ Explicit host recovery for proven input refusals is available through `runtime a
 
 ## Shared host resources
 
-`astack resources reserve --file <request.json> --json` reserves a port or service/container/cache name for an accepted implementation attempt. All projects use one shared host state directory. Explicit startup receipts, running verification, retention and shutdown-verified release keep allocation separate from actual service execution. Fixed ports serialize; managed port lists allow bounded fallback before startup. No services are launched or authored environments rewritten. See [resource allocation](docs/resources.md) and `astack resources --help`. Automatic port injection remains future work.
+`astack resources reserve --file <request.json> --json` reserves a port or service/container/cache name for an accepted implementation attempt. All projects use one shared host state directory. Explicit startup receipts, running verification, retention and shutdown-verified release keep allocation separate from actual service execution. Fixed ports serialize; managed port lists allow bounded fallback before startup. No services are launched or authored environments rewritten. See [resource allocation](docs/resources.md) and `astack resources --help`. Configured agent ports are reserved from shared ranges and injected into hooks and supported worker panes.
 
 ## Agent lifecycle hooks
 

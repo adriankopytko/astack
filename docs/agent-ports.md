@@ -1,11 +1,25 @@
-# Ports for agent work
+# Agent ports
 
-Each agent's task checkout may need its own copy of an application and its services. A port value must therefore belong to the worker attempt, not just to the project. Use the shared host allocator so Astack-coordinated workers across projects do not choose the same protocol and port. A temporary bind probe is not a socket reservation; startup must still handle an unrelated process winning a bind race.
+Each agent can declare named TCP ports in `.astack/config.json`:
 
-## Herdr capabilities
+```json
+{
+  "agents": {
+    "implementer": {
+      "provider": "codex",
+      "model": "example-model",
+      "reasoning": "high",
+      "ports": {
+        "APP_PORT": { "range": [20000, 29999] },
+        "OAUTH_PORT": { "fixed": 3000 }
+      }
+    }
+  }
+}
+```
 
-Herdr 0.9.0's local help and the [Herdr CLI reference](https://herdr.dev/tui/docs/cli-reference/) show that `tab create` and `pane split` accept repeatable `--env KEY=VALUE` arguments. These apply to the newly created shell. `agent start` starts an agent in an existing pane and has no `--env` option. Astack can therefore allocate a port, create the worker pane with `--env PORT=...`, and start Codex in that pane; the new Codex process inherits the shell environment. This has not been implemented or tested against a live worker in Astack.
+Astack reserves one number per name in its shared host database before the before hook runs. Fixed ports use the same collision rules as ranges. Astack-coordinated jobs sharing that database cannot reserve the same TCP port, including across projects. Astack does not check whether unrelated processes use the range; select a range reserved for Astack or handle an external collision in the project. Separate state databases do not coordinate.
 
-Pass the same allocated values to the before hook that starts project services. Support multiple named ports such as `APP_PORT` and `API_PORT`, and do not place credentials in command arguments or the project configuration. The service must actually bind the assigned value; an environment variable cannot force an application to use it. The shared allocator already binds reservations to a job and attempt, but automatic allocation, propagation into a Herdr pane, service startup/readiness, and shutdown/release are not wired together.
+The same values are exported to the before and after scripts and, for Codex/Herdr, to a new tab in the worker's grouped Herdr workspace. The agent receives them through its environment. The reservation stays allocated when a worker needs a decision, while a hook outcome is unknown, or if the after hook fails. On a completed, failed or cancelled task, the service releases reservations after the after hook succeeds; if no after hook is configured it releases them when processing the terminal outcome. This is database coordination, not evidence that an operating-system listener stopped.
 
-The initial assignment should tell the agent which endpoints are available. A worker needing fixed ports should be able to request them explicitly; if unavailable, report the conflict rather than kill another listener. An allocated port number is not proof that the expected service owns the endpoint or that the service is ready.
+Port values are inspectable with `astack resources list --project <id> --json`. Runtime adapters that cannot inject agent ports block jobs that declare them. Opening a grouped workspace and then its environment-configured tab is journaled as one pending layout; an uncertain provider result needs inspection rather than an automatic duplicate tab. No live Herdr/Codex port-injection pilot has been run.

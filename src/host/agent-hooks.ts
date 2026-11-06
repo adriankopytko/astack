@@ -8,6 +8,7 @@ import type { StateStore } from '../ports/state-store.js';
 import type { ConfigurationReader } from '../ports/configuration.js';
 import { selectProjectContext } from '../application/select-project-context.js';
 import type { ProjectDependencies } from '../application/project-facts.js';
+import type { createAgentPorts } from '../application/agent-ports.js';
 
 type Phase = 'before' | 'after';
 export function agentHookId(attemptId: string, phase: Phase): string {
@@ -19,6 +20,7 @@ async function shell(
   cwd: string,
   timeoutMs: number,
   signal: AbortSignal,
+  environment: Record<string, string>,
 ): Promise<'succeeded' | 'failed' | 'unknown'> {
   if (signal.aborted) {
     return 'unknown';
@@ -31,6 +33,7 @@ async function shell(
       cwd,
       env: {
         ...process.env,
+        ...environment,
         PATH: [join(cwd, 'node_modules', '.bin'), process.env.PATH ?? ''].join(delimiter),
       },
       detached: true,
@@ -86,7 +89,11 @@ async function shell(
 }
 
 export function createAgentHooks(
-  deps: ProjectDependencies & { state: StateStore; configuration: ConfigurationReader },
+  deps: ProjectDependencies & {
+    state: StateStore;
+    configuration: ConfigurationReader;
+    ports?: ReturnType<typeof createAgentPorts>;
+  },
 ) {
   return {
     async run(job: ServiceJob, phase: Phase, signal: AbortSignal): Promise<OperationResult<null>> {
@@ -103,9 +110,34 @@ export function createAgentHooks(
         }
 
         const script = parsed.data.execution.agentSettings?.[job.entry.role]?.hooks?.[phase];
+        const configuredPorts = parsed.data.execution.agentSettings?.[job.entry.role]?.ports;
+
+        if (configuredPorts && Object.keys(configuredPorts).length && !deps.ports) {
+          return rejected(
+            'resource_blocked',
+            'This service cannot allocate configured agent ports.',
+          );
+        }
+
+        const releasePorts = () =>
+          deps.ports?.release(job.job.id, job.attempt.id, job.entry.role, signal) ??
+          Promise.resolve(completed(null));
+        const ports = deps.ports
+          ? await deps.ports.environment(
+              job.job.id,
+              job.attempt.id,
+              job.entry.role,
+              signal,
+              phase === 'before',
+            )
+          : completed({});
+
+        if (ports.outcome === 'rejected') {
+          return ports;
+        }
 
         if (!script) {
-          return completed(null);
+          return phase === 'after' ? releasePorts() : completed(null);
         }
 
         if (phase === 'after' && job.entry.control?.phase === 'cancelled' && !job.entry.claim) {
@@ -120,7 +152,7 @@ export function createAgentHooks(
           }
 
           if (!before.value) {
-            return completed(null);
+            return releasePorts();
           }
         }
 
@@ -135,7 +167,9 @@ export function createAgentHooks(
           const record = read.value.entity === 'resource' ? read.value.record : null;
 
           return record?.releaseEvidence?.outcome === 'succeeded'
-            ? completed(null)
+            ? phase === 'after'
+              ? releasePorts()
+              : completed(null)
             : rejected(
                 'hook_blocked',
                 `The ${phase} hook failed or has an uncertain outcome; inspect its saved record.`,
@@ -179,6 +213,7 @@ export function createAgentHooks(
           selected.value.checkout.checkout.rootPath,
           timeoutMs,
           signal,
+          ports.value,
         );
 
         if (outcome === 'unknown') {
@@ -199,7 +234,7 @@ export function createAgentHooks(
           return rejected('hook_blocked', `The ${phase} hook failed or could not be recorded.`);
         }
 
-        return completed(null);
+        return phase === 'after' ? releasePorts() : completed(null);
       } catch {
         return rejected('hook_unavailable', `The ${phase} hook could not be executed.`);
       }

@@ -428,16 +428,72 @@ export function createHerdrCliProvider(options: {
 
       const parsed = z
         .object({
-          result: z.object({ type: z.literal('worktree_opened'), already_open: z.boolean() }),
+          result: z.object({
+            type: z.literal('worktree_opened'),
+            already_open: z.boolean(),
+            workspace: z.object({ workspace_id: z.string() }).optional(),
+          }),
         })
         .safeParse(result.value.body);
 
-      return parsed.success
-        ? completed({ alreadyOpen: parsed.data.result.already_open })
-        : rejected(
-            'herdr_invalid_output',
-            'Herdr did not acknowledge the requested worktree opening.',
-          );
+      if (!parsed.success) {
+        return rejected(
+          'herdr_invalid_output',
+          'Herdr did not acknowledge the requested worktree opening.',
+        );
+      }
+
+      const entries = Object.entries(input.environment ?? {});
+
+      if (!entries.length || parsed.data.result.already_open) {
+        return completed({ alreadyOpen: parsed.data.result.already_open });
+      }
+
+      const workspace = parsed.data.result.workspace?.workspace_id;
+
+      if (!workspace) {
+        return rejected(
+          'herdr_invalid_output',
+          'Herdr did not return the opened workspace identity.',
+        );
+      }
+
+      const created = await invoke(
+        input.target,
+        input.root,
+        [
+          'tab',
+          'create',
+          '--workspace',
+          workspace,
+          '--cwd',
+          input.root,
+          '--label',
+          input.label,
+          ...entries.flatMap(([key, value]) => ['--env', `${key}=${value}`]),
+          '--no-focus',
+        ],
+        signal,
+        input.server,
+      );
+
+      if (created.outcome === 'rejected') {
+        return created;
+      }
+
+      const tab = z
+        .object({ result: z.object({ type: z.literal('tab_created'), root_pane: pane }) })
+        .safeParse(created.value.body);
+
+      if (
+        !tab.success ||
+        tab.data.result.root_pane.workspace_id !== workspace ||
+        (tab.data.result.root_pane.cwd != null && tab.data.result.root_pane.cwd !== input.root)
+      ) {
+        return rejected('herdr_invalid_output', 'Herdr did not return the expected worker pane.');
+      }
+
+      return completed({ alreadyOpen: false, handle: handle(tab.data.result.root_pane) });
     },
   };
 

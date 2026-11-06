@@ -22,6 +22,7 @@ export interface AllocationStore {
   running(request: AllocationRunning): StateWriteResult<AllocationRecord>;
   retain(input: { id: string; expectedRevision: number }): StateWriteResult<AllocationRecord>;
   release(request: AllocationRelease): StateWriteResult<AllocationRecord>;
+  releaseManaged(input: { id: string; attemptId: string }): StateWriteResult<AllocationRecord>;
   list(input: {
     projectId?: string | undefined;
     after: string;

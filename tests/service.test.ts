@@ -22,6 +22,7 @@ import {
 } from '../src/index.js';
 import { fixture, git, gitPath, writeProjectConfiguration } from './support/service.js';
 import { createAgentHooks } from '../src/host/agent-hooks.js';
+import { createAgentPorts } from '../src/application/agent-ports.js';
 
 const compiled = fileURLToPath(new URL('../dist/index.js', import.meta.url));
 const childFixture = fileURLToPath(new URL('./fixtures/service-child.mjs', import.meta.url));
@@ -1119,3 +1120,110 @@ await test(
     });
   },
 );
+
+await test(
+  'configured ports are unique across projects and reach before scripts',
+  options,
+  async () => {
+    await fixture(async ({ deps, request, opened, state, root }) => {
+      const markers = [join(root, 'first-port'), join(root, 'second-port')];
+
+      for (const index of [0, 1]) {
+        const path = join(state, 'config', `project-${index}.json`);
+        const policy = JSON.parse(await readFile(path, 'utf8')) as {
+          execution: { agentSettings?: Record<string, unknown> };
+        };
+        policy.execution.agentSettings = {
+          implementer: {
+            provider: 'fixture',
+            model: 'fixture-model',
+            reasoning: 'high',
+            ports: { APP_PORT: { range: [31000, 31001] } },
+            hooks: { before: `printf '%s' "$APP_PORT" > ${JSON.stringify(markers[index])}` },
+          },
+        };
+        await writeFile(path, JSON.stringify(policy));
+        const submission = await submitServiceJob(request(index, `port-${index}`), deps);
+
+        assert.equal(submission.outcome, 'persisted');
+      }
+
+      const ports = createAgentPorts({
+        configuration: deps.configuration,
+        allocations: opened.allocations,
+      });
+      const worker = provider();
+      const coordinator = createServiceCoordinator({
+        sessionId: 'port-hook-test',
+        dependencies: {
+          ...deps,
+          agentHooks: createAgentHooks({ ...deps, state: opened.store, ports }),
+        },
+        limits: { global: 2, defaultRole: 2, perRole: {} },
+        runtimes: [{ ...worker.runtime, supportsAgentPorts: true }],
+        onFailure: () => assert.fail('coordinator failed'),
+      });
+      coordinator.start();
+      await coordinator.idle();
+
+      assert.equal(worker.started.length, 2);
+      assert.deepEqual(
+        [await readFile(markers[0]!, 'utf8'), await readFile(markers[1]!, 'utf8')].sort(),
+        ['31000', '31001'],
+      );
+
+      await coordinator.stop();
+    });
+  },
+);
+
+await test('configured ports block runtimes that cannot inject them', options, async () => {
+  await fixture(async ({ deps, request, opened, state }) => {
+    const path = join(state, 'config', 'project-0.json');
+    const policy = JSON.parse(await readFile(path, 'utf8')) as {
+      execution: { agentSettings?: Record<string, unknown> };
+    };
+    policy.execution.agentSettings = {
+      implementer: {
+        provider: 'fixture',
+        model: 'fixture-model',
+        reasoning: 'high',
+        ports: { APP_PORT: { fixed: 31005 } },
+      },
+    };
+    await writeFile(path, JSON.stringify(policy));
+    const submitted = await submitServiceJob(request(0, 'unsupported-ports'), deps);
+
+    assert.ok(submitted.outcome === 'persisted');
+
+    const worker = provider();
+    const ports = createAgentPorts({
+      configuration: deps.configuration,
+      allocations: opened.allocations,
+    });
+    const coordinator = createServiceCoordinator({
+      sessionId: 'unsupported-ports-test',
+      dependencies: {
+        ...deps,
+        agentHooks: createAgentHooks({ ...deps, state: opened.store, ports }),
+      },
+      limits: { global: 1, defaultRole: 1, perRole: {} },
+      runtimes: [worker.runtime],
+      onFailure: () => assert.fail('coordinator failed'),
+    });
+    coordinator.start();
+    await coordinator.idle();
+
+    assert.deepEqual(worker.started, []);
+
+    const blocked = saved(opened.service.read(submitted.value.job.id));
+
+    assert.equal(blocked.entry.readiness?.code, 'resource_blocked');
+
+    const allocations = opened.allocations.list({ projectId: 'project-0', after: '', limit: 10 });
+
+    assert.ok(allocations.outcome === 'completed' && allocations.value.items.length === 0);
+
+    await coordinator.stop();
+  });
+});

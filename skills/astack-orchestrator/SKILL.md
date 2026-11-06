@@ -2,7 +2,7 @@
 name: astack-orchestrator
 description: Delegate implementation and code review through Astack, inspect accepted results, and choose explicit follow-up or recovery actions across registered projects.
 metadata:
-  asset-version: '1.0.14'
+  asset-version: '1.0.15'
 ---
 
 # Orchestrate with Astack
@@ -55,3 +55,5 @@ For a new project, inspect `astack init <path> --dry-run --json`. Apply with `as
 Before a new Codex worker starts, configure its agent provider, model and reasoning. Instructions are optional. Astack supplies launch flags and uses the saved job settings; project-agent launches do not require executable or configuration-file hashes. Preserve pending launch records and resource holds for deliberate recovery. The runtime service still requires `--codex-herdr`.
 
 Per-agent `hooks.before` and `hooks.after` run automatically. Before failure blocks launch; after runs for terminal tasks, not needs_decision. Inspect hook outcomes with `astack run inspect <job-id> --json`.
+
+Agents may declare named `ports` with `{ "range": [first, last] }` or `{ "fixed": port }`. Astack coordinates assignments in the shared state database and passes them to hooks and supported worker panes. Unrelated applications are not checked. Inspect reservations with `astack resources list --project <id> --json`.

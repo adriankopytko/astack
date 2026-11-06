@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { Command } from 'commander';
+import { createAgentPorts } from '../application/agent-ports.js';
 import {
   configureHerdrProject,
   ensureHerdrProject,
@@ -158,6 +159,10 @@ export function wireHerdrCommands(program: Command): void {
         canonicalCodexExecutable: (await hostExecutable('codex', codexExecutable)) ?? '',
         files: createNodeWorktreeFiles(join(opened.stateDirectory, 'worktrees')),
         configuration: createNodeConfigurationReader(opened.registry, opened.store),
+        agentPorts: createAgentPorts({
+          configuration: createNodeConfigurationReader(opened.registry, opened.store),
+          allocations: opened.allocations,
+        }),
         prerequisites: createNodeConfigurationProbe(
           (name) => Object.hasOwn(process.env, name) && Boolean(process.env[name]),
         ),

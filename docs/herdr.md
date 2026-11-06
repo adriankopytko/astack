@@ -46,6 +46,8 @@ The saved job configuration is rechecked before opening a worker layout. The ope
 herdr worktree open --workspace <saved-primary-workspace-id> --path <owned-checkout> --label <operation-label> --no-focus
 ```
 
+When the accepted agent configuration declares ports, Astack then creates a tab in the resulting grouped workspace with `--env NAME=PORT` for each reservation. It binds the worker to that tab's returned pane after a fresh snapshot verifies the exact workspace, terminal and checkout. If either provider operation is uncertain, the saved layout remains pending and is not automatically repeated.
+
 No `worktree create`, `worktree remove`, `--force`, `--trust-repository`, pane input or agent-start command is used. Git worktree ownership remains with Astack's worktree operations. Opening an existing checkout can start a Herdr shell and trigger the server's own configured plugin behavior; Herdr's shell/plugin configuration is trusted host behavior, not a portable PR permission source. Astack does not install or alter it.
 
 A fresh snapshot verifies the linked worker checkout, project repository root, parent workspace existence, exact worker pane cwd and workspace/tab/pane/terminal relationships. An already-open unowned worker workspace is preserved and blocked. A race yielding `already_open` leaves pending evidence rather than adopting another creator's layout.

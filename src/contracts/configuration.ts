@@ -13,6 +13,11 @@ const text = z
   .max(1024)
   .refine((value) => !value.includes('\0'));
 const hostPath = text.refine(isAbsolute);
+const managedPortNumber = z.number().int().min(1024).max(65535);
+const managedPortName = z
+  .string()
+  .regex(/^[A-Z][A-Z0-9_]{0,63}$/)
+  .refine((value) => !['PATH', 'HOME', 'SHELL'].includes(value) && !value.startsWith('HERDR_'));
 export const configurationDigestSchema = z.string().regex(/^[0-9a-f]{64}$/);
 export const configurationSkillSchema = z.strictObject({
   id: name,
@@ -115,6 +120,20 @@ export const projectAgentSchema = z.strictObject({
       before: z.number().int().min(1000).max(86_400_000).optional(),
       after: z.number().int().min(1000).max(86_400_000).optional(),
     })
+    .optional(),
+  ports: z
+    .record(
+      managedPortName,
+      z.union([
+        z.strictObject({ fixed: managedPortNumber }),
+        z.strictObject({
+          range: z
+            .tuple([managedPortNumber, managedPortNumber])
+            .refine(([first, last]) => first <= last),
+        }),
+      ]),
+    )
+    .refine((value) => Object.keys(value).length <= 32)
     .optional(),
   instructions: z
     .string()

@@ -84,12 +84,15 @@ export const allocationRecordSchema = z
     createdAt: time,
     updatedAt: time,
     release: z
-      .strictObject({
-        key: stateIdSchema,
-        expectedRevision: revision,
-        writersStopped: z.literal(true),
-        servicesStopped: z.literal(true),
-      })
+      .union([
+        z.strictObject({
+          key: stateIdSchema,
+          expectedRevision: revision,
+          writersStopped: z.literal(true),
+          servicesStopped: z.literal(true),
+        }),
+        z.strictObject({ reason: z.literal('task-ended'), expectedRevision: revision }),
+      ])
       .nullable(),
   })
   .refine((record) => {

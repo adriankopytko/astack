@@ -16,6 +16,7 @@ import { parseOperationRequest } from '../core/parse-operation-request.js';
 import { sha256 } from '../core/file-paths.js';
 import { selectProjectContext } from './select-project-context.js';
 import { checkConfigurationDispatch } from './configuration.js';
+import { hostConfigurationPolicySchema } from '../contracts/configuration.js';
 import {
   HerdrFailure,
   read,
@@ -239,6 +240,28 @@ export async function prepareHerdrWorker(
       );
     }
 
+    const role = job.record.configuration?.role;
+    const portPolicy = hostConfigurationPolicySchema.safeParse(
+      await dependencies.configuration.readJobPolicy?.(job.record.id, signal),
+    );
+    const declaredPorts =
+      role && portPolicy.success
+        ? portPolicy.data.execution.agentSettings?.[role]?.ports
+        : undefined;
+
+    if (declaredPorts && Object.keys(declaredPorts).length && !dependencies.agentPorts) {
+      return rejected('resource_blocked', 'Agent port allocation is unavailable for this worker.');
+    }
+
+    const ports =
+      role && dependencies.agentPorts
+        ? await dependencies.agentPorts.environment(job.record.id, attemptId, role, signal)
+        : null;
+
+    if (ports?.outcome === 'rejected') {
+      return ports;
+    }
+
     const previous = read(dependencies.herdr.worker(attemptId));
 
     if (previous) {
@@ -345,6 +368,9 @@ export async function prepareHerdrWorker(
           root: record.root,
           parent: record.primaryWorkspaceId ?? '',
           label: record.label,
+          ...(ports?.outcome === 'completed' && Object.keys(ports.value).length
+            ? { environment: ports.value }
+            : {}),
         },
         signal,
       );
@@ -355,7 +381,10 @@ export async function prepareHerdrWorker(
 
       const fresh = read(await dependencies.provider.snapshot(config.target, config.root));
       const checked = await workerContext(record, dependencies);
-      const evidence = observe(record, fresh);
+      const evidence = observe(
+        opened.value.handle ? { ...record, handle: opened.value.handle } : record,
+        fresh,
+      );
 
       if (
         checked.git.checkout.head.branch !== record.branch ||

@@ -13,6 +13,7 @@ import { createNodeWorktreeFiles } from '../adapters/filesystem/worktree-files.j
 import { nodeProcessRunner } from '../core/node-process-runner.js';
 import type { StateOpenResult } from '../adapters/state/open-sqlite-state.js';
 import type { ServiceDependencies } from '../application/service.js';
+import type { createAgentPorts } from '../application/agent-ports.js';
 
 /** Host opt-in accepts the selected server's shell, canonical Codex resolution and ambient agent configuration. */
 export function composeCodexHerdrRuntime(input: {
@@ -22,6 +23,7 @@ export function composeCodexHerdrRuntime(input: {
   herdrExecutable: string;
   allowAutomaticReview?: boolean;
   codexExecutable: string;
+  agentPorts?: ReturnType<typeof createAgentPorts>;
 }) {
   const provider = createHerdrCliProvider({
     executable: input.herdrExecutable,
@@ -31,6 +33,7 @@ export function composeCodexHerdrRuntime(input: {
 
   const dependencies: RuntimeDependencies = {
     ...input.dependencies,
+    ...(input.agentPorts ? { agentPorts: input.agentPorts } : {}),
     allowAutomaticReview: input.allowAutomaticReview ?? false,
     state: input.opened.store,
     herdr: input.opened.herdr,

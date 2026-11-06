@@ -22,7 +22,7 @@ import { runControl, appendRunEvent } from './run-events.js';
 export function createSqliteAllocationStore(db: StateDatabase, now: () => number): AllocationStore {
   const read = (id: string) =>
     db.get(allocationRecordSchema, 'SELECT data FROM resource_allocations WHERE id=?', id);
-  function source(jobId: string, attemptId: string, active: boolean) {
+  function source(jobId: string, attemptId: string, active: boolean, managed = false) {
     const job =
       db.get(stateJobSchema, 'SELECT data FROM jobs WHERE id=?', jobId) ??
       stateFailure('run_not_found');
@@ -43,7 +43,7 @@ export function createSqliteAllocationStore(db: StateDatabase, now: () => number
 
     if (
       active &&
-      ((!integration && job.operation !== 'delegate:implementer') ||
+      ((!managed && !integration && job.operation !== 'delegate:implementer') ||
         runControl(db, jobId).phase !== 'active' ||
         db.statement('SELECT resolved_at FROM attempts WHERE id=?').get(attemptId)?.resolved_at !==
           null)
@@ -69,7 +69,12 @@ export function createSqliteAllocationStore(db: StateDatabase, now: () => number
       stateFailure('state_conflict');
     }
 
-    const current = source(record.request.jobId, record.request.attemptId, active);
+    const current = source(
+      record.request.jobId,
+      record.request.attemptId,
+      active,
+      record.request.spec.kind === 'managed-port',
+    );
 
     if (!isDeepStrictEqual(current.binding, record.binding)) {
       stateFailure('state_conflict');
@@ -157,9 +162,14 @@ export function createSqliteAllocationStore(db: StateDatabase, now: () => number
           return { value: old, disposition: 'existing' };
         }
 
-        const current = source(request.jobId, request.attemptId, true);
+        const current = source(
+          request.jobId,
+          request.attemptId,
+          true,
+          request.spec.kind === 'managed-port',
+        );
 
-        if (current.job.operation === 'delegate:reviewer') {
+        if (current.job.operation === 'delegate:reviewer' && request.spec.kind !== 'managed-port') {
           const review = reviewTaskSchema.safeParse(current.job.intent.task);
 
           if (!review.success || !review.data.submission.resources.includes(request.key)) {
@@ -348,6 +358,45 @@ export function createSqliteAllocationStore(db: StateDatabase, now: () => number
             : save({ ...old, phase: 'retained', revision: old.revision + 1, updatedAt: now() });
 
         return { value, disposition: old.phase === 'retained' ? 'existing' : 'updated' };
+      });
+    },
+    releaseManaged(input) {
+      return db.write(() => {
+        const old = read(input.id) ?? stateFailure('state_not_found');
+
+        if (old.request.spec.kind !== 'managed-port' || old.request.attemptId !== input.attemptId) {
+          stateFailure('state_conflict');
+        }
+
+        if (old.phase === 'released') {
+          return { value: old, disposition: 'existing' };
+        }
+
+        if (
+          !['completed', 'failed', 'cancelled'].includes(runControl(db, old.request.jobId).phase)
+        ) {
+          stateFailure('resource_blocked');
+        }
+
+        const evidence = { reason: 'task-ended' as const, expectedRevision: old.revision };
+        const value = save({
+          ...old,
+          phase: 'released',
+          revision: old.revision + 1,
+          updatedAt: now(),
+          release: evidence,
+        });
+        const changed = db
+          .statement(
+            'UPDATE resources SET released_at=?,release_evidence=? WHERE id=? AND attempt_id=? AND released_at IS NULL',
+          )
+          .run(value.updatedAt, canonicalJson(evidence), old.id, old.request.attemptId);
+
+        if (changed.changes !== 1) {
+          stateFailure('state_conflict');
+        }
+
+        return { value, disposition: 'updated' };
       });
     },
     release(input) {

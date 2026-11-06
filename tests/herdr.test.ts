@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { createAgentPorts } from '../src/application/agent-ports.js';
 import {
   ensureHerdrProject,
   inspectHerdrProject,
@@ -661,6 +664,155 @@ await test(
 
       assert.equal(inspected.status, 1);
       assert.match(inspected.stdout, /herdr_unavailable/);
+    });
+  },
+);
+
+await test('CLI provider creates a port-configured tab inside the grouped worker workspace', async () => {
+  const target: HerdrTarget = { session: 'default', socketPath: '/fixture/herdr.sock' };
+  const server = { ...target, device: '1', inode: '1', changedAtNs: '1', protocol: 22 as const };
+  const requests: ProcessRequest[] = [];
+  const provider = createHerdrCliProvider({
+    executable: '/fixture/herdr',
+    endpoint: { read: async () => ({ ...target, device: '1', inode: '1', changedAtNs: '1' }) },
+    runner: {
+      run: async (input) => {
+        requests.push(input);
+
+        if (input.args[0] === 'worktree') {
+          return execution({
+            result: {
+              type: 'worktree_opened',
+              already_open: false,
+              workspace: { workspace_id: 'child' },
+            },
+          });
+        }
+
+        return execution({
+          result: {
+            type: 'tab_created',
+            root_pane: {
+              workspace_id: 'child',
+              tab_id: 'tab',
+              pane_id: 'pane',
+              terminal_id: 'terminal',
+              cwd: '/fixture/worktree',
+            },
+          },
+        });
+      },
+    },
+  });
+  const result = await provider.openWorker({
+    target,
+    server,
+    root: '/fixture/worktree',
+    parent: 'parent',
+    label: 'worker',
+    environment: { APP_PORT: '31000', DB_PORT: '31001' },
+  });
+
+  assert.ok(result.outcome === 'completed');
+  assert.deepEqual(result.value.handle, {
+    workspaceId: 'child',
+    tabId: 'tab',
+    paneId: 'pane',
+    terminalId: 'terminal',
+  });
+  assert.deepEqual(requests[1]?.args, [
+    'tab',
+    'create',
+    '--workspace',
+    'child',
+    '--cwd',
+    '/fixture/worktree',
+    '--label',
+    'worker',
+    '--env',
+    'APP_PORT=31000',
+    '--env',
+    'DB_PORT=31001',
+    '--no-focus',
+  ]);
+});
+
+await test(
+  'a worker space binds the port-configured pane in its grouped workspace',
+  options,
+  async () => {
+    await fixture(async ({ configure, deps, fake, worker, opened, state }) => {
+      await configure();
+      const path = join(state, 'config', 'project-0.json');
+      const policy = JSON.parse(await readFile(path, 'utf8')) as {
+        execution: { agentSettings?: Record<string, unknown> };
+      };
+      policy.execution.agentSettings = {
+        implementer: {
+          provider: 'fixture',
+          model: 'fixture-model',
+          reasoning: 'high',
+          ports: { APP_PORT: { fixed: 31019 } },
+        },
+      };
+      await writeFile(path, JSON.stringify(policy));
+      const job = await worker('port-worker');
+      const ports = createAgentPorts({
+        configuration: deps.configuration,
+        allocations: opened.allocations,
+      });
+      const original = deps.provider.openWorker.bind(deps.provider);
+      let environment: Record<string, string> | undefined;
+      const provider = {
+        ...deps.provider,
+        async openWorker(input: Parameters<typeof original>[0], signal?: AbortSignal) {
+          environment = input.environment;
+          const openedWorker = await original(input, signal);
+
+          if (openedWorker.outcome !== 'completed') {
+            return openedWorker;
+          }
+
+          const snapshot = fake.snapshot(input.target);
+          const originalPane = snapshot.panes.find((item) => item.cwd === input.root);
+
+          assert.ok(originalPane);
+
+          const handle = {
+            ...originalPane,
+            tabId: 'configured-tab',
+            paneId: 'configured-pane',
+            terminalId: 'configured-terminal',
+          };
+          snapshot.tabs.push({ id: handle.tabId, workspaceId: handle.workspaceId });
+          snapshot.panes.push(handle);
+
+          return {
+            schemaVersion: 1 as const,
+            outcome: 'completed' as const,
+            value: {
+              alreadyOpen: false,
+              handle: {
+                workspaceId: handle.workspaceId,
+                tabId: handle.tabId,
+                paneId: handle.paneId,
+                terminalId: handle.terminalId,
+              },
+            },
+          };
+        },
+      };
+      const prepared = space(
+        await prepareHerdrWorker(
+          { schemaVersion: 1, attemptId: job.attempt.id },
+          { ...deps, provider, agentPorts: ports },
+        ),
+        'prepared',
+      );
+
+      assert.deepEqual(environment, { APP_PORT: '31019' });
+      assert.equal(prepared.handle?.paneId, 'configured-pane');
+      assert.notEqual(prepared.handle?.workspaceId, prepared.primaryWorkspaceId);
     });
   },
 );

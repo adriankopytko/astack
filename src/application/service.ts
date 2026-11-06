@@ -415,6 +415,24 @@ export function createServiceCoordinator(input: {
         return;
       }
 
+      const savedPortPolicy = hostConfigurationPolicySchema.safeParse(
+        await dependencies.configuration.readJobPolicy?.(job.job.id, controller.signal),
+      );
+      const declaredPorts = savedPortPolicy.success
+        ? savedPortPolicy.data.execution.agentSettings?.[job.entry.role]?.ports
+        : undefined;
+
+      if (declaredPorts && Object.keys(declaredPorts).length && !runtime(job)?.supportsAgentPorts) {
+        written(
+          dependencies.queue.block(job.job.id, 'workflow_blocked', {
+            code: 'resource_blocked',
+            message: 'The configured runtime cannot provide agent ports.',
+          }),
+        );
+
+        return;
+      }
+
       const task = job.job.intent.task;
       const workflow =
         task && typeof task === 'object' && !Array.isArray(task) ? task.workflow : null;

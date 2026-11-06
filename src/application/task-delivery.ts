@@ -358,6 +358,7 @@ export function createTaskDeliveryRuntime<T extends DeliveryTask>(input: {
     },
     id: input.runtime.id,
     ...(input.runtime.aliases ? { aliases: input.runtime.aliases } : {}),
+    ...(input.runtime.supportsAgentPorts ? { supportsAgentPorts: true } : {}),
     workflows: [...new Set([...(input.runtime.workflows ?? []), input.workflow])],
     start: (job, signal) => observe(job, true, signal),
     inspect: (job, signal) => observe(job, false, signal),

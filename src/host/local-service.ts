@@ -1,5 +1,6 @@
 import { requestCleanup, controlCleanup, inspectCleanup } from '../application/cleanup.js';
 import { createAgentHooks } from './agent-hooks.js';
+import { createAgentPorts } from '../application/agent-ports.js';
 import { createCleanupExecutor, suspendCleanupExecutor } from '../application/automatic-cleanup.js';
 import { composeCleanupDependencies } from './cleanup.js';
 import {
@@ -161,7 +162,15 @@ export async function startLocalService(
       now: Date.now,
       nextId: (kind) => `${kind}-${randomUUID()}`,
     };
-    dependencies.agentHooks = createAgentHooks({ ...dependencies, state: opened.store });
+    const agentPorts = createAgentPorts({
+      configuration: dependencies.configuration,
+      allocations: opened.allocations,
+    });
+    dependencies.agentHooks = createAgentHooks({
+      ...dependencies,
+      state: opened.store,
+      ports: agentPorts,
+    });
     const cleanupDependencies = composeCleanupDependencies(
       opened,
       executable,
@@ -296,6 +305,7 @@ export async function startLocalService(
         reviewDependencies,
         herdrExecutable: herdr,
         codexExecutable: codex,
+        agentPorts,
         allowAutomaticReview: options.afterHandoffReview ?? false,
       });
       runtimes.push(codexRuntime.runtime);

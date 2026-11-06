@@ -5,6 +5,7 @@ import type {
   HerdrSnapshot,
   HerdrServer,
   HerdrAgent,
+  HerdrHandle,
 } from '../contracts/herdr.js';
 import type { OperationResult } from '../contracts/operation-result.js';
 import type { StateWriteResult } from '../contracts/state.js';
@@ -27,9 +28,10 @@ export interface HerdrProvider {
       root: string;
       parent: string;
       label: string;
+      environment?: Record<string, string>;
     },
     signal?: AbortSignal,
-  ): Promise<OperationResult<{ alreadyOpen: boolean }>>;
+  ): Promise<OperationResult<{ alreadyOpen: boolean; handle?: HerdrHandle }>>;
 }
 export interface HerdrEndpointReader {
   read(target: HerdrTarget): Promise<Omit<HerdrServer, 'protocol'>>;

@@ -17,6 +17,7 @@ import type { WorktreeFiles } from '../ports/worktrees.js';
 import { parseOperationRequest } from '../core/parse-operation-request.js';
 import { selectProjectContext } from './select-project-context.js';
 import type { ConfigurationDependencies } from './configuration.js';
+import type { createAgentPorts } from './agent-ports.js';
 
 export interface HerdrDependencies extends ConfigurationDependencies {
   state: StateStore;
@@ -24,6 +25,7 @@ export interface HerdrDependencies extends ConfigurationDependencies {
   provider: HerdrProvider;
   files: WorktreeFiles;
   newId: () => string;
+  agentPorts?: ReturnType<typeof createAgentPorts>;
 }
 export class HerdrFailure extends Error {
   constructor(readonly result: HerdrResult) {

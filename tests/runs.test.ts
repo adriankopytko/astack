@@ -36,6 +36,7 @@ import {
 import { completed } from '../src/contracts/operation-result.js';
 import { fixture } from './support/implementation.js';
 import { createAgentHooks } from '../src/host/agent-hooks.js';
+import { createAgentPorts } from '../src/application/agent-ports.js';
 import { git, gitPath } from './support/service.js';
 const options = { timeout: 90000 };
 
@@ -54,19 +55,24 @@ await test(
           provider: 'fixture',
           model: 'fixture-model',
           reasoning: 'high',
+          ports: { APP_PORT: { fixed: 31011 } },
           hooks: {
-            before: `printf before >> ${JSON.stringify(marker)}`,
-            after: `printf after >> ${JSON.stringify(marker)}`,
+            before: `printf "before:%s;" "$APP_PORT" >> ${JSON.stringify(marker)}`,
+            after: `printf "after:%s;" "$APP_PORT" >> ${JSON.stringify(marker)}`,
           },
         },
       };
       await writeFile(path, JSON.stringify(policy));
       const { deps, job, proposal } = await prepare(context);
-      const hooks = createAgentHooks({ ...deps, state: context.context.opened.store });
+      const ports = createAgentPorts({
+        configuration: deps.configuration,
+        allocations: context.context.opened.allocations,
+      });
+      const hooks = createAgentHooks({ ...deps, state: context.context.opened.store, ports });
       const coordinator = createServiceCoordinator({
         sessionId: 'lifecycle-test',
         dependencies: { ...deps, agentHooks: hooks },
-        runtimes: [context.runtime],
+        runtimes: [{ ...context.runtime, supportsAgentPorts: true }],
         limits: { global: 1, defaultRole: 1, perRole: {} },
         onFailure: () => assert.fail('coordinator failed'),
       });
@@ -74,7 +80,7 @@ await test(
       await coordinator.idle();
 
       try {
-        assert.equal(await readFile(marker, 'utf8'), 'before');
+        assert.equal(await readFile(marker, 'utf8'), 'before:31011;');
 
         const decision = accepted(
           await acceptRunReport(
@@ -90,7 +96,15 @@ await test(
         coordinator.wake();
         await coordinator.idle();
 
-        assert.equal(await readFile(marker, 'utf8'), 'before');
+        assert.equal(await readFile(marker, 'utf8'), 'before:31011;');
+
+        const during = context.context.opened.allocations.list({
+          projectId: job.job.projectId,
+          after: '',
+          limit: 10,
+        });
+
+        assert.ok(during.outcome === 'completed' && during.value.items[0]?.phase === 'reserved');
 
         const answer = accepted(
           respondToRun(
@@ -127,7 +141,17 @@ await test(
         coordinator.wake();
         await coordinator.idle();
 
-        assert.equal(await readFile(marker, 'utf8'), 'beforeafter');
+        assert.equal(await readFile(marker, 'utf8'), 'before:31011;after:31011;');
+
+        const released = context.context.opened.allocations.list({
+          projectId: job.job.projectId,
+          after: '',
+          limit: 10,
+        });
+
+        assert.ok(
+          released.outcome === 'completed' && released.value.items[0]?.phase === 'released',
+        );
 
         const after = saved(job.job.id, deps).cleanup.resources.find(
           (resource) => resource.kind === 'agent-hook-after',
@@ -170,6 +194,7 @@ await test(
           provider: 'fixture',
           model: 'fixture-model',
           reasoning: 'high',
+          ports: { APP_PORT: { fixed: 31012 } },
           hooks: { after: 'exit 9' },
         },
       };
@@ -179,9 +204,16 @@ await test(
         sessionId: 'failed-after-test',
         dependencies: {
           ...deps,
-          agentHooks: createAgentHooks({ ...deps, state: context.context.opened.store }),
+          agentHooks: createAgentHooks({
+            ...deps,
+            state: context.context.opened.store,
+            ports: createAgentPorts({
+              configuration: deps.configuration,
+              allocations: context.context.opened.allocations,
+            }),
+          }),
         },
-        runtimes: [context.runtime],
+        runtimes: [{ ...context.runtime, supportsAgentPorts: true }],
         limits: { global: 1, defaultRole: 1, perRole: {} },
         onFailure: () => assert.fail('coordinator failed'),
       });
@@ -204,6 +236,16 @@ await test(
         assert.equal(
           run.cleanup.resources.find((item) => item.kind === 'agent-hook-after')?.hookOutcome,
           'failed',
+        );
+
+        const allocations = context.context.opened.allocations.list({
+          projectId: job.job.projectId,
+          after: '',
+          limit: 10,
+        });
+
+        assert.ok(
+          allocations.outcome === 'completed' && allocations.value.items[0]?.phase === 'reserved',
         );
       } finally {
         await coordinator.stop();
@@ -1073,9 +1115,10 @@ await test('the local service runs hooks around a worker report', options, async
         provider: 'fixture',
         model: 'fixture-model',
         reasoning: 'high',
+        ports: { APP_PORT: { fixed: 31014 } },
         hooks: {
-          before: `printf before >> ${JSON.stringify(marker)}`,
-          after: `printf after >> ${JSON.stringify(marker)}`,
+          before: `printf "before:%s;" "$APP_PORT" >> ${JSON.stringify(marker)}`,
+          after: `printf "after:%s;" "$APP_PORT" >> ${JSON.stringify(marker)}`,
         },
       },
     };
@@ -1083,7 +1126,10 @@ await test('the local service runs hooks around a worker report', options, async
     const { job, proposal } = await prepare(context);
     const service = await startLocalService(
       { schemaVersion: 1, stateDirectory: context.context.state, gitExecutable: gitPath },
-      { runtimes: [context.runtime], runWorkerInput: context.workerInput },
+      {
+        runtimes: [{ ...context.runtime, supportsAgentPorts: true }],
+        runWorkerInput: context.workerInput,
+      },
     );
 
     assert.equal(service.outcome, 'listening', JSON.stringify(service));
@@ -1098,7 +1144,7 @@ await test('the local service runs hooks around a worker report', options, async
       }
 
       assert.equal(context.prompts.length, 1);
-      assert.equal(await readFile(marker, 'utf8'), 'before');
+      assert.equal(await readFile(marker, 'utf8'), 'before:31014;');
 
       const report = await requestLocalService(context.context.state, {
         schemaVersion: 1,
@@ -1112,14 +1158,41 @@ await test('the local service runs hooks around a worker report', options, async
       assert.equal(report.outcome, 'persisted', JSON.stringify(report));
 
       for (let count = 0; count < 100; count++) {
-        if ((await readFile(marker, 'utf8')) === 'beforeafter') {
+        if ((await readFile(marker, 'utf8')) === 'before:31014;after:31014;') {
           break;
         }
 
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
 
-      assert.equal(await readFile(marker, 'utf8'), 'beforeafter');
+      assert.equal(await readFile(marker, 'utf8'), 'before:31014;after:31014;');
+
+      for (let count = 0; count < 100; count++) {
+        const allocations = context.context.opened.allocations.list({
+          projectId: job.job.projectId,
+          after: '',
+          limit: 10,
+        });
+
+        if (
+          allocations.outcome === 'completed' &&
+          allocations.value.items[0]?.phase === 'released'
+        ) {
+          break;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+
+      const allocations = context.context.opened.allocations.list({
+        projectId: job.job.projectId,
+        after: '',
+        limit: 10,
+      });
+
+      assert.ok(
+        allocations.outcome === 'completed' && allocations.value.items[0]?.phase === 'released',
+      );
     } finally {
       await service.close();
     }
