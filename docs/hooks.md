@@ -6,6 +6,8 @@ Hooks execute selected project-configured commands in an exact owned checkout. T
 
 `setup` prepares the project, `verify` runs project checks, `start` invokes the service controller, and `teardown` invokes the stop controller. The existing setup/verify/teardown selections retain their meaning. Optional `start` is additive: omitted fields do not add defaults or change historical configuration/prompt bytes.
 
+Hook command timeouts default to 10 minutes for setup, 5 minutes for verify, and 60 seconds for start and teardown. Set `timeoutMs` on an individual hook or check to override its default. These deadlines apply to commands, not total agent work. The start deadline does not itself wait for or verify service readiness; service readiness remains an explicit host operation.
+
 The primary checkout’s `.astack/config.json` contains both command names and execution definitions. Astack reads it directly. For example, within a project configuration:
 
 ```json
@@ -18,7 +20,6 @@ The primary checkout’s `.astack/config.json` contains both command names and e
   },
   "execution": {
     "allowedEnvironment": ["PATH", "APP_PORT"],
-    "maxTimeoutMs": 300000,
     "commands": {
       "project-check": { "executable": "/trusted/bin/pnpm", "args": ["run", "check"] },
       "project-start": { "executable": "/trusted/bin/pnpm", "args": ["run", "environment:start"] },

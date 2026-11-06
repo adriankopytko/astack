@@ -145,8 +145,8 @@ async function preflight(
     ? policy.execution.commands[commandId]
     : undefined;
 
-  if (!command || settings.timeoutMs > policy.execution.maxTimeoutMs) {
-    blocked('The selected hook command or deadline is not approved by the host.');
+  if (!command) {
+    blocked('The selected hook command is not configured.');
   }
 
   const names = [...new Set([...settings.environment, ...Object.keys(settings.resources)])].sort();

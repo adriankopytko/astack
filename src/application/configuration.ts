@@ -92,16 +92,6 @@ function prerequisites(
     );
   }
 
-  if (role.timeoutMs > policy.execution.maxTimeoutMs) {
-    diagnostics.push(
-      diagnostic(
-        'timeout_not_allowed',
-        'Reduce the requested timeout or raise execution.maxTimeoutMs in .astack/config.json.',
-        snapshot.role,
-      ),
-    );
-  }
-
   const commandIds = new Set([role.command, ...Object.values(snapshot.effective.hooks)]);
 
   for (const id of commandIds) {

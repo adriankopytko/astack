@@ -55,7 +55,7 @@ export const effectiveConfigurationSchema = z.strictObject({
 });
 export const lifecycleHookPolicySchema = z.strictObject({
   command: name,
-  timeoutMs: z.number().int().min(10).max(86_400_000),
+  timeoutMs: z.number().int().min(10).max(86_400_000).default(300_000),
   environment,
   resources: z
     .record(
@@ -112,17 +112,28 @@ export const hostConfigurationPolicySchema = z
         .optional(),
       hooks: z
         .strictObject({
-          setup: lifecycleHookPolicySchema.optional(),
+          setup: lifecycleHookPolicySchema
+            .extend({
+              timeoutMs: lifecycleHookPolicySchema.shape.timeoutMs.default(600_000),
+            })
+            .optional(),
           verify: lifecycleHookPolicySchema.optional(),
-          start: lifecycleHookPolicySchema.optional(),
-          teardown: lifecycleHookPolicySchema.optional(),
+          start: lifecycleHookPolicySchema
+            .extend({
+              timeoutMs: lifecycleHookPolicySchema.shape.timeoutMs.default(60_000),
+            })
+            .optional(),
+          teardown: lifecycleHookPolicySchema
+            .extend({
+              timeoutMs: lifecycleHookPolicySchema.shape.timeoutMs.default(60_000),
+            })
+            .optional(),
         })
         .optional(),
       review: z
         .strictObject({ allowGateOverride: z.boolean(), allowNoChecks: z.boolean().optional() })
         .optional(),
       allowedEnvironment: environment,
-      maxTimeoutMs: z.number().int().min(1000).max(86_400_000).default(300_000),
       commands: z
         .record(
           name,

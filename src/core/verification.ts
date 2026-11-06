@@ -7,9 +7,7 @@ import type { VerificationRequest } from '../contracts/verification.js';
 import { configurationDigest } from './configuration.js';
 export class VerificationApprovalError extends Error {
   constructor(check: string) {
-    super(
-      `Verification check ${check} requires an approved command and a deadline within the host limit.`,
-    );
+    super(`Verification check ${check} requires a configured command.`);
   }
 }
 export function verificationApproval(policy: HostConfigurationPolicy, role: string) {
@@ -26,7 +24,7 @@ export function verificationApproval(policy: HostConfigurationPolicy, role: stri
       ? policy.execution.commands[definition.command]
       : undefined;
 
-    if (!command || definition.timeoutMs > policy.execution.maxTimeoutMs) {
+    if (!command) {
       throw new VerificationApprovalError(name);
     }
 

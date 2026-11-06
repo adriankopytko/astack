@@ -342,7 +342,30 @@ await test('PR-proposed permission escalation never becomes effective execution 
   });
 });
 
-await test('request overrides cannot bypass configured timeout, commands, environment, or skill requirements', async () => {
+await test('hook defaults are phase-specific and explicit longer deadlines are accepted', async () => {
+  await fixture(async ({ policy }) => {
+    const definition = { command: 'worker', environment: [], resources: {} };
+    const parsed = hostConfigurationPolicySchema.parse({
+      ...policy,
+      execution: {
+        ...policy.execution,
+        hooks: {
+          setup: definition,
+          verify: definition,
+          start: definition,
+          teardown: { ...definition, timeoutMs: 900_000 },
+        },
+      },
+    });
+
+    assert.equal(parsed.execution.hooks?.setup?.timeoutMs, 600_000);
+    assert.equal(parsed.execution.hooks?.verify?.timeoutMs, 300_000);
+    assert.equal(parsed.execution.hooks?.start?.timeoutMs, 60_000);
+    assert.equal(parsed.execution.hooks?.teardown?.timeoutMs, 900_000);
+  });
+});
+
+await test('request overrides cannot bypass configured commands, environment, or skill requirements', async () => {
   await fixture(async ({ request, deps, policy, save }) => {
     policy.project.hooks = { verify: 'worker' };
     await save();
@@ -370,12 +393,7 @@ await test('request overrides cannot bypass configured timeout, commands, enviro
 
     assert.equal(value.status, 'blocked');
 
-    for (const code of [
-      'command_not_allowed',
-      'environment_not_allowed',
-      'skill_not_approved',
-      'timeout_not_allowed',
-    ]) {
+    for (const code of ['command_not_allowed', 'environment_not_allowed', 'skill_not_approved']) {
       assert.equal(codes.has(code as (typeof value.diagnostics)[number]['code']), true, code);
     }
   });
