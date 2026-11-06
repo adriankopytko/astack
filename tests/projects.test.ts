@@ -482,6 +482,31 @@ await test(
         JSON.stringify({
           schemaVersion: 1,
           agents: {
+            implementer: {
+              provider: 'codex',
+              model: 'example-model',
+              reasoning: 'high',
+              hooks: { before: 'pnpm install' },
+            },
+          },
+        }),
+      );
+      const withHooks = cli(root, statePath, 'doctor', '--project', 'cli-project');
+      const hookConfig = configurationResultSchema.parse(
+        (withHooks.value as { configuration: unknown }).configuration,
+      );
+
+      assert.equal(withHooks.status, 1);
+      assert.equal(
+        hookConfig.outcome === 'completed' && hookConfig.value.diagnostics[0]?.code,
+        'agent_hooks_unavailable',
+      );
+
+      await writeFile(
+        join(path, '.astack/config.json'),
+        JSON.stringify({
+          schemaVersion: 1,
+          agents: {
             implementer: { provider: 'codex', model: 'example-model', reasoning: 'unknown' },
           },
         }),

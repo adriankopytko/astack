@@ -94,6 +94,22 @@ export const projectAgentSchema = z.strictObject({
     .describe(
       'Set before starting a job. Codex supports minimal, low, medium, high, xhigh and max.',
     ),
+  hooks: z
+    .strictObject({
+      before: z
+        .string()
+        .min(1)
+        .max(4096)
+        .refine((value) => !value.includes('\0'))
+        .optional(),
+      after: z
+        .string()
+        .min(1)
+        .max(4096)
+        .refine((value) => !value.includes('\0'))
+        .optional(),
+    })
+    .optional(),
   instructions: z
     .string()
     .min(1)
@@ -219,6 +235,7 @@ export const configurationDiagnosticSchema = z.strictObject({
     'agent_model_missing',
     'agent_reasoning_missing',
     'agent_reasoning_unsupported',
+    'agent_hooks_unavailable',
     'role_missing',
     'runtime_not_allowed',
     'command_not_allowed',

@@ -92,6 +92,16 @@ function prerequisites(
     );
   }
 
+  if (agent?.hooks?.before || agent?.hooks?.after) {
+    diagnostics.push(
+      diagnostic(
+        'agent_hooks_unavailable',
+        'Automatic agent hooks are not implemented yet; remove the hooks to start a job.',
+        snapshot.role,
+      ),
+    );
+  }
+
   if (
     agent?.provider === 'codex' &&
     agent.reasoning !== null &&

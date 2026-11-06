@@ -53,6 +53,20 @@ await test('project agent configuration requires model and reasoning and does no
   assert.equal(
     projectConfigurationFileSchema.safeParse({
       schemaVersion: 1,
+      agents: {
+        implementer: {
+          provider: 'codex',
+          model: 'example',
+          reasoning: 'high',
+          hooks: { before: 'pnpm install', after: 'pnpm stop' },
+        },
+      },
+    }).success,
+    true,
+  );
+  assert.equal(
+    projectConfigurationFileSchema.safeParse({
+      schemaVersion: 1,
       agents: { implementer: { provider: 'codex', reasoning: 'high' } },
     }).success,
     false,
