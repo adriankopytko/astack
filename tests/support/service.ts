@@ -67,7 +67,12 @@ export async function writeProjectConfiguration(
       },
     ]),
   );
-  const { launchProfiles: _profiles, agentSettings: _settings, ...execution } = policy.execution;
+  const {
+    launchProfiles: _profiles,
+    agentSettings: _settings,
+    skills: _skills,
+    ...execution
+  } = policy.execution;
   await mkdir(join(root, '.astack'), { recursive: true });
   await writeFile(
     join(root, '.astack', 'config.json'),

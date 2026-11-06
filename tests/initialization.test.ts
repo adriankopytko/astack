@@ -39,6 +39,7 @@ import {
   inspectSkills,
   reconcileHerdrSpace,
   hostConfigurationPolicySchema,
+  projectConfigurationFileSchema,
   type InitializationDependencies,
   type InitializationResult,
 } from '../src/index.js';
@@ -47,6 +48,31 @@ import { fakeProvider } from './support/herdr.js';
 import { git, gitPath } from './support/service.js';
 import { metadataPaths } from '../src/core/managed-file-metadata.js';
 const options = { timeout: 120000 };
+
+await test('project agent configuration requires model and reasoning and does not accept skill pins', () => {
+  assert.equal(
+    projectConfigurationFileSchema.safeParse({
+      schemaVersion: 1,
+      agents: { implementer: { provider: 'codex', reasoning: 'high' } },
+    }).success,
+    false,
+  );
+  assert.equal(
+    projectConfigurationFileSchema.safeParse({
+      schemaVersion: 1,
+      agents: { implementer: { provider: 'codex', model: 'example' } },
+    }).success,
+    false,
+  );
+  assert.equal(
+    projectConfigurationFileSchema.safeParse({
+      schemaVersion: 1,
+      agents: {},
+      execution: { skills: [] },
+    }).success,
+    false,
+  );
+});
 const repo = fileURLToPath(new URL('../', import.meta.url));
 function view(result: InitializationResult, outcome?: string) {
   initializationResultSchema.parse(result);
