@@ -45,7 +45,6 @@ export function mergeConfiguration(layers: {
   };
   const effective: EffectiveConfiguration = {
     roles: { implementer: { ...emptyRole }, reviewer: { ...emptyRole } },
-    hooks: { setup: null, verify: null, teardown: null },
   };
   const sources = new Map<string, ConfigurationSnapshot['provenance'][number]['source']>();
 
@@ -53,10 +52,6 @@ export function mergeConfiguration(layers: {
     for (const field of Object.keys(settings)) {
       sources.set(`roles.${role}.${field}`, 'defaults');
     }
-  }
-
-  for (const hook of Object.keys(effective.hooks)) {
-    sources.set(`hooks.${hook}`, 'defaults');
   }
 
   for (const source of ['user', 'project', 'local', 'request'] as const) {
@@ -81,12 +76,6 @@ export function mergeConfiguration(layers: {
       for (const field of Object.keys(patch)) {
         sources.set(`roles.${role}.${field}`, source);
       }
-    }
-
-    Object.assign(effective.hooks, layer.hooks);
-
-    for (const field of Object.keys(layer.hooks ?? {})) {
-      sources.set(`hooks.${field}`, source);
     }
   }
 

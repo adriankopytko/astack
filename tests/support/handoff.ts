@@ -1,16 +1,9 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFile, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   acceptRunReport,
-  verifyImplementation,
-  reconcileHook,
-  type HostConfigurationPolicy,
-  type VerificationRecord,
-  hostConfigurationPolicySchema,
-  nodeProcessRunner,
-  type VerificationDependencies,
   createServiceCoordinator,
   submitImplementation,
   nodeRunArtifactReader,
@@ -38,35 +31,8 @@ export function persisted(result: StateWriteResult<HandoffView>): HandoffView {
   return result.value;
 }
 
-export interface VerificationFixtureOptions {
-  configure?: (policy: HostConfigurationPolicy) => void;
-  verify?: boolean;
-}
-async function setup(
-  context: Parameters<Parameters<typeof implementationFixture>[0]>[0],
-  options: VerificationFixtureOptions,
-) {
+async function setup(context: Parameters<Parameters<typeof implementationFixture>[0]>[0]) {
   const submission = await context.prepare();
-  const policyPath = join(context.context.state, 'config', submission.projectId + '.json');
-  const policy = hostConfigurationPolicySchema.parse(
-    JSON.parse(await readFile(policyPath, 'utf8')),
-  );
-  policy.execution.commands['fixture-check'] = {
-    executable: process.execPath,
-    args: ['--version'],
-  };
-  policy.execution.verification = {
-    implementer: {
-      baseline: ['baseline'],
-      checks: {
-        baseline: { command: 'fixture-check', timeoutMs: 1000, environment: [], resources: {} },
-      },
-      lanes: {},
-      maxAgeMs: 86400000,
-    },
-  };
-  options.configure?.(policy);
-  await writeFile(policyPath, JSON.stringify(policy), { mode: 0o600 });
   const submitted = await submitImplementation(submission, context.deps);
 
   assert.ok(submitted.outcome === 'persisted', JSON.stringify(submitted));
@@ -139,64 +105,6 @@ async function setup(
 
   assert.ok(report.outcome === 'persisted' && report.value.report, JSON.stringify(report));
 
-  const verificationDeps: VerificationDependencies = {
-    ...context.deps,
-    hooks: context.context.opened.hooks,
-    verifications: context.context.opened.verifications,
-    runs: context.context.opened.runs,
-    artifacts: nodeRunArtifactReader,
-    workerInput: context.workerInput,
-    allocations: context.context.opened.allocations,
-    ports: { inspect: async () => completed('free') },
-    runner: nodeProcessRunner,
-    environment: { read: async () => completed({}) },
-    now: Date.now,
-  };
-  let verification: VerificationRecord | null = null;
-
-  if (options.verify !== false) {
-    const observed = await context.deps.git.inspect({ schemaVersion: 1, path: root });
-    const verified = await verifyImplementation(
-      {
-        schemaVersion: 1,
-        jobId: job.job.id,
-        reportId: report.value.report.id,
-        key: 'baseline-verification',
-        writersExcluded: true,
-      },
-      { ...verificationDeps, git: { inspect: async () => observed } },
-    );
-
-    assert.ok(
-      verified.outcome === 'persisted' && verified.value.status === 'passed',
-      JSON.stringify(verified),
-    );
-
-    verification = verified.value;
-
-    for (const check of verification.checks) {
-      assert.ok(check.hookId);
-
-      const hook = context.context.opened.hooks.read(check.hookId);
-
-      assert.ok(hook.outcome === 'completed' && hook.value);
-
-      const settled = reconcileHook(
-        {
-          schemaVersion: 1,
-          id: hook.value.id,
-          expectedRevision: hook.value.revision,
-          key: 'fixture-foreground-stopped',
-          writersStopped: true,
-          servicesStopped: true,
-        },
-        verificationDeps,
-      );
-
-      assert.equal(settled.outcome, 'persisted', JSON.stringify(settled));
-    }
-  }
-
   const request = handoffRequestSchema.parse({
     schemaVersion: 1,
     jobId: job.job.id,
@@ -216,7 +124,6 @@ async function setup(
       body: 'Verification passed.',
       draft: false,
     },
-    verification: { source: 'executed', id: verification?.id ?? 'not-run' },
     review: {
       gate: { requiredChecks: ['ci'], overrideReason: null },
       instructionPaths: ['AGENTS.md'],
@@ -296,8 +203,6 @@ async function setup(
     state: opened.store,
     runs: opened.runs,
     handoffs: opened.handoffs,
-    verifications: opened.verifications,
-    configuration: context.deps.configuration,
     artifacts: nodeRunArtifactReader,
     workerInput: context.workerInput,
     github,
@@ -354,15 +259,10 @@ async function setup(
     deps,
     remote,
     inspect,
-    verificationDeps,
-    verification,
   };
 }
 
 export type HandoffFixture = Awaited<ReturnType<typeof setup>>;
-export async function fixture(
-  action: (context: HandoffFixture) => Promise<void>,
-  options: VerificationFixtureOptions = {},
-) {
-  await implementationFixture(async (context) => action(await setup(context, options)));
+export async function fixture(action: (context: HandoffFixture) => Promise<void>) {
+  await implementationFixture(async (context) => action(await setup(context)));
 }

@@ -6,7 +6,6 @@ import {
   githubRepositorySchema,
   githubBranchSchema,
 } from './github.js';
-import { artifactReferenceSchema } from './runs.js';
 import { stateIdSchema, stateEffectSchema, createStateWriteResultSchema } from './state.js';
 import { reviewGatePolicySchema, reviewTargetSchema } from './review-task.js';
 import { instructionPathSchema } from './implementation-task.js';
@@ -30,30 +29,6 @@ export const handoffRequestSchema = z
     key: stateIdSchema,
     publication: pullRequestPublicationSchema,
     expectedRemoteHead: reviewTargetSchema.shape.sha.nullable().default(null),
-    verification: z
-      .union([
-        z
-          .strictObject({
-            source: z.literal('host-attestation'),
-            checks: z
-              .array(
-                z.strictObject({
-                  name: z
-                    .string()
-                    .min(1)
-                    .max(128)
-                    .refine((v) => !v.includes('\0')),
-                  outcome: z.literal('passed'),
-                  artifact: artifactReferenceSchema.nullable(),
-                }),
-              )
-              .min(1)
-              .max(8),
-          })
-          .refine((v) => new Set(v.checks.map((c) => c.name)).size === v.checks.length),
-        z.strictObject({ source: z.literal('executed'), id: stateIdSchema }),
-      ])
-      .optional(),
     review: z
       .strictObject({
         gate: reviewGatePolicySchema,

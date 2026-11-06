@@ -7,7 +7,6 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {
   finishImplementation,
-  verifyImplementation,
   reconcileImplementationHandoff,
   openSqliteState,
   readRunEvents,
@@ -26,17 +25,13 @@ await test(
   'handoff can publish a completed report without an Astack verification record',
   options,
   async () => {
-    await fixture(
-      async (f) => {
-        const { verification: _verification, ...request } = f.request;
-        const result = persisted(await finishImplementation({ ...f.input, request }, f.deps));
+    await fixture(async (f) => {
+      const result = persisted(await finishImplementation(f.input, f.deps));
 
-        assert.equal(result.record.phase, 'accepted');
-        assert.equal(f.remote.pushCalls, 1);
-        assert.equal(f.remote.postCalls, 1);
-      },
-      { verify: false },
-    );
+      assert.equal(result.record.phase, 'accepted');
+      assert.equal(f.remote.pushCalls, 1);
+      assert.equal(f.remote.postCalls, 1);
+    });
   },
 );
 
@@ -132,7 +127,6 @@ await test(
           ...f.deps,
           state: opened.store,
           handoffs: opened.handoffs,
-          verifications: opened.verifications,
           runs: opened.runs,
           git: { inspect: async () => assert.fail('Cached acceptance must not inspect Git') },
           artifacts: {
@@ -261,7 +255,6 @@ for (const stage of ['push', 'pr'] as const) {
             state: opened.store,
             runs: opened.runs,
             handoffs: opened.handoffs,
-            verifications: opened.verifications,
             now: () => 999999999,
           };
           const reconciled = persisted(await reconcileImplementationHandoff(f.reconcile, deps));
@@ -677,31 +670,6 @@ await test(
 
         assert.deepEqual(after, before);
 
-        const verification = await verifyImplementation(
-          { ...f.verification!.request, key: 'verification-after-upgrade' },
-          {
-            ...f.verificationDeps,
-            registry: opened.registry,
-            worktrees: opened.worktrees,
-            queue: opened.service,
-            hooks: opened.hooks,
-            verifications: opened.verifications,
-            runs: opened.runs,
-            allocations: opened.allocations,
-            configuration: {
-              ...f.verificationDeps.configuration,
-              async readJobPolicy(jobId) {
-                const result = opened.store.readJobConfiguration(jobId);
-
-                assert.ok(result.outcome === 'completed');
-
-                return result.value;
-              },
-            },
-          },
-        );
-
-        assert.equal(verification.outcome, 'rejected');
         assert.equal(f.remote.pushCalls, 0);
         assert.equal(f.remote.postCalls, 0);
       } finally {

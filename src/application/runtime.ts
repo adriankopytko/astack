@@ -421,20 +421,6 @@ export async function launchRuntime(
     checkAutomaticReview(job, deps);
     const command = await approved(job, deps, signal);
 
-    if (
-      deps.runtime.checkHookPrerequisites ||
-      job.job.configuration?.effective.hooks.setup != null ||
-      job.job.configuration?.effective.hooks.start != null
-    ) {
-      read(
-        deps.runtime.checkHookPrerequisites?.(job.job.id) ??
-          rejected(
-            'hook_blocked',
-            'This runtime cannot validate completed lifecycle prerequisites.',
-          ),
-      );
-    }
-
     const layout = await prepareHerdrWorker(input, deps, signal);
 
     if (

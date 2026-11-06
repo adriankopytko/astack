@@ -2,7 +2,7 @@
 
 ## Implemented scope
 
-An orchestrator requests a review for an explicit registered project, base repository host/name, PR number and full head SHA. No implementation job or claim is required. Manual initiation is the default; after-handoff initiation is separately opted in. The reviewer uses its own existing Astack-owned checkout, branch, role configuration, durable job and attempt. Static review starts no services. Requested integration resources remain durable blockers until isolated provisioning is implemented.
+An orchestrator requests a review for an explicit registered project, base repository host/name, PR number and full head SHA. No implementation job or claim is required. Manual initiation is the default; after-handoff initiation is separately opted in. The reviewer uses its own existing Astack-owned checkout, branch, role configuration, durable job and attempt. Agent hooks may start project services when configured. Legacy integration resource requests block dispatch; configure agent ports and hooks for new review jobs instead.
 
 Worktree preparation stays explicit. The requested commit must already exist locally; this workflow never fetches, checks out remote refs, creates a worktree implicitly, discovers unrelated PRs, edits fixes, publishes GitHub reviews/comments, pushes or merges. Fork PRs are supported through their base repository/PR and verified head SHA, with source repository attribution recorded separately. Obtaining an external commit locally is a separate authorized operation.
 

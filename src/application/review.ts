@@ -350,14 +350,10 @@ export function createReviewRuntime(input: {
         }
 
         if (task.submission.resources.length > 0) {
-          const provisioned = input.dependencies.hooks?.integrationReady(job.job.id);
-
-          if (!provisioned || provisioned.outcome !== 'completed' || !provisioned.value) {
-            return rejected(
-              'review_blocked',
-              'Integration provisioning requires this review attempt’s independent resources to be prepared and verified through explicit lifecycle hooks before dispatch.',
-            );
-          }
+          return rejected(
+            'review_blocked',
+            'Legacy integration resource requests are unsupported; configure agent ports and hooks instead.',
+          );
         }
 
         const snapshot = await target(task, input.dependencies, signal);

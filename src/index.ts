@@ -555,12 +555,3 @@ export * from './contracts/resources.js';
 export * from './ports/resources.js';
 export * from './application/resources.js';
 export { nodePortProbe } from './adapters/network/port-probe.js';
-
-export * from './contracts/hooks.js';
-export * from './ports/hooks.js';
-export * from './application/hooks.js';
-export { nodeHookEnvironment } from './adapters/filesystem/hook-environment.js';
-
-export * from './contracts/verification.js';
-export * from './ports/verification.js';
-export * from './application/verification.js';

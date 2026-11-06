@@ -6,8 +6,15 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { applicationInfoResultSchema } from '../src/contracts/application-info.js';
+import * as astack from '../src/index.js';
 
 const entrypoint = fileURLToPath(new URL('../dist/cli/main.js', import.meta.url));
+
+await test('legacy explicit hook and verification operations are not public exports', () => {
+  assert.equal('executeHook' in astack, false);
+  assert.equal('reconcileHook' in astack, false);
+  assert.equal('verifyImplementation' in astack, false);
+});
 
 await test('compiled CLI works outside its source checkout and keeps JSON output clean', async () => {
   const cwd = await mkdtemp(join(tmpdir(), 'astack-cli-'));

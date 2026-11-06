@@ -14,7 +14,6 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import {
   openSqliteState,
@@ -44,7 +43,6 @@ const gitPath = spawnSync('/usr/bin/which', ['git'], {
   encoding: 'utf8',
   env: { PATH: '/usr/bin:/bin:/opt/homebrew/bin:/usr/local/bin' },
 }).stdout.trim();
-const cli = fileURLToPath(new URL('../dist/cli/main.js', import.meta.url));
 
 function git(cwd: string, ...args: string[]): string {
   const result = spawnSync(gitPath, ['-c', 'core.hooksPath=/dev/null', ...args], {
@@ -230,19 +228,16 @@ await test('merge precedence preserves object fields, replaces arrays, and recor
     },
     project: {
       roles: { implementer: { timeoutMs: 2000, environment: ['PROJECT'] } },
-      hooks: { verify: 'verify' },
     },
     local: { roles: { implementer: { timeoutMs: 3000 } } },
     request: {
       roles: { implementer: { timeoutMs: 4000, environment: [] } },
-      hooks: { verify: null },
     },
   });
 
   assert.equal(merged.effective.roles.implementer?.runtime, 'user-runtime');
   assert.equal(merged.effective.roles.implementer?.timeoutMs, 4000);
   assert.deepEqual(merged.effective.roles.implementer?.environment, []);
-  assert.deepEqual(merged.effective.hooks, { setup: null, verify: null, teardown: null });
   assert.equal(
     merged.provenance.find((entry) => entry.path === 'roles.implementer.runtime')?.source,
     'user',
@@ -274,11 +269,6 @@ await test('approved configuration resolves without hooks or executing any confi
 
     assert.equal(value.status, 'ready');
     assert.equal(value.proposal, 'matches');
-    assert.deepEqual(value.snapshot?.effective.hooks, {
-      setup: null,
-      verify: null,
-      teardown: null,
-    });
     assert.equal(value.snapshot?.skills[0]?.version, 'v1');
     assert.equal(JSON.stringify(value).includes('require('), false);
 
@@ -342,32 +332,8 @@ await test('PR-proposed permission escalation never becomes effective execution 
   });
 });
 
-await test('hook defaults are phase-specific and explicit longer deadlines are accepted', async () => {
-  await fixture(async ({ policy }) => {
-    const definition = { command: 'worker', environment: [], resources: {} };
-    const parsed = hostConfigurationPolicySchema.parse({
-      ...policy,
-      execution: {
-        ...policy.execution,
-        hooks: {
-          setup: definition,
-          verify: definition,
-          start: definition,
-          teardown: { ...definition, timeoutMs: 900_000 },
-        },
-      },
-    });
-
-    assert.equal(parsed.execution.hooks?.setup?.timeoutMs, 600_000);
-    assert.equal(parsed.execution.hooks?.verify?.timeoutMs, 300_000);
-    assert.equal(parsed.execution.hooks?.start?.timeoutMs, 60_000);
-    assert.equal(parsed.execution.hooks?.teardown?.timeoutMs, 900_000);
-  });
-});
-
 await test('request overrides cannot bypass configured commands, environment, or skill requirements', async () => {
-  await fixture(async ({ request, deps, policy, save }) => {
-    policy.project.hooks = { verify: 'worker' };
+  await fixture(async ({ request, deps, save }) => {
     await save();
     const value = resolution(
       await resolveConfiguration(
@@ -383,7 +349,6 @@ await test('request overrides cannot bypass configured commands, environment, or
                 skills: [{ id: 'other', version: 'v1', digest: 'a'.repeat(64) }],
               },
             },
-            hooks: { verify: null },
           },
         },
         deps,
@@ -690,58 +655,5 @@ await test('configuration is bound to project/repository identity and cancellati
     const saved = inspectStateRecord({ schemaVersion: 1, entity: 'job', id: job.id }, opened.store);
 
     assert.equal(saved.outcome === 'completed' && saved.value, null);
-  });
-});
-
-await test('compiled configuration CLI works from neutral cwd, reports blocking reasons, and keeps host arguments private', async () => {
-  await fixture(async ({ root, state, source, policy }) => {
-    await mkdir(join(source, '.astack'), { recursive: true });
-    const projectConfig: {
-      schemaVersion: number;
-      agents: { implementer: { provider: string; model: string | null; reasoning: string } };
-    } = {
-      schemaVersion: 1,
-      agents: { implementer: { provider: 'fixture', model: 'fixture-model', reasoning: 'high' } },
-    };
-    const saveProject = async () =>
-      writeFile(join(source, '.astack', 'config.json'), JSON.stringify(projectConfig));
-    const run = () =>
-      spawnSync(
-        process.execPath,
-        [
-          cli,
-          '--state-directory',
-          state,
-          '--git-executable',
-          gitPath,
-          'config',
-          'inspect',
-          '--project',
-          policy.projectId,
-          '--json',
-        ],
-        { cwd: root, env: {}, encoding: 'utf8', timeout: 20_000 },
-      );
-    await saveProject();
-    const ready = run();
-
-    assert.equal(ready.status, 0, ready.stderr);
-    assert.equal(ready.stderr, '');
-    assert.equal(ready.stdout.includes('fixture-private-argument'), false);
-    assert.equal(
-      resolution(configurationResultSchema.parse(JSON.parse(ready.stdout) as unknown)).status,
-      'ready',
-    );
-
-    projectConfig.agents.implementer.model = null;
-    await saveProject();
-    const blocked = run();
-
-    assert.equal(blocked.status, 1);
-    assert.equal(
-      resolution(configurationResultSchema.parse(JSON.parse(blocked.stdout) as unknown))
-        .diagnostics[0]?.code,
-      'agent_model_missing',
-    );
   });
 });

@@ -1,4 +1,3 @@
-import { hookPrerequisitesReady } from './hook-evidence.js';
 import { automaticReviewAllowed } from './automatic-review-evidence.js';
 import {
   runtimeSessionSchema,
@@ -72,15 +71,6 @@ export function createSqliteRuntimeStore(db: StateDatabase, now: () => number): 
   }
 
   return {
-    checkHookPrerequisites(jobId) {
-      return db.read(() => {
-        if (!hookPrerequisitesReady(db, jobId)) {
-          stateFailure('hook_blocked');
-        }
-
-        return null;
-      });
-    },
     checkAutomaticReview(jobId) {
       return db.read(() => {
         if (!automaticReviewAllowed(db, jobId)) {
@@ -104,10 +94,6 @@ export function createSqliteRuntimeStore(db: StateDatabase, now: () => number): 
         }
 
         active(value);
-
-        if (!hookPrerequisitesReady(db, value.jobId)) {
-          stateFailure('hook_blocked');
-        }
 
         if (!automaticReviewAllowed(db, value.jobId)) {
           stateFailure('automatic_review_blocked');
@@ -187,14 +173,6 @@ export function createSqliteRuntimeStore(db: StateDatabase, now: () => number): 
           !automaticReviewAllowed(db, session.jobId)
         ) {
           stateFailure('automatic_review_blocked');
-        }
-
-        if (
-          value.kind === 'input' &&
-          ['implementation:initial:v1', 'review:initial:v1'].includes(value.key) &&
-          !hookPrerequisitesReady(db, session.jobId)
-        ) {
-          stateFailure('hook_blocked');
         }
 
         const existing = action(value.attemptId, value.key);

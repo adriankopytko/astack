@@ -36,19 +36,12 @@ const roleFields = {
   instructions: z.string().min(1).max(4000).optional(),
 };
 export const configurationRoleSchema = z.strictObject(roleFields);
-const hooks = z.strictObject({
-  setup: name.nullable(),
-  verify: name.nullable(),
-  teardown: name.nullable(),
-  start: name.nullable().optional(),
-});
 const rolePatch = configurationRoleSchema.partial();
 export const configurationPatchSchema = z.strictObject({
   roles: z
     .record(name, rolePatch)
     .refine((value) => Object.keys(value).length <= 32)
     .optional(),
-  hooks: hooks.partial().optional(),
 });
 export const portableConfigurationSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -56,34 +49,7 @@ export const portableConfigurationSchema = z.strictObject({
 });
 export const effectiveConfigurationSchema = z.strictObject({
   roles: z.record(name, configurationRoleSchema).refine((value) => Object.keys(value).length <= 32),
-  hooks,
 });
-export const lifecycleHookPolicySchema = z.strictObject({
-  command: name,
-  timeoutMs: z.number().int().min(10).max(86_400_000).default(300_000),
-  environment,
-  resources: z
-    .record(
-      z.string().regex(/^[A-Za-z_][A-Za-z0-9_]{0,127}$/),
-      z.strictObject({
-        key: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/),
-        field: z.enum(['port', 'host', 'protocol', 'name']),
-      }),
-    )
-    .refine((value) => Object.keys(value).length <= 32),
-});
-export const verificationRolePolicySchema = z
-  .strictObject({
-    baseline: z.array(name).min(1).max(8),
-    checks: z.record(name, lifecycleHookPolicySchema).refine((v) => Object.keys(v).length <= 8),
-    lanes: z.record(name, z.array(name).min(1).max(8)).refine((v) => Object.keys(v).length <= 16),
-    maxAgeMs: z.number().int().min(1000).max(86_400_000),
-  })
-  .refine(
-    (v) =>
-      new Set(v.baseline).size === v.baseline.length &&
-      [...v.baseline, ...Object.values(v.lanes).flat()].every((id) => Object.hasOwn(v.checks, id)),
-  );
 export const projectAgentSchema = z.strictObject({
   provider: name.describe('Agent provider. The built-in provider is codex.'),
   permissions: z
@@ -152,30 +118,6 @@ export const hostConfigurationPolicySchema = z
     local: configurationPatchSchema.default({}),
     execution: z.strictObject({
       agentSettings: z.record(name, projectAgentSchema).optional(),
-      verification: z
-        .record(name, verificationRolePolicySchema)
-        .refine((v) => Object.keys(v).length <= 32)
-        .optional(),
-      hooks: z
-        .strictObject({
-          setup: lifecycleHookPolicySchema
-            .extend({
-              timeoutMs: lifecycleHookPolicySchema.shape.timeoutMs.default(600_000),
-            })
-            .optional(),
-          verify: lifecycleHookPolicySchema.optional(),
-          start: lifecycleHookPolicySchema
-            .extend({
-              timeoutMs: lifecycleHookPolicySchema.shape.timeoutMs.default(60_000),
-            })
-            .optional(),
-          teardown: lifecycleHookPolicySchema
-            .extend({
-              timeoutMs: lifecycleHookPolicySchema.shape.timeoutMs.default(60_000),
-            })
-            .optional(),
-        })
-        .optional(),
       review: z
         .strictObject({ allowGateOverride: z.boolean(), allowNoChecks: z.boolean().optional() })
         .optional(),
@@ -205,7 +147,7 @@ export const projectConfigurationFileSchema = z.strictObject({
   schemaVersion: z.literal(1),
   agents: z.record(name, projectAgentSchema).refine((value) => Object.keys(value).length <= 32),
   execution: hostConfigurationPolicySchema.shape.execution
-    .omit({ agentSettings: true, skills: true, verification: true, hooks: true })
+    .omit({ agentSettings: true, skills: true })
     .partial()
     .optional(),
 });
@@ -216,20 +158,6 @@ export const configurationRequestSchema = z.strictObject({
   role: name,
   request: configurationPatchSchema.default({}),
 });
-export const verificationApprovalSchema = z.strictObject({
-  baseline: verificationRolePolicySchema.shape.baseline,
-  lanes: verificationRolePolicySchema.shape.lanes,
-  checks: z
-    .record(
-      name,
-      z.strictObject({
-        definitionDigest: configurationDigestSchema,
-        commandDigest: configurationDigestSchema,
-      }),
-    )
-    .refine((v) => Object.keys(v).length <= 8),
-  maxAgeMs: verificationRolePolicySchema.shape.maxAgeMs,
-});
 export const configurationSnapshotSchema = z
   .strictObject({
     schemaVersion: z.literal(1),
@@ -237,7 +165,6 @@ export const configurationSnapshotSchema = z
     repositoryId: repositoryIdSchema,
     checkoutId: checkoutIdSchema,
     role: name,
-    verification: verificationApprovalSchema.optional(),
     policyDigest: configurationDigestSchema,
     effectiveDigest: configurationDigestSchema,
     effective: effectiveConfigurationSchema,

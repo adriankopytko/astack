@@ -1,7 +1,3 @@
-import { createSqliteVerificationStore } from './verification-store.js';
-import type { VerificationStore } from '../../ports/verification.js';
-import { createSqliteHookStore } from './hook-store.js';
-import type { HookStore } from '../../ports/hooks.js';
 import { createSqliteAllocationStore } from './allocation-store.js';
 import type { AllocationStore } from '../../ports/resources.js';
 import type { CleanupStore } from '../../ports/cleanup.js';
@@ -56,8 +52,6 @@ export type StateOpenResult =
       reviewResults: ReviewResultStore;
       cleanups: CleanupStore;
       allocations: AllocationStore;
-      hooks: HookStore;
-      verifications: VerificationStore;
       handoffs: HandoffStore;
       ci: CiStore;
       automaticReviews: AutomaticReviewStore;
@@ -100,8 +94,6 @@ export async function openSqliteState(
         registry: createSqliteProjectRegistry(database),
         cleanups: createSqliteCleanupStore(database),
         allocations: createSqliteAllocationStore(database, dependencies.now ?? Date.now),
-        hooks: createSqliteHookStore(database, dependencies.now ?? Date.now),
-        verifications: createSqliteVerificationStore(database, dependencies.now ?? Date.now),
         worktrees: createSqliteWorktreeStore(database, dependencies.now ?? Date.now),
         service: createSqliteServiceStore(database, dependencies.now ?? Date.now),
         handoffs: createSqliteHandoffStore(database, dependencies.now ?? Date.now),

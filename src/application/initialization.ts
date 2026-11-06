@@ -201,30 +201,14 @@ async function readiness(
     view.configuration.every(
       (item) => item.result.outcome === 'completed' && item.result.value.status === 'ready',
     );
-  const hooksRequested = view.configuration.some(
-    (item) =>
-      item.result.outcome === 'completed' &&
-      item.result.value.snapshot &&
-      Object.values(item.result.value.snapshot.effective.hooks).some((hook) => hook !== null),
-  );
   view.delegation =
-    policyReady && view.provider.status === 'ready' && !hooksRequested
-      ? 'requires_owned_checkout'
-      : 'not_ready';
+    policyReady && view.provider.status === 'ready' ? 'requires_owned_checkout' : 'not_ready';
 
   if (!policyReady) {
     diagnostic(
       view,
       'execution_policy_required',
       'Fill in the project configuration and resolve any reported prerequisites before delegating.',
-    );
-  }
-
-  if (hooksRequested) {
-    diagnostic(
-      view,
-      'hooks_require_explicit_execution',
-      'Declared hooks run through an explicit operation in an owned task checkout; configure project tooling deliberately.',
     );
   }
 

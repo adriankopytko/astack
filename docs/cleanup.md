@@ -41,7 +41,7 @@ astack cleanup execute <job-id> --revision <cleanup-revision> \
 
 All shutdown fields and truthful host attestations are required together. Obtain independent host evidence first; idle/done, Escape, age and PID absence are insufficient. A mismatched job/attempt/launch/revision or unavailable provider blocks execution. Automatic execution never invents these attestations. Without saved shutdown evidence it remains blocked, with no recurring provider polling; after offline reconciliation, restart/wake the enabled executor.
 
-Shared resource allocation and explicit [lifecycle hooks](hooks.md) are implemented separately. Cleanup does not automatically invoke them, stop arbitrary services, terminate workers, close Herdr layouts, reclaim ports or remove retained integration environments. Unknown resource holds block removal. A future owner-aware shutdown adapter must establish service/process shutdown before releasing matching holds; it can then feed this same cleanup operation. Do not release a hold or pass a shutdown flag just to make cleanup proceed.
+Shared resource allocation and automatic [agent hooks](hooks.md) are implemented separately. Cleanup does not stop arbitrary services, terminate workers, close Herdr layouts or remove retained integration environments. Managed agent ports are released separately after a successful after hook. Unknown resource holds block removal. A future owner-aware shutdown adapter must establish service/process shutdown before releasing matching holds; it can then feed this same cleanup operation. Do not release a hold or pass a shutdown flag just to make cleanup proceed.
 
 ## Removal gates and effects
 

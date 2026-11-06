@@ -25,7 +25,7 @@ Installation is an explicit user setup action. Development/verification of Astac
 
 ## Role scope
 
-The orchestrator skill explains explicit identity/configuration selection, dedicated checkout preparation, delegation, local event waiting, report acceptance, decisions, explicit publication, review/fix handoff and lifecycle recovery. It describes the available verification, hooks and recovery operations. It does not grant user permission or modify project configuration.
+The orchestrator skill explains explicit identity/configuration selection, dedicated checkout preparation, delegation, local event waiting, report acceptance, decisions, explicit publication, review/fix handoff and lifecycle recovery. It describes project checks, automatic hooks and recovery operations. It does not grant user permission or modify project configuration.
 
 The implementer skill consumes the exact assigned run/attempt/checkout/branch/base SHA and task, honors project instructions and commit authorization, and returns a structured proposal. It cannot choose another task, accept its own report, publish, launch sibling workers or clean up its runtime.
 

@@ -1,4 +1,3 @@
-import { createNodeConfigurationReader } from '../adapters/filesystem/configuration.js';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { openSqliteState } from '../adapters/state/open-sqlite-state.js';
@@ -79,8 +78,6 @@ export async function executeLocalHandoff(
           runs: opened.runs,
           state: opened.store,
           handoffs: opened.handoffs,
-          verifications: opened.verifications,
-          configuration: createNodeConfigurationReader(opened.registry, opened.store),
           artifacts: nodeRunArtifactReader,
           workerInput: {
             receipt({ attemptId, key }) {

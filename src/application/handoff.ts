@@ -1,5 +1,3 @@
-import type { VerificationStore } from '../ports/verification.js';
-import type { ConfigurationReader } from '../ports/configuration.js';
 import {
   inspectCompletedImplementation,
   CompletedImplementationFailure,
@@ -35,8 +33,6 @@ import { parseOperationRequest } from '../core/parse-operation-request.js';
 
 export interface HandoffDependencies extends OwnedAssignmentReaderDependencies {
   handoffs: HandoffStore;
-  verifications?: VerificationStore;
-  configuration?: ConfigurationReader;
   state: StateStore;
   runs: RunStore;
   artifacts: RunArtifactReader;
