@@ -47,6 +47,25 @@ await test('human-readable package information remains concise', () => {
   assert.match(result.stdout, /^astack \d+\.\d+\.\d+ \(foundation\)\n$/);
 });
 
+await test('configuration schema is accessible from any directory', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'astack-schema-'));
+
+  try {
+    const result = spawnSync(process.execPath, [entrypoint, 'config-schema'], {
+      cwd,
+      encoding: 'utf8',
+    });
+    const schema = JSON.parse(result.stdout) as {
+      properties: { agents: { additionalProperties: { properties: { permissions: unknown } } } };
+    };
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(schema.properties.agents.additionalProperties.properties.permissions);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 await test('unknown commands fail instead of silently accepting work', () => {
   for (const args of [['unavailable-command'], ['implement', 'invented'], ['review', 'invented']]) {
     const result = spawnSync(process.execPath, [entrypoint, ...args], { encoding: 'utf8' });

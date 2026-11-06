@@ -22,7 +22,13 @@ interface FixturePolicy {
   execution: {
     agentSettings?: Record<
       string,
-      { provider: string; model: string | null; reasoning: string | null; instructions?: string }
+      {
+        provider: string;
+        model: string | null;
+        reasoning: string | null;
+        instructions?: string;
+        permissions?: { files: 'readonly' | 'write' };
+      }
     >;
     launchProfiles?: Record<string, { runtime: string; settings: Record<string, string> }>;
     commands: { 'fixture-worker': { executable: string; args: string[] } };

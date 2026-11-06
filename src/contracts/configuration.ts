@@ -85,6 +85,7 @@ export const runtimeLaunchProfileSchema = z.strictObject({
 });
 export const projectAgentSchema = z.strictObject({
   provider: name,
+  permissions: z.strictObject({ files: z.enum(['readonly', 'write']) }).optional(),
   model: z
     .string()
     .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/)
@@ -155,6 +156,7 @@ export const hostConfigurationPolicySchema = z
   })
   .refine((value) => Buffer.byteLength(JSON.stringify(value)) <= 65_536);
 export const projectConfigurationFileSchema = z.strictObject({
+  $schema: z.string().min(1).max(1024).optional(),
   schemaVersion: z.literal(1),
   agents: z.record(name, projectAgentSchema).refine((value) => Object.keys(value).length <= 32),
   hooks: configurationPatchSchema.shape.hooks,
@@ -212,6 +214,7 @@ export const configurationDiagnosticSchema = z.strictObject({
     'policy_missing',
     'agent_model_missing',
     'agent_reasoning_missing',
+    'agent_reasoning_unsupported',
     'role_missing',
     'runtime_not_allowed',
     'command_not_allowed',

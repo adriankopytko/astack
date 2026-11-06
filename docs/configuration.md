@@ -25,15 +25,27 @@ A fresh `.astack/config.json` contains agent entries without a model or reasonin
 {
   "schemaVersion": 1,
   "agents": {
-    "implementer": { "provider": "codex", "model": null, "reasoning": null },
-    "reviewer": { "provider": "codex", "model": null, "reasoning": null }
+    "implementer": {
+      "provider": "codex",
+      "model": null,
+      "reasoning": null,
+      "permissions": { "files": "write" }
+    },
+    "reviewer": {
+      "provider": "codex",
+      "model": null,
+      "reasoning": null,
+      "permissions": { "files": "readonly" }
+    }
   }
 }
 ```
 
 Each agent selects a `provider`, `model` and `reasoning`. Model and reasoning are required to accept that agent's job. An optional `instructions` string is included in that worker's assignment. Other named agents can be configured; a matching runtime adapter must be available. The built-in provider is `codex` through Herdr. Supported Codex reasoning values are `minimal`, `low`, `medium`, `high`, `xhigh` and `max`.
 
-Astack provides the Codex launch arguments. The implementer defaults to `workspace-write`; the reviewer defaults to `read-only`; both use Codex's `on-request` approval mode. These are current defaults, not configurable project options. No executable/version/file digest or approval profile is required. The service still requires `--codex-herdr` to install the built-in runtime.
+Astack maps `permissions.files` to the provider: Codex `readonly` uses `read-only`, and `write` uses `workspace-write`. If omitted, reviewers default to `readonly` and other agents to `write`. Both use Codex's `on-request` approval mode. No executable/version/file digest or approval profile is required. The service still requires `--codex-herdr` to install the built-in runtime.
+
+`astack config-schema` prints the current machine-readable JSON Schema for humans, agents and editors. To use it in VS Code, run `astack config-schema > .astack/schema.json` and add `"$schema": "./schema.json"` to `.astack/config.json`. Regenerate the schema after upgrading Astack. Schema validation describes the file shape; `astack doctor` also checks saved project context and prerequisites, including supported Codex reasoning values.
 
 Optional top-level `hooks` and `execution` settings retain the existing lifecycle and verification operations while their redesign is under discussion. See [hooks](hooks.md) and [verification](verification.md). They are not needed merely to delegate a worker. Keep credentials and secret environment values out of project configuration, command arguments, prompts and reports.
 

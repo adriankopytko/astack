@@ -92,6 +92,20 @@ function prerequisites(
     );
   }
 
+  if (
+    agent?.provider === 'codex' &&
+    agent.reasoning !== null &&
+    !['minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(agent.reasoning)
+  ) {
+    diagnostics.push(
+      diagnostic(
+        'agent_reasoning_unsupported',
+        'Choose a supported Codex reasoning level: minimal, low, medium, high, xhigh or max.',
+        snapshot.role,
+      ),
+    );
+  }
+
   const commandIds = new Set([role.command, ...Object.values(snapshot.effective.hooks)]);
 
   for (const id of commandIds) {

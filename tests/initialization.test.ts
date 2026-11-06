@@ -267,8 +267,14 @@ await test(
         provider: 'codex',
         model: null,
         reasoning: null,
+        permissions: { files: 'write' },
       });
-      assert.deepEqual(config.agents.reviewer, { provider: 'codex', model: null, reasoning: null });
+      assert.deepEqual(config.agents.reviewer, {
+        provider: 'codex',
+        model: null,
+        reasoning: null,
+        permissions: { files: 'readonly' },
+      });
       assert.equal((await stat(policyPath)).mode & 0o777, 0o644);
 
       await assert.rejects(access(join(f.state, 'config', 'project-init.json')), {

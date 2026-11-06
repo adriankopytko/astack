@@ -4,8 +4,18 @@ export const initializationAssetVersion = '1';
 export const initializationProjectConfig = {
   schemaVersion: 1,
   agents: {
-    implementer: { provider: 'codex', model: null, reasoning: null },
-    reviewer: { provider: 'codex', model: null, reasoning: null },
+    implementer: {
+      provider: 'codex',
+      model: null,
+      reasoning: null,
+      permissions: { files: 'write' },
+    },
+    reviewer: {
+      provider: 'codex',
+      model: null,
+      reasoning: null,
+      permissions: { files: 'readonly' },
+    },
   },
 };
 

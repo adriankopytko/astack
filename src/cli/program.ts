@@ -6,6 +6,8 @@ import { wireSkillCommands } from './skills.js';
 import { wireCleanupCommands } from './cleanup.js';
 import { readFile } from 'node:fs/promises';
 import { Command } from 'commander';
+import { z } from 'zod';
+import { projectConfigurationFileSchema } from '../contracts/configuration.js';
 import { getApplicationInfo } from '../application/get-application-info.js';
 import { wireProjectCommands } from './projects.js';
 import { wireWorktreeCommands } from './worktrees.js';
@@ -39,6 +41,15 @@ export function createProgram(version: string): Command {
         'utf8',
       );
       process.stdout.write(skill);
+    });
+
+  program
+    .command('config-schema')
+    .description('Print the JSON Schema for .astack/config.json')
+    .action(() => {
+      process.stdout.write(
+        `${JSON.stringify(z.toJSONSchema(projectConfigurationFileSchema), null, 2)}\n`,
+      );
     });
 
   program

@@ -51,6 +51,7 @@ await test(
             model: 'example-model',
             reasoning: 'high',
             instructions: 'Follow the project plan.',
+            permissions: { files: 'readonly' },
           },
         };
         delete value.execution.launchProfiles;
@@ -58,6 +59,7 @@ await test(
       const job = await prepare();
       await policy((value) => {
         value.execution.agentSettings!.implementer!.model = 'changed-model';
+        value.execution.agentSettings!.implementer!.permissions = { files: 'write' };
       });
       const launch = deps.worker.launch.bind(deps.worker);
       let launchArgs: string[] = [];
@@ -75,6 +77,7 @@ await test(
       assert.equal(result.session?.validation, undefined);
       assert.ok(launchArgs.includes('example-model'));
       assert.ok(launchArgs.includes('model_reasoning_effort="high"'));
+      assert.equal(launchArgs[launchArgs.indexOf('--sandbox') + 1], 'read-only');
       assert.equal(launchArgs.includes('changed-model'), false);
       assert.equal(
         job.job.configuration?.effective.roles.implementer?.instructions,

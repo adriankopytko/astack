@@ -212,7 +212,10 @@ async function approved(job: ServiceJob, deps: RuntimeDependencies, signal?: Abo
     return {
       args: [
         '--sandbox',
-        job.entry.role === 'reviewer' ? 'read-only' : 'workspace-write',
+        (agent.permissions?.files ?? (job.entry.role === 'reviewer' ? 'readonly' : 'write')) ===
+        'readonly'
+          ? 'read-only'
+          : 'workspace-write',
         '--ask-for-approval',
         'on-request',
         '--no-daemon',

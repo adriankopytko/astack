@@ -477,6 +477,26 @@ await test(
       assert.equal(ready.status, 0);
       assert.equal(readyConfig.outcome === 'completed' && readyConfig.value.status, 'ready');
 
+      await writeFile(
+        join(path, '.astack/config.json'),
+        JSON.stringify({
+          schemaVersion: 1,
+          agents: {
+            implementer: { provider: 'codex', model: 'example-model', reasoning: 'unknown' },
+          },
+        }),
+      );
+      const invalidReasoning = cli(root, statePath, 'doctor', '--project', 'cli-project');
+      const invalidConfig = configurationResultSchema.parse(
+        (invalidReasoning.value as { configuration: unknown }).configuration,
+      );
+
+      assert.equal(invalidReasoning.status, 1);
+      assert.equal(
+        invalidConfig.outcome === 'completed' && invalidConfig.value.diagnostics[0]?.code,
+        'agent_reasoning_unsupported',
+      );
+
       const selected = cli(root, statePath, 'context', '--project', 'cli-project');
       const result = projectSelectionResultSchema.parse(selected.value);
 
