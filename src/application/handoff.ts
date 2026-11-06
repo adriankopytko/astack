@@ -1,4 +1,3 @@
-import { checkImplementationVerification } from './verification.js';
 import type { VerificationStore } from '../ports/verification.js';
 import type { ConfigurationReader } from '../ports/configuration.js';
 import {
@@ -89,17 +88,6 @@ async function source(
 ): Promise<HandoffSource> {
   const inspected = await inspectCompletedImplementation(request, deps, signal);
 
-  if (request.verification.source === 'host-attestation') {
-    for (const check of request.verification.checks) {
-      if (
-        check.artifact &&
-        !inspected.artifacts.some((artifact) => isDeepStrictEqual(artifact, check.artifact))
-      ) {
-        fail('handoff_blocked', 'Verification artifact must match an accepted report artifact.');
-      }
-    }
-  }
-
   return inspected.source;
 }
 
@@ -121,37 +109,6 @@ function pushIntent(record: HandoffRecord) {
     sha: record.source.headCommit,
     expectedHead: record.request.expectedRemoteHead,
   });
-}
-
-async function requireExecutedVerification(
-  record: HandoffRecord,
-  deps: HandoffDependencies,
-  signal?: AbortSignal,
-) {
-  if (
-    record.request.verification.source !== 'executed' ||
-    !deps.verifications ||
-    !deps.configuration
-  ) {
-    fail(
-      'verification_blocked',
-      'Run host-approved implementation verification and select its executed evidence before any new publication.',
-    );
-  }
-
-  take(
-    await checkImplementationVerification(
-      {
-        schemaVersion: 1,
-        id: record.request.verification.id,
-        source: record.source,
-        jobId: record.request.jobId,
-        reportId: record.request.reportId,
-      },
-      { verifications: deps.verifications, configuration: deps.configuration },
-      signal,
-    ),
-  );
 }
 
 async function push(
@@ -185,10 +142,6 @@ async function push(
   }
 
   const reconcile = readOnly || effect.claim !== null || effect.state === 'unknown';
-
-  if (!reconcile) {
-    await requireExecutedVerification(record, deps, signal);
-  }
 
   const claimed = reconcile
     ? {
@@ -348,10 +301,6 @@ async function advance(
     };
   }
 
-  if (before.claim === null) {
-    await requireExecutedVerification(record, deps, signal);
-  }
-
   const published = await publishGithubEffect(
     {
       schemaVersion: 1,
@@ -473,7 +422,6 @@ export async function finishImplementation(
       receipt: null,
       followUpReview: null,
     });
-    await requireExecutedVerification(record, deps, signal);
     const accepted = deps.handoffs.reserve(record);
 
     if (accepted.outcome !== 'persisted') {

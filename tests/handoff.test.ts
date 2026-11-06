@@ -23,6 +23,24 @@ import { git } from './support/service.js';
 const options = { timeout: 90000 };
 
 await test(
+  'handoff can publish a completed report without an Astack verification record',
+  options,
+  async () => {
+    await fixture(
+      async (f) => {
+        const { verification: _verification, ...request } = f.request;
+        const result = persisted(await finishImplementation({ ...f.input, request }, f.deps));
+
+        assert.equal(result.record.phase, 'accepted');
+        assert.equal(f.remote.pushCalls, 1);
+        assert.equal(f.remote.postCalls, 1);
+      },
+      { verify: false },
+    );
+  },
+);
+
+await test(
   'handoff publishes the completed commit and atomically saves a requested review while retaining worker resources',
   options,
   async () => {
@@ -165,7 +183,6 @@ for (const change of [
   'branch',
   'input',
   'artifact',
-  'verification-artifact',
   'ownership',
   'attestation',
 ] as const) {
@@ -191,17 +208,6 @@ for (const change of [
           deps = { ...deps, workerInput: { receipt: () => completed(null) } };
         } else if (change === 'artifact') {
           await writeFile(join(f.root, f.artifact.path), 'Changed ignored artifact');
-        } else if (change === 'verification-artifact') {
-          input.request.verification = {
-            source: 'host-attestation',
-            checks: [
-              {
-                name: 'forged',
-                outcome: 'passed',
-                artifact: { ...f.artifact, digest: 'f'.repeat(64) },
-              },
-            ],
-          };
         } else if (change === 'ownership') {
           deps = {
             ...deps,

@@ -1,6 +1,6 @@
 # Executed implementation verification
 
-`verification run` executes the configured baseline and explicitly selected lane/additional checks through lifecycle hooks. It never publishes. A new implementation push or PR publication requires a fresh passed record referenced by `handoff finish`. Worker proposals, a JSON passed claim and host-attestation check lists cannot authorize these new writes. Accepted historical handoffs and already-claimed effect reconciliation retain their existing contracts. See ADR 0025.
+`verification run` executes the configured baseline and explicitly selected lane/additional checks through lifecycle hooks. It never publishes. This legacy operation is no longer required by `handoff finish`; projects can use their own checks. The remaining legacy verification tooling is scheduled for removal. See ADR 0025.
 
 ## Configure before accepting work
 
@@ -93,9 +93,9 @@ After a passed run, reference its exact ID in the ordinary handoff JSON:
 }
 ```
 
-This is an excerpt; all destination, report and publication authorization fields remain explicit. `handoff finish` never starts verification implicitly. Before preparing a new handoff and before each never-claimed push/PR stage, it requires the matching report/source, the accepted job configuration, complete approved baseline/lane selection, real successful hook evidence and unexpired completion. Existing handoff source checks bracket artifact validation and require the same clean owned commit. SQLite claim transactions independently validate the saved approved plan and hook evidence at the host clock, preventing a manually recorded passed flag or omitted baseline from becoming a claim.
+This is an excerpt; all destination, report and publication authorization fields remain explicit. `handoff finish` never starts verification implicitly. Handoff no longer requires a verification record. Existing handoff source checks bracket artifact validation and require the same clean owned commit. Verification records remain independently inspectable.
 
-Changed SHA, branch, filesystem identity, accepted report/input/artifacts, policy/command digests or expiry invalidate permission for new effects. An expired proof between push and PR blocks the new PR even if the push is confirmed. The push is preserved; there is no automatic repeat. To proceed, execute a deliberately new verification intent and, where needed, a new handoff key with the existing explicit safe `replaces` relation. Do not alter a saved handoff's verification reference or bypass an uncertain effect with a new key.
+Changed SHA, branch, filesystem identity, accepted report/input/artifacts, policy/command digests or expiry invalidate permission for new effects. An expired proof does not block a new PR. The push is preserved; there is no automatic repeat. To proceed, execute a deliberately new verification intent and, where needed, a new handoff key with the existing explicit safe `replaces` relation. Do not alter a saved handoff's verification reference or bypass an uncertain effect with a new key.
 
 An already-claimed stage is only inspected/reconciled using its original identity and evidence; it does not send another write or rerun checks because proof aged. Read-only reconciliation cannot start an unclaimed next stage. Already accepted handoffs remain historical reads, including legacy host-attestation records, without requiring the checkout/providers/current policy to remain available. Legacy unclaimed stages cannot gain new write authority from old attestations. Generic host publication capabilities outside the implementation handoff workflow retain their separate explicit contracts.
 

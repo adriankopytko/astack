@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { verificationRecordSchema, type VerificationRecord } from '../../contracts/verification.js';
 import { hookRecordSchema } from '../../contracts/hooks.js';
 import { stateJobSchema } from '../../contracts/state.js';
-import { handoffRecordSchema, type HandoffSource } from '../../contracts/handoff.js';
+import type { HandoffSource } from '../../contracts/handoff.js';
 import { configurationDigest } from '../../core/configuration.js';
 import { readAcceptedRunReport } from './run-report-codec.js';
 import { runControl } from './run-events.js';
@@ -130,30 +130,4 @@ export function assertFreshVerification(
   assertPassedChecks(db, record);
 
   return record;
-}
-
-/** New claims only. Historical/claimed effects reconcile through their existing receipts. */
-export function assertHandoffVerificationClaim(db: StateDatabase, attemptId: string, now: number) {
-  const handoff = db.get(
-    handoffRecordSchema,
-    "SELECT data FROM implementation_handoffs WHERE json_extract(data,'$.publicationAttemptId')=?",
-    attemptId,
-  );
-
-  if (!handoff) {
-    return;
-  }
-
-  if (handoff.request.verification.source !== 'executed') {
-    stateFailure('verification_blocked');
-  }
-
-  assertFreshVerification(
-    db,
-    handoff.request.verification.id,
-    handoff.source,
-    handoff.request.jobId,
-    handoff.request.reportId,
-    now,
-  );
 }

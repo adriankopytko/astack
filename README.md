@@ -177,7 +177,7 @@ Explicit host recovery for proven input refusals is available through `runtime a
 
 ## Executed verification before publication
 
-`astack verification run --file <request.json> --json` executes the accepted role's baseline plus selected lane/additional checks through hooks. `verification inspect <id>` reads durable per-check evidence. New `handoff finish` requests reference `{ "source": "executed", "id": "verification-..." }`; missing, failed, changed or expired evidence blocks new push/PR stages. Accepted historical handoffs and claimed-effect recovery remain read-only. Configure private per-role verification before accepting work; see [verification policy and recovery](docs/verification.md).
+`astack verification run --file <request.json> --json` executes the accepted role's baseline plus selected lane/additional checks through hooks. `verification inspect <id>` reads durable per-check evidence. Handoff no longer requires an Astack verification record; run the project’s own checks as appropriate. Configure private per-role verification before accepting work; see [verification policy and recovery](docs/verification.md).
 
 Configure each agent’s provider, model, reasoning and optional instructions together in `.astack/config.json`. Astack supplies Codex launch arguments and retains the accepted settings for each job. Implementers default to workspace-write and reviewers to read-only. The Codex/Herdr runtime still requires `service run --codex-herdr`.
 

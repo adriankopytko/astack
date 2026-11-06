@@ -1,4 +1,3 @@
-import { assertFreshVerification } from './verification-evidence.js';
 import { completePublicationAttempt } from './publication-completion.js';
 import { isDeepStrictEqual } from 'node:util';
 import {
@@ -124,19 +123,6 @@ export function createSqliteHandoffStore(db: StateDatabase, now: () => number): 
         }
 
         const run = source(record);
-
-        if (record.request.verification.source !== 'executed') {
-          stateFailure('verification_blocked');
-        }
-
-        assertFreshVerification(
-          db,
-          record.request.verification.id,
-          record.source,
-          record.request.jobId,
-          record.request.reportId,
-          now(),
-        );
 
         const current = db.get(
           handoffRecordSchema,

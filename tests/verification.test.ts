@@ -12,8 +12,6 @@ import {
   verifyImplementation,
   executeHook,
   finishImplementation,
-  reconcileImplementationHandoff,
-  openSqliteState,
   nodeProcessRunner,
   verificationWriteResultSchema,
   verificationReadResultSchema,
@@ -192,52 +190,6 @@ await test(
   },
 );
 await test(
-  'worker/host passed assertions and missing policy cannot authorize a new publication',
-  options,
-  async () => {
-    await fixture(
-      async (f) => {
-        assert.equal((await run(f)).outcome, 'rejected');
-
-        const fabricated = {
-          ...f.input,
-          request: {
-            ...f.request,
-            verification: {
-              source: 'host-attestation' as const,
-              checks: [
-                { name: 'worker says passed', outcome: 'passed' as const, artifact: f.artifact },
-              ],
-            },
-          },
-        };
-        const rejected = await finishImplementation(fabricated, f.deps);
-
-        assert.ok(
-          rejected.outcome === 'rejected' && rejected.error.code === 'verification_blocked',
-        );
-        assert.equal(
-          (
-            await verifyImplementation(
-              { ...input(f), checks: [{ outcome: 'passed' }] },
-              f.verificationDeps,
-            )
-          ).outcome,
-          'rejected',
-        );
-
-        noWrites(f);
-      },
-      {
-        verify: false,
-        configure: (policy) => {
-          delete policy.execution.verification;
-        },
-      },
-    );
-  },
-);
-await test(
   'failed checks preserve not-run checks and repeat keys never execute again',
   options,
   async () => {
@@ -264,10 +216,6 @@ await test(
         assert.equal(calls, 1);
         assert.equal(saved(await run(f, deps)).revision, record.revision);
         assert.equal(calls, 1);
-        assert.equal(
-          (await finishImplementation(withProof(f, record.id), f.deps)).outcome,
-          'rejected',
-        );
 
         noWrites(f);
       },
@@ -311,10 +259,6 @@ await test(
         assert.ok(!JSON.stringify(unknown).includes('private diagnostic'));
         assert.equal(saved(await run(f, deps)).id, unknown.id);
         assert.equal(calls, 1);
-        assert.equal(
-          (await finishImplementation(withProof(f, unknown.id), f.deps)).outcome,
-          'rejected',
-        );
 
         noWrites(f);
       },
@@ -341,10 +285,6 @@ await test(
 
         assert.equal(cancelled.status, 'cancelled');
         assert.equal(cancelled.checks[0]?.outcome, 'cancelled');
-        assert.equal(
-          (await finishImplementation(withProof(f, cancelled.id), f.deps)).outcome,
-          'rejected',
-        );
 
         noWrites(f);
       },
@@ -397,140 +337,6 @@ await test(
         { verify: false },
       );
     }
-  },
-);
-await test(
-  'expiry blocks publication while later configuration edits preserve accepted verification',
-  options,
-  async () => {
-    await fixture(async (f) => {
-      assert.ok(f.verification?.expiresAt);
-
-      const opened = await openSqliteState(
-        { schemaVersion: 1, stateDirectory: f.context.context.state },
-        { now: () => f.verification!.expiresAt! + 1 },
-      );
-
-      assert.ok(opened.outcome === 'opened');
-
-      try {
-        const result = await finishImplementation(f.input, {
-          ...f.deps,
-          state: opened.store,
-          handoffs: opened.handoffs,
-          verifications: opened.verifications,
-        });
-
-        assert.ok(result.outcome === 'rejected' && result.error.code === 'verification_blocked');
-
-        const history = opened.verifications.read(f.verification.id);
-
-        assert.ok(history.outcome === 'completed' && history.value?.status === 'passed');
-
-        noWrites(f);
-      } finally {
-        opened.store.close();
-      }
-    });
-    await fixture(async (f) => {
-      const path = join(f.context.context.state, 'config', f.job.job.projectId + '.json');
-      const policy = hostConfigurationPolicySchema.parse(JSON.parse(await readFile(path, 'utf8')));
-      policy.execution.commands['fixture-check']!.args = ['-e', 'process.exit(0)'];
-      await writeFile(path, JSON.stringify(policy), { mode: 0o600 });
-      const result = await finishImplementation(f.input, f.deps);
-
-      assert.ok(result.outcome === 'persisted', JSON.stringify(result));
-      assert.equal(f.remote.pushCalls, 1);
-    });
-  },
-);
-await test(
-  'verification expiring after push blocks new PR claims while already-claimed PRs reconcile without rerunning checks',
-  options,
-  async () => {
-    await fixture(async (f) => {
-      assert.ok(f.verification?.expiresAt);
-
-      let now = Date.now();
-      const opened = await openSqliteState(
-        { schemaVersion: 1, stateDirectory: f.context.context.state },
-        { now: () => now },
-      );
-
-      assert.ok(opened.outcome === 'opened');
-
-      const deps = {
-        ...f.deps,
-        state: opened.store,
-        handoffs: opened.handoffs,
-        verifications: opened.verifications,
-        publisher: {
-          ...f.deps.publisher,
-          push: async (...args: Parameters<typeof f.deps.publisher.push>) => {
-            const result = await f.deps.publisher.push(...args);
-            now = f.verification!.expiresAt! + 1;
-
-            return result;
-          },
-        },
-      };
-
-      try {
-        const result = await finishImplementation(f.input, deps);
-
-        assert.ok(result.outcome === 'rejected' && result.error.code === 'verification_blocked');
-        assert.equal(f.remote.pushCalls, 1);
-        assert.equal(f.remote.postCalls, 0);
-
-        const reconciled = persisted(await reconcileImplementationHandoff(f.reconcile, deps));
-
-        assert.equal(reconciled.push.state, 'confirmed');
-        assert.equal(reconciled.publication.claim, null);
-
-        const claim = opened.store.claimEffect({
-          schemaVersion: 1,
-          effectId: reconciled.publication.intent.id,
-          owner: 'bypass',
-          token: 'bypass',
-          leaseMs: 1000,
-        });
-
-        assert.ok(claim.outcome === 'rejected' && claim.error.code === 'verification_blocked');
-        assert.equal(f.remote.postCalls, 0);
-      } finally {
-        opened.store.close();
-      }
-    });
-    await fixture(async (f) => {
-      f.remote.postMode = 'lost';
-      const pending = persisted(await finishImplementation(f.input, f.deps));
-
-      assert.equal(pending.publication.state, 'unknown');
-      assert.ok(f.verification?.expiresAt);
-
-      const opened = await openSqliteState(
-        { schemaVersion: 1, stateDirectory: f.context.context.state },
-        { now: () => f.verification!.expiresAt! + 1 },
-      );
-
-      assert.ok(opened.outcome === 'opened');
-
-      try {
-        const accepted = persisted(
-          await reconcileImplementationHandoff(f.reconcile, {
-            ...f.deps,
-            state: opened.store,
-            handoffs: opened.handoffs,
-            verifications: opened.verifications,
-          }),
-        );
-
-        assert.equal(accepted.record.phase, 'accepted');
-        assert.equal(f.remote.postCalls, 1);
-      } finally {
-        opened.store.close();
-      }
-    });
   },
 );
 await test(

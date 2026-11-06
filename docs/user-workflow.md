@@ -15,7 +15,7 @@ flowchart LR
     A[Orchestrator selects project and task] --> B[Prepare owned worktree]
     B --> C[Implementation worker in Herdr]
     C --> D[Collect and accept report]
-    D --> E[Run approved verification]
+    D --> E[Run project checks]
     E --> F[Host authorizes push and PR]
     F --> G[Wait for CI]
     G --> H[Reviewer in separate worktree]
@@ -110,13 +110,7 @@ Astack validates the proposal against the saved assignment, checkout, commit and
 
 ### 5. Verify and publish
 
-Before a new push or PR, the host runs approved verification:
-
-```sh
-astack verification run --file /private/path/verification-request.json --json
-```
-
-The verification policy can define a required baseline and optional lane or additional checks. Astack records which checks passed, failed, were cancelled or remain uncertain. It then rechecks the commit and relevant artifacts.
+The agent or orchestrator runs the project checks appropriate to the work. Astack no longer requires a separate verification record for publication.
 
 A separate host-authorized handoff can push the exact commit and create the PR:
 
@@ -127,9 +121,9 @@ astack handoff finish \
 
 The host needs to stop or exclude the coordinator and original writers as required by the contract, prepare the request file, and provide the appropriate attestation. Astack journals the push and PR creation and offers reconciliation if their outcomes are uncertain.
 
-**What works well:** a worker saying “tests passed” cannot by itself authorize publication. Astack requires executed verification evidence tied to the accepted work.
+**What works well:** Astack checks the accepted report and exact checkout before publication. Project checks remain the responsibility of the worker and orchestrator.
 
-**What is less smooth:** verification and publication are separate operations with structured request files and explicit coordination. An orchestrator needs considerable workflow knowledge to execute the sequence correctly. The previous live pilot used host inspection and commits; it did not establish that an implementer autonomously commits its own work. See [executed verification](verification.md) and [implementation handoff](handoff.md).
+**What is less smooth:** publication still uses a structured request and explicit coordination. See [implementation handoff](handoff.md).
 
 ### 6. Review the PR
 
@@ -142,7 +136,7 @@ For automatic follow-up, Astack watches the specific PR and SHA with bounded sch
 
 The reviewer receives an independent checkout and returns a structured review report. Astack validates and saves findings against the reviewed SHA. Publishing those findings to GitHub is another explicit host action.
 
-**User experience:** this is close to the desired handoff: implementation can lead to a queued review once the PR and CI are ready. Getting there still requires the report-acceptance, verification, publication, automation configuration and reviewer-checkout steps above. See [manual review](review.md), [after-handoff review](automatic-review.md) and [CI observation](ci.md).
+**User experience:** this is close to the desired handoff: implementation can lead to a queued review once the PR and CI are ready. Getting there still requires the report-acceptance, publication, automation configuration and reviewer-checkout steps above. See [manual review](review.md), [after-handoff review](automatic-review.md) and [CI observation](ci.md).
 
 ### 7. Handle findings
 
