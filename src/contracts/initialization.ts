@@ -18,7 +18,7 @@ export const initializationRequestSchema = projectSelectionRequestSchema
   .safeExtend({
     preview: z.boolean().default(false),
     assignProjectId: projectSelectionRequestSchema.shape.projectId,
-    skills: z.array(skillIdSchema).max(3).default([]),
+    skills: z.array(skillIdSchema).max(64).default([]),
     herdr: z
       .strictObject({
         target: herdrTargetSchema.optional(),

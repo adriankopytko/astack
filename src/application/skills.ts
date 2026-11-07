@@ -81,8 +81,12 @@ export async function showSkill(input: unknown, deps: Pick<SkillsDependencies, '
     return result;
   }
 
-  const asset = result.value.catalog.skills.find((item) => item.id === request.value.id)!;
-  const content = result.value.contents.find((item) => item.id === request.value.id)!.content;
+  const asset = result.value.catalog.skills.find((item) => item.id === request.value.id);
+  const content = result.value.contents.find((item) => item.id === request.value.id)?.content;
+
+  if (!asset || content === undefined) {
+    return rejected('invalid_request', 'The selected skill is not in the installed catalog.');
+  }
 
   return completed({ asset, content });
 }
@@ -209,15 +213,17 @@ export async function inspectSkills(input: unknown, deps: SkillsDependencies) {
 
   const result = await readBundle(deps.bundle);
 
-  return result.outcome === 'rejected'
-    ? result
-    : observeInstallation(
-        result.value,
-        request.value.root,
-        request.value.skills,
-        deps,
-        request.value.mode,
-      );
+  if (result.outcome === 'rejected') {
+    return result;
+  }
+
+  const selected = request.value.skills ?? result.value.catalog.skills.map((asset) => asset.id);
+
+  if (selected.some((id) => !result.value.catalog.skills.some((asset) => asset.id === id))) {
+    return rejected('invalid_request', 'A selected skill is not in the installed catalog.');
+  }
+
+  return observeInstallation(result.value, request.value.root, selected, deps, request.value.mode);
 }
 
 export async function installSkills(
@@ -242,10 +248,16 @@ export async function installSkills(
   }
 
   const bundle = result.value;
+  const selected = request.value.skills ?? bundle.catalog.skills.map((asset) => asset.id);
+
+  if (selected.some((id) => !bundle.catalog.skills.some((asset) => asset.id === id))) {
+    return rejected('invalid_request', 'A selected skill is not in the installed catalog.');
+  }
+
   let observed = await observeInstallation(
     bundle,
     request.value.root,
-    request.value.skills,
+    selected,
     deps,
     request.value.mode,
   );
@@ -294,7 +306,7 @@ export async function installSkills(
   observed = await observeInstallation(
     bundle,
     prepared.value.root,
-    request.value.skills,
+    selected,
     deps,
     request.value.mode,
   );
@@ -332,7 +344,7 @@ export async function installSkills(
       const latest = await observeInstallation(
         bundle,
         observed.value.root,
-        request.value.skills,
+        selected,
         deps,
         request.value.mode,
       );
@@ -351,7 +363,7 @@ export async function installSkills(
       const latest = await observeInstallation(
         bundle,
         observed.value.root,
-        request.value.skills,
+        selected,
         deps,
         request.value.mode,
       );
@@ -368,7 +380,7 @@ export async function installSkills(
   const latest = await observeInstallation(
     bundle,
     observed.value.root,
-    request.value.skills,
+    selected,
     deps,
     request.value.mode,
   );

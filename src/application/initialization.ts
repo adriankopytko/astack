@@ -17,7 +17,7 @@ import { locateCheckout } from './project-facts.js';
 import { selectProjectContext } from './select-project-context.js';
 import { registerProject, type ProjectRegistrationDependencies } from './register-project.js';
 import { resolveConfiguration, type ConfigurationDependencies } from './configuration.js';
-import { inspectSkills, installSkills, type SkillsDependencies } from './skills.js';
+import { inspectSkills, installSkills, listSkills, type SkillsDependencies } from './skills.js';
 import { configureHerdrProject, ensureHerdrProject, type HerdrDependencies } from './herdr.js';
 import {
   initializationAssets,
@@ -338,6 +338,19 @@ export async function initializeProject(
   }
 
   const request = parsed.value;
+
+  if (request.skills.length > 0) {
+    const catalog = await listSkills({ schemaVersion: 1 }, deps.skills);
+
+    if (catalog.outcome === 'rejected') {
+      return catalog;
+    }
+
+    if (request.skills.some((id) => !catalog.value.skills.some((asset) => asset.id === id))) {
+      return rejected('invalid_request', 'A selected skill is not in the installed catalog.');
+    }
+  }
+
   let view: InitializationView | null = null;
   let registration: Extract<InitializationResult, { view: unknown }>['registration'] = null;
 

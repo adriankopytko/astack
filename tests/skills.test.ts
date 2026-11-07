@@ -305,6 +305,32 @@ await test('foreign ownership and symlinked role directories cannot redirect or 
   });
 });
 
+await test('catalog can install additional general skills without role-specific configuration', async () => {
+  await fixture(async (root, deps, bundle) => {
+    const content =
+      '---\nname: astack-general-example\ndescription: Example\n---\nGeneral guidance.\n';
+    const extended = structuredClone(bundle);
+    extended.catalog.skills.push({
+      id: 'general-example',
+      name: 'astack-general-example',
+      description: 'General guidance',
+      version: '1.0.0',
+      path: 'astack-general-example/SKILL.md',
+      sha256: hash(content),
+    });
+    extended.contents.push({ id: 'general-example', content });
+    const installedBundle = installed(
+      await installSkills(
+        { schemaVersion: 1, root },
+        { ...deps, bundle: { read: async () => completed(extended) } },
+      ),
+    );
+
+    assert.equal(installedBundle.view.skills.length, 4);
+    assert.equal(await readFile(join(root, 'astack-general-example', 'SKILL.md'), 'utf8'), content);
+  });
+});
+
 await test('invalid versions, duplicate roles, tampered bundled bytes and cancellation perform no directory setup', async () => {
   await fixture(async (root, deps, bundle) => {
     for (const input of [

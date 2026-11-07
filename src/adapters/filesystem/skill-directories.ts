@@ -3,7 +3,7 @@ import { lstat, mkdir, opendir } from 'node:fs/promises';
 import { completed, rejected, type OperationResult } from '../../contracts/operation-result.js';
 import { canonicalFileRoot, checkedFilePath, hasFileCode } from '../../core/file-paths.js';
 import type { SkillDirectories, SkillDirectoryObservation } from '../../ports/skills.js';
-const namePattern = /^astack-(?:orchestrator|implementer|reviewer)$/;
+const namePattern = /^astack-[a-z][a-z0-9-]{0,40}$/;
 async function trustedDirectory(path: string) {
   const info = await lstat(path);
 
@@ -28,7 +28,7 @@ function failure() {
 function validate(names: string[]) {
   if (
     names.length < 1 ||
-    names.length > 3 ||
+    names.length > 64 ||
     new Set(names).size !== names.length ||
     names.some((name) => !namePattern.test(name))
   ) {

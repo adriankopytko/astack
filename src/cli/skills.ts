@@ -11,7 +11,7 @@ function skill(value: string): SkillId {
   const parsed = skillIdSchema.safeParse(value);
 
   if (!parsed.success) {
-    throw new InvalidArgumentError('Select orchestrator, implementer or reviewer.');
+    throw new InvalidArgumentError('Enter a valid skill ID.');
   }
 
   return parsed.data;
@@ -87,7 +87,7 @@ export function wireSkillCommands(program: Command) {
       .option('--root <directory>', 'Skills root; default: $CODEX_HOME/skills or ~/.codex/skills')
       .option(
         '--role <id>',
-        'Select a role; repeatable, default: all three',
+        'Select a skill; repeatable, default: all catalog skills',
         (value: string, previous: SkillId[]) => [...previous, skill(value)],
         [],
       )

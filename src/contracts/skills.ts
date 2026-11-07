@@ -6,7 +6,7 @@ import {
   managedFileResultSchema,
 } from './managed-files.js';
 import { createOperationResultSchema, rejectedResultSchema } from './operation-result.js';
-export const skillIdSchema = z.enum(['orchestrator', 'implementer', 'reviewer']);
+export const skillIdSchema = z.string().regex(/^[a-z][a-z0-9-]{0,40}$/);
 const version = z
   .string()
   .regex(/^\d+\.\d+\.\d+$/)
@@ -28,9 +28,11 @@ export const skillCatalogSchema = z
     schemaVersion: z.literal(1),
     namespace: z.literal('astack'),
     version,
-    skills: z.array(skillAssetSchema).length(3),
+    skills: z.array(skillAssetSchema).min(1).max(64),
   })
-  .refine((catalog) => new Set(catalog.skills.map((asset) => asset.id)).size === 3);
+  .refine(
+    (catalog) => new Set(catalog.skills.map((asset) => asset.id)).size === catalog.skills.length,
+  );
 export const skillBundleSchema = z
   .strictObject({
     catalog: skillCatalogSchema,
@@ -41,22 +43,29 @@ export const skillBundleSchema = z
           content: z.string().refine((content) => Buffer.byteLength(content) <= 65536),
         }),
       )
-      .length(3),
+      .min(1)
+      .max(64),
   })
-  .refine((bundle) => new Set(bundle.contents.map((asset) => asset.id)).size === 3);
+  .refine(
+    (bundle) =>
+      new Set(bundle.contents.map((asset) => asset.id)).size === bundle.contents.length &&
+      bundle.contents.length === bundle.catalog.skills.length &&
+      bundle.contents.every((content) =>
+        bundle.catalog.skills.some((asset) => asset.id === content.id),
+      ),
+  );
 export const skillsReadSchema = z.strictObject({ schemaVersion: z.literal(1) });
 export const skillShowSchema = skillsReadSchema.extend({ id: skillIdSchema });
 export const skillsInspectSchema = skillsReadSchema
   .extend({
     root: absoluteFilePathSchema,
     mode: z.union([z.literal(0o600), z.literal(0o644)]).default(0o600),
-    skills: z
-      .array(skillIdSchema)
-      .min(1)
-      .max(3)
-      .default(['orchestrator', 'implementer', 'reviewer']),
+    skills: z.array(skillIdSchema).min(1).max(64).optional(),
   })
-  .refine((request) => new Set(request.skills).size === request.skills.length);
+  .refine(
+    (request) =>
+      request.skills === undefined || new Set(request.skills).size === request.skills.length,
+  );
 export const skillInstallationSchema = z.strictObject({
   asset: skillAssetSchema,
   state: z.enum(['missing', 'current', 'outdated', 'conflict', 'pending']),
@@ -69,7 +78,7 @@ export const skillsInstallationViewSchema = z.strictObject({
   rootExists: z.boolean(),
   catalogVersion: version,
   available: z.boolean(),
-  skills: z.array(skillInstallationSchema).min(1).max(3),
+  skills: z.array(skillInstallationSchema).min(1).max(64),
 });
 export const skillsInstallResultSchema = z.union([
   rejectedResultSchema,
@@ -79,7 +88,7 @@ export const skillsInstallResultSchema = z.union([
     view: skillsInstallationViewSchema,
     writes: z
       .array(z.strictObject({ id: skillIdSchema, result: managedFileResultSchema.nullable() }))
-      .max(3),
+      .max(64),
   }),
 ]);
 export const skillCatalogResultSchema = createOperationResultSchema(skillCatalogSchema);

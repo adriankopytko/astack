@@ -1,4 +1,4 @@
-# Versioned role skills
+# Versioned skills
 
 Astack ships focused `astack-orchestrator`, `astack-implementer` and `astack-reviewer` skills alongside the existing `astack --skill` command guide. They cover currently implemented behavior. Skill installation does not initialize a project, approve execution policy, launch a worker or rewrite agent settings.
 
@@ -15,7 +15,7 @@ astack skills install --role orchestrator --json
 astack skills inspect --root /absolute/selected/skills --role orchestrator --json
 ```
 
-`show` prints the requested SKILL.md by default; `--json` adds its version/digest/catalog identity to the text. `list` reports the three packaged assets and their provenance without printing all instructions. `--skill`, `--help` and ordinary operation JSON retain their previous behavior. `--role` selects installation/inspection roles; the existing global `--skill` remains the command-guide option.
+`show` prints the requested SKILL.md by default; `--json` adds its version/digest/catalog identity to the text. `list` reports the packaged skills and their provenance without printing all instructions. `--skill`, `--help` and ordinary operation JSON retain their previous behavior. `--role` selects installation/inspection skills; the existing global `--skill` remains the command-guide option.
 
 The default user setup root is `$CODEX_HOME/skills` when CODEX_HOME is set, otherwise `~/.codex/skills`. This makes the orchestrator guide discoverable outside any project repository. Explicit `--root` selects another agent's compatible skills directory or an isolated profile. Relative CLI roots resolve once against the caller's directory; library operations require an explicit absolute root. No project search or ambient pane determines the installation target. Packaged assets resolve from the installed module, independently of cwd.
 
