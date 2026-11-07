@@ -4,7 +4,7 @@
 
 Astack can run one foreground coordinator per private local state directory. It owns a durable queue and dispatches through explicitly injected runtime adapters. The installed CLI supplies no runtime by default; `service run --codex-herdr` explicitly enables interactive Codex execution through Herdr. Configured agent hooks run automatically around worker execution; implementation task delivery is a workflow consumer documented below. A configured executable alone never installs or authorizes a runtime adapter.
 
-Library hosts use `startLocalService(request, { runtimes? })`. The CLI and socket transport share application operations; the dispatcher contains no CLI parsing, socket objects, or ambient project selection. `createServiceCoordinator` is the injected application mechanism; a real host must hold coordinator ownership throughout its lifetime.
+Initialization uses the running service when it owns the state directory, allowing new projects to be set up while workers continue. A disconnected initialization request can leave partial setup; inspect the result before retrying. Library hosts use `startLocalService(request, { runtimes? })`. The CLI and socket transport share application operations; the dispatcher contains no CLI parsing, socket objects, or ambient project selection. `createServiceCoordinator` is the injected application mechanism; a real host must hold coordinator ownership throughout its lifetime.
 
 ## Commands
 

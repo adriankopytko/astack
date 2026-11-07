@@ -15,9 +15,10 @@ import {
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
   initializeProject,
+  startLocalService,
   initializationResultSchema,
   nodeInitializationFiles,
   openSqliteState,
@@ -44,6 +45,7 @@ import {
   type InitializationResult,
 } from '../src/index.js';
 import { rejected } from '../src/contracts/operation-result.js';
+import { requestLocalService } from '../src/adapters/local/service-client.js';
 import { fakeProvider } from './support/herdr.js';
 import { git, gitPath } from './support/service.js';
 import { metadataPaths } from '../src/core/managed-file-metadata.js';
@@ -206,6 +208,73 @@ async function fixture(
     await rm(root, { recursive: true, force: true });
   }
 }
+
+await test('init uses the running service without interrupting it', options, async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'astack-init-live-')));
+  const source = join(root, 'repository');
+  const state = join(root, 'state');
+  await mkdir(source);
+  git(source, 'init', '-b', 'main');
+  git(source, 'commit', '--allow-empty', '-m', 'chore: fixture');
+  const fake = fakeProvider();
+  const service = await startLocalService(
+    { schemaVersion: 1, stateDirectory: state, gitExecutable: gitPath },
+    { initializationHerdrProvider: fake.provider },
+  );
+
+  assert.equal(service.outcome, 'listening', JSON.stringify(service));
+
+  if (service.outcome !== 'listening') {
+    await rm(root, { recursive: true, force: true });
+
+    return;
+  }
+
+  try {
+    const cli = fileURLToPath(new URL('../dist/cli/main.js', import.meta.url));
+    const result = await new Promise<{ code: number | null; stdout: string }>((resolve, reject) => {
+      const child = spawn(process.execPath, [
+        cli,
+        '--state-directory',
+        state,
+        '--git-executable',
+        gitPath,
+        '--herdr-executable',
+        '/nonexistent/herdr',
+        'init',
+        source,
+        '--herdr-session',
+        'fixture',
+        '--herdr-socket',
+        join(root, 'missing.sock'),
+        '--json',
+      ]);
+      let stdout = '';
+      child.stdout.on('data', (chunk: Buffer) => {
+        stdout += chunk.toString();
+      });
+      child.on('error', reject);
+      child.on('close', (code) => resolve({ code, stdout }));
+    });
+    const initialized = view(
+      initializationResultSchema.parse(JSON.parse(result.stdout)),
+      'initialized',
+    );
+
+    assert.equal(result.code, 0, result.stdout);
+    assert.equal(initialized.registration, 'created');
+    assert.equal(initialized.provider.status, 'ready');
+    assert.ok(fake.calls.some((call) => call.operation === 'create'));
+
+    await access(join(source, '.astack', 'config.json'));
+    const status = await requestLocalService(state, { schemaVersion: 1, operation: 'status' });
+
+    assert.equal(status.outcome, 'completed');
+  } finally {
+    await service.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 await test(
   'init infers the project ID and detects collisions before applying',

@@ -20,7 +20,7 @@ The primary checkout must be registered before initializing an unregistered link
 
 Preview inspects Git identity, managed assets, selected skill availability and saved configuration. It creates no state, directories, registration, files or provider resources and does not contact Herdr. An absent state store is read through an empty registry. A new project ID is derived from the repository root directory name; `--id` overrides it or resolves a collision.
 
-Apply holds kernel-backed coordinator ownership before writable database migration and throughout setup; an active service/coordinator must be stopped first. It persists registration before file/provider effects. Setup writes are individually managed, not one atomic batch:
+If the service is running, init sends setup to that service so it can coordinate the changes. Otherwise init holds coordinator ownership before writable database migration and throughout setup. A competing coordinator without an available service endpoint still blocks setup. It persists registration before file/provider effects. Setup writes are individually managed, not one atomic batch:
 
 | Target                                  | New content                                                | Mode |
 | --------------------------------------- | ---------------------------------------------------------- | ---- |

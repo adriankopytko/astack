@@ -1,3 +1,5 @@
+import { initializationRequestSchema, initializationResultSchema } from './initialization.js';
+import { absoluteFilePathSchema } from './managed-files.js';
 import {
   cleanupRequestSchema,
   cleanupControlSchema,
@@ -67,6 +69,14 @@ import { createOperationResultSchema } from './operation-result.js';
 import { createStateWriteResultSchema } from './state.js';
 
 export const serviceRpcRequestSchema = z.discriminatedUnion('operation', [
+  z.strictObject({
+    schemaVersion: z.literal(1),
+    operation: z.literal('project_initialize'),
+    request: initializationRequestSchema,
+    userSkillsRoot: absoluteFilePathSchema,
+    gitExecutable: absoluteFilePathSchema,
+    herdrExecutable: absoluteFilePathSchema.nullable(),
+  }),
   cleanupRequestSchema.extend({ operation: z.literal('cleanup_request') }),
   cleanupControlSchema.extend({ operation: z.literal('cleanup_control') }),
   cleanupReadSchema.extend({ operation: z.literal('cleanup_inspect') }),
@@ -99,6 +109,7 @@ export const serviceRpcRequestSchema = z.discriminatedUnion('operation', [
   runCursorRequestSchema.extend({ operation: z.literal('run_checkpoint') }),
 ]);
 export const serviceRpcResponseSchema = z.union([
+  createOperationResultSchema(initializationResultSchema),
   cleanupReadResultSchema,
   cleanupWriteResultSchema,
   reviewAutomationReadResultSchema,

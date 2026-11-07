@@ -1,3 +1,15 @@
+import type { HerdrProvider } from '../ports/herdr.js';
+import { homedir } from 'node:os';
+import {
+  initializeProject,
+  type InitializationDependencies,
+} from '../application/initialization.js';
+import { nodeInitializationFiles } from '../adapters/filesystem/initialization.js';
+import { nodeManagedFileStore } from '../core/node-managed-file-store.js';
+import { createBundledSkillReader } from '../adapters/filesystem/skill-bundle.js';
+import { nodeSkillDirectories } from '../adapters/filesystem/skill-directories.js';
+import { createHerdrCliProvider } from '../adapters/herdr/cli-provider.js';
+import { nodeHerdrEndpointReader } from '../adapters/filesystem/herdr-endpoint.js';
 import { requestCleanup, controlCleanup, inspectCleanup } from '../application/cleanup.js';
 import { createAgentHooks } from './agent-hooks.js';
 import { createAgentPorts } from '../application/agent-ports.js';
@@ -84,6 +96,7 @@ export async function startLocalService(
   input: unknown,
   options: {
     runtimes?: readonly ServiceWorkerRuntime[];
+    initializationHerdrProvider?: HerdrProvider;
     ci?: { policy?: unknown; reader?: CiReader };
     afterHandoffReview?: boolean;
     cleanup?: boolean;
@@ -424,6 +437,65 @@ export async function startLocalService(
         const request = parsed.value;
 
         switch (request.operation) {
+          case 'project_initialize': {
+            const common = {
+              registry: opened.registry,
+              git: createGitInspector({
+                executable: request.gitExecutable,
+                runner: nodeProcessRunner,
+              }),
+              identity: nodeCheckoutIdentityReader,
+              configuration: createNodeConfigurationReader(opened.registry, opened.store),
+              prerequisites: createNodeConfigurationProbe((name) => Boolean(process.env[name])),
+            };
+            const initialization: InitializationDependencies = {
+              ...common,
+              now: Date.now,
+              nextId: (kind) => `${kind}-${randomUUID()}`,
+              files: nodeManagedFileStore,
+              layout: nodeInitializationFiles,
+              skills: {
+                bundle: createBundledSkillReader(),
+                directories: nodeSkillDirectories,
+                files: nodeManagedFileStore,
+              },
+              userSkillsRoot: request.userSkillsRoot,
+              defaultHerdrTarget: {
+                session: 'default',
+                socketPath: join(homedir(), '.config', 'herdr', 'herdr.sock'),
+              },
+              worktrees: opened.worktrees,
+              herdr: {
+                ...common,
+                state: opened.store,
+                herdr: opened.herdr,
+                files: createNodeWorktreeFiles(join(opened.stateDirectory, 'worktrees')),
+                newId: randomUUID,
+                provider:
+                  options.initializationHerdrProvider ??
+                  (request.herdrExecutable
+                    ? createHerdrCliProvider({
+                        executable: request.herdrExecutable,
+                        runner: nodeProcessRunner,
+                        endpoint: nodeHerdrEndpointReader,
+                      })
+                    : {
+                        snapshot: async () =>
+                          rejected(
+                            'herdr_unavailable',
+                            'Select a trusted Herdr executable to prepare the project space.',
+                          ),
+                        createPrimary: async () =>
+                          rejected('herdr_unavailable', 'Herdr is unavailable.'),
+                        openWorker: async () =>
+                          rejected('herdr_unavailable', 'Initialization never opens workers.'),
+                      }),
+              },
+            };
+
+            return completed(await initializeProject(request.request, initialization, signal));
+          }
+
           case 'review_automation_inspect': {
             const { operation: _operation, ...value } = request;
 

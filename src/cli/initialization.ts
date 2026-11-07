@@ -1,3 +1,5 @@
+import { requestLocalService } from '../adapters/local/service-client.js';
+import { initializationResultSchema } from '../contracts/initialization.js';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -347,7 +349,41 @@ export function wireInitializationCommand(program: Command) {
           ownership.release();
         }
       } catch (error) {
-        render(stateRejection(error), options.json);
+        const failure = stateRejection(error);
+
+        if (failure.error.code !== 'service_already_running') {
+          render(failure, options.json);
+
+          return;
+        }
+
+        const response = await requestLocalService(root, {
+          schemaVersion: 1,
+          operation: 'project_initialize',
+          request: { ...request, preview: false },
+          userSkillsRoot: userSkillsRoot(options.userSkillsRoot),
+          gitExecutable: executable,
+          herdrExecutable: await hostExecutable('herdr', host.herdrExecutable),
+        });
+
+        if (response.outcome === 'rejected') {
+          render(response, options.json);
+
+          return;
+        }
+
+        const parsed = initializationResultSchema.safeParse(
+          response.outcome === 'completed' ? response.value : null,
+        );
+        render(
+          parsed.success
+            ? parsed.data
+            : rejected(
+                'service_protocol_error',
+                'Service returned an invalid initialization result.',
+              ),
+          options.json,
+        );
       }
     });
 }
