@@ -69,6 +69,7 @@ export const initializationViewSchema = z.strictObject({
     .array(
       z.strictObject({
         role: z.enum(['implementer', 'reviewer']),
+        readiness: z.enum(['not_ready', 'requires_owned_checkout']),
         result: configurationResultSchema,
       }),
     )

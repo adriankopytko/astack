@@ -921,6 +921,34 @@ await test(
   },
 );
 
+await test('initialization reports agent readiness independently', options, async () => {
+  await fixture(async (f) => {
+    const request = { schemaVersion: 1, path: f.source };
+    view(await initializeProject(request, f.deps), 'initialized');
+    await writeFile(
+      join(f.source, '.astack', 'config.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        agents: {
+          implementer: { provider: 'fixture', model: 'example', reasoning: 'high' },
+          reviewer: { provider: 'fixture', model: null, reasoning: null },
+        },
+      }),
+    );
+    const result = view(await initializeProject(request, f.deps), 'initialized');
+
+    assert.equal(result.delegation, 'requires_owned_checkout');
+    assert.equal(
+      result.configuration.find((agent) => agent.role === 'implementer')?.readiness,
+      'requires_owned_checkout',
+    );
+    assert.equal(
+      result.configuration.find((agent) => agent.role === 'reviewer')?.readiness,
+      'not_ready',
+    );
+  });
+});
+
 await test(
   'project configuration is used immediately and changes are read without approval',
   options,

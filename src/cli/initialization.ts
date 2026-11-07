@@ -110,6 +110,8 @@ function render(result: InitializationResult, json?: boolean) {
     }
 
     for (const item of view.configuration) {
+      process.stdout.write(`${item.role} readiness: ${item.readiness}\n`);
+
       if (item.result.outcome === 'rejected') {
         process.stdout.write(`${item.role}: ${item.result.error.code}\n`);
       } else {

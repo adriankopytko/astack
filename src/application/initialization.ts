@@ -180,29 +180,35 @@ async function readiness(
 
   if (view.target.projectId && view.target.checkoutId) {
     for (const role of ['implementer', 'reviewer'] as const) {
+      const result = await resolveConfiguration(
+        {
+          schemaVersion: 1,
+          projectId: view.target.projectId,
+          checkoutId: view.target.checkoutId,
+          role,
+        },
+        deps,
+        signal,
+      );
       view.configuration.push({
         role,
-        result: await resolveConfiguration(
-          {
-            schemaVersion: 1,
-            projectId: view.target.projectId,
-            checkoutId: view.target.checkoutId,
-            role,
-          },
-          deps,
-          signal,
-        ),
+        result,
+        readiness:
+          result.outcome === 'completed' &&
+          result.value.status === 'ready' &&
+          view.provider.status === 'ready'
+            ? 'requires_owned_checkout'
+            : 'not_ready',
       });
     }
   }
 
-  const policyReady =
-    view.configuration.length === 2 &&
-    view.configuration.every(
-      (item) => item.result.outcome === 'completed' && item.result.value.status === 'ready',
-    );
-  view.delegation =
-    policyReady && view.provider.status === 'ready' ? 'requires_owned_checkout' : 'not_ready';
+  const policyReady = view.configuration.some(
+    (item) => item.result.outcome === 'completed' && item.result.value.status === 'ready',
+  );
+  view.delegation = view.configuration.some((item) => item.readiness === 'requires_owned_checkout')
+    ? 'requires_owned_checkout'
+    : 'not_ready';
 
   if (!policyReady) {
     diagnostic(
