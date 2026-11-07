@@ -22,12 +22,12 @@ Preview inspects Git identity, managed assets, selected skill availability and s
 
 Apply holds kernel-backed coordinator ownership before writable database migration and throughout setup; an active service/coordinator must be stopped first. It persists registration before file/provider effects. Setup writes are individually managed, not one atomic batch:
 
-| Target                                  | New content                                                           | Mode |
-| --------------------------------------- | --------------------------------------------------------------------- | ---- |
-| `.astack/.gitignore`                    | Managed stage and pending-journal exclusions                          | 0644 |
-| `.astack/config.json`                   | Disabled project configuration starter with null role/hook selections | 0644 |
-| `.agents/skills/.gitignore`             | Same operational exclusions, when roles selected                      | 0644 |
-| `.agents/skills/astack-<role>/SKILL.md` | Explicitly selected packaged guides                                   | 0644 |
+| Target                                  | New content                                                | Mode |
+| --------------------------------------- | ---------------------------------------------------------- | ---- |
+| `.astack/.gitignore`                    | Managed stage and pending-journal exclusions               | 0644 |
+| `.astack/config.json`                   | Agent configuration starter with unset model and reasoning | 0644 |
+| `.agents/skills/.gitignore`             | Same operational exclusions, when roles selected           | 0644 |
+| `.agents/skills/astack-<role>/SKILL.md` | Explicitly selected packaged guides                        | 0644 |
 
 Directories are created privately; existing unsafe/symlinked project parents are refused. Public source files use Git-compatible modes so cloned/linked checkouts retain valid ownership evidence. Ownership/version/digest records are stored alongside the selected roots; completed project records may be tracked, but pending journals and stages must never be committed. Generated ignore files precede other project assets. Authored ignore files are preserved, so verify their exclusions yourself; a failure publishing the ignore file can leave an unignored pending journal.
 
@@ -37,11 +37,11 @@ Codex's documented project skill location is `.agents/skills`; see [official ski
 
 ## Detection, provider and readiness
 
-Initialization does not inspect manifests, lockfiles or scripts to discover project tools. It points the user or agent to the project configuration; use project instructions and tooling to decide what to configure. Hook execution remains an explicit owned-checkout operation. No project code runs during initialization.
+Initialization does not inspect manifests, lockfiles or scripts to discover project tools. It points the user or agent to the project configuration; use project instructions and tooling to decide what to configure. Configured agent hooks run automatically around worker execution, not during initialization. No project code runs during initialization.
 
 Initialization ensures a primary Herdr workspace by default. It uses existing saved project target settings when available, otherwise the standard default session/socket. `--herdr-session` and `--herdr-socket` together select a different target; `--herdr-label` selects the workspace name. By default the name is the repository directory name. A workspace with that exact name is reused regardless of its cwd or contents; otherwise Astack creates one. When names are duplicated, an already saved match is preferred, otherwise the first match is reused. Users choose their own workspace names. The result reports creation/reuse, name and workspace handle. If Herdr is unavailable, setup returns partial while preserving completed registration and files. Preview does not contact Herdr. Workspace creation can start a Herdr shell but never starts an agent or task worker.
 
-Registration, setup success and delegation readiness are separate. Results contain each role's configuration/prerequisite diagnostics, user/project skill evidence, provider status and a conservative delegation observation. An incomplete starter normally reports `not_ready`. Fill `.astack/config.json`; changes are read directly. Even `requires_owned_checkout` still requires explicit owned checkout preparation, assignment acceptance, service/runtime opt-in and dispatch-time checks. Configuration readiness is an observation, not permission granted by initialization. Initialization never enables automatic review, mutates trackers, installs dependencies or starts services.
+Registration, setup success and delegation readiness are separate. Results contain each role's configuration/prerequisite diagnostics, user/project skill evidence, provider status and a conservative delegation observation. An incomplete starter normally reports `not_ready`. Fill `.astack/config.json`; changes are read directly. Even `requires_owned_checkout` currently requires explicit Git worktree preparation, assignment acceptance, service/runtime opt-in and dispatch-time checks. Astack creates the grouped Herdr worker workspace automatically during runtime launch. Configuration readiness is an observation, not permission granted by initialization. Initialization never enables automatic review, mutates trackers, installs dependencies or starts services.
 
 ## Results, failures, retry and cancellation
 

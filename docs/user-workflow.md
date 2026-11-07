@@ -34,17 +34,17 @@ astack init /path/to/project --dry-run --json
 astack init /path/to/project --non-interactive --role implementer --role reviewer --json
 ```
 
-Initialization registers the project, creates an incomplete `.astack/config.json` starter, optionally installs selected project skills, and ensures its named Herdr workspace. It reuses an existing workspace with that name or creates one. The user or agent inspects the project and fills in its configuration; Astack does not discover tools or execute project scripts during init.
+Initialization registers the project, creates an incomplete `.astack/config.json` starter, optionally installs selected project skills, and ensures its named Herdr workspace. Applying init currently requires the local service to be stopped. It reuses an existing workspace with that name or creates one. The user or agent inspects the project and fills in its configuration; Astack does not discover tools or execute project scripts during init.
 
 The generated project configuration starts with unset model and reasoning. Before delegation, fill each agent entry with its provider, model and reasoning. Optional instructions and project checks can be added when needed. Astack reads its current contents directly. Host state defaults to `~/.astack`; it has no separately editable copy of project settings, though accepted jobs retain private snapshots. Astack supplies the Codex launch arguments; executable and local file digests are not required in the project config. See [project initialization](initialization.md) and [runtime](runtime.md).
 
-**User experience:** setup is deliberately conservative, but substantial. A knowledgeable orchestrator needs to understand project configuration and assemble several settings before the first worker can start. There is not yet a polished “initialize and delegate” experience.
+**User experience:** the caller fills in the agent settings. Today it must also prepare a Git worktree before delegation; Astack automatically creates the worker’s grouped Herdr workspace during launch. The intended workflow is for Astack to prepare both without exposing those steps to the orchestrator. There is not yet a polished “initialize and delegate” experience.
 
 ### Configuration changes and the orchestrator
 
 Astack reads the current project configuration when it accepts a worker job and stores the accepted settings privately with that job. Queued and running workers keep those settings after project edits; the next accepted worker uses the updated file. The orchestrator does not receive the configuration automatically. It uses the Astack skill and reads the file when setting up or diagnosing a project. The user's coding agent manages its own skill and project-instruction loading.
 
-Astack currently retains the accepted job's verification settings too: checks explicitly run for that job use its saved commands even if the project file has since changed. Start a new job to use a changed verification configuration. Configuration storage does not capture ambient environment values or executable contents. The selected executable and other prerequisites must still be available.
+Accepted jobs retain their agent settings, hooks and ports. Project checks are run using the project's own tooling; Astack no longer has a separate verification configuration or publication verification gate. Configuration storage does not capture ambient environment values or executable contents.
 
 ### 2. Select the project and prepare a worker
 
