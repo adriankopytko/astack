@@ -31,10 +31,10 @@ Start by initializing or registering a repository:
 
 ```sh
 astack init /path/to/project --dry-run --json
-astack init /path/to/project --non-interactive --role implementer --role reviewer --json
+astack init /path/to/project --non-interactive --with-skills --json
 ```
 
-Initialization registers the project, creates an incomplete `.astack/config.json` starter, optionally installs selected project skills, and ensures its named Herdr workspace. Applying init currently requires the local service to be stopped. It reuses an existing workspace with that name or creates one. The user or agent inspects the project and fills in its configuration; Astack does not discover tools or execute project scripts during init.
+Initialization registers the project, creates an incomplete `.astack/config.json` starter, optionally installs all bundled project skills, and ensures its named Herdr workspace. Applying init currently requires the local service to be stopped. It reuses an existing workspace with that name or creates one. The user or agent inspects the project and fills in its configuration; Astack does not discover tools or execute project scripts during init.
 
 The generated project configuration starts with unset model and reasoning. Before delegation, fill each agent entry with its provider, model and reasoning. Optional instructions and project checks can be added when needed. Astack reads its current contents directly. Host state defaults to `~/.astack`; it has no separately editable copy of project settings, though accepted jobs retain private snapshots. Astack supplies the Codex launch arguments; executable and local file digests are not required in the project config. See [project initialization](initialization.md) and [runtime](runtime.md).
 

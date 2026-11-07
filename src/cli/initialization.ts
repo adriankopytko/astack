@@ -1,13 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { Command, InvalidArgumentError } from 'commander';
+import { Command } from 'commander';
 import {
   initializeProject,
   type InitializationDependencies,
 } from '../application/initialization.js';
 import type { InitializationResult } from '../contracts/initialization.js';
-import { skillIdSchema, type SkillId } from '../contracts/skills.js';
 import { rejected } from '../contracts/operation-result.js';
 import { openSqliteState } from '../adapters/state/open-sqlite-state.js';
 import { emptyProjectRegistry } from '../adapters/state/empty-project-registry.js';
@@ -37,7 +36,7 @@ interface Options {
   id?: string;
   dryRun?: boolean;
   nonInteractive?: boolean;
-  role: SkillId[];
+  withSkills?: boolean;
   userSkillsRoot?: string;
   herdrSession?: string;
   herdrSocket?: string;
@@ -208,20 +207,7 @@ export function wireInitializationCommand(program: Command) {
     .option('--id <id>', 'Assign a new project ID or assert the selected saved ID')
     .option('--dry-run', 'Read-only plan; no registration, files, state or provider setup')
     .option('--non-interactive', 'Report remaining decisions without prompts (also the default)')
-    .option(
-      '--role <role>',
-      'Install selected project-local role skills; repeatable; default: none',
-      (value: string, previous: SkillId[]) => {
-        const parsed = skillIdSchema.safeParse(value);
-
-        if (!parsed.success) {
-          throw new InvalidArgumentError('Select orchestrator, implementer or reviewer.');
-        }
-
-        return [...previous, parsed.data];
-      },
-      [],
-    )
+    .option('--with-skills', 'Install all bundled project skills')
     .option(
       '--user-skills-root <directory>',
       'Inspect global orchestrator availability at this root; never install globally',
@@ -252,6 +238,14 @@ export function wireInitializationCommand(program: Command) {
         return;
       }
 
+      const bundle = options.withSkills ? await createBundledSkillReader().read() : null;
+
+      if (bundle?.outcome === 'rejected') {
+        render(bundle, options.json);
+
+        return;
+      }
+
       const request = {
         schemaVersion: 1,
         callerDirectory: process.cwd(),
@@ -259,7 +253,7 @@ export function wireInitializationCommand(program: Command) {
         ...(options.project === undefined ? {} : { projectId: options.project }),
         ...(options.checkout === undefined ? {} : { checkoutId: options.checkout }),
         ...(options.id === undefined ? {} : { assignProjectId: options.id }),
-        skills: options.role,
+        skills: bundle?.value.catalog.skills.map((skill) => skill.id) ?? [],
         ...(options.herdrSession || options.herdrLabel
           ? {
               herdr: {

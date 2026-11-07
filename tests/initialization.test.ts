@@ -753,8 +753,7 @@ await test(
         '--id',
         'packed-project',
         '--non-interactive',
-        '--role',
-        'reviewer',
+        '--with-skills',
       ]);
 
       assert.equal(initialized.status, 1, initialized.stderr || initialized.stdout);
@@ -767,6 +766,10 @@ await test(
       assert.equal(actual.provider.status, 'blocked');
       assert.ok(actual.nextSteps?.some((step) => step.includes('.astack/config.json')));
       assert.ok(actual.nextSteps?.some((step) => step.includes('Herdr')));
+
+      for (const name of ['astack-orchestrator', 'astack-implementer', 'astack-reviewer']) {
+        await access(join(source, '.agents', 'skills', name, 'SKILL.md'));
+      }
 
       assert.equal(actual.target.projectId, 'packed-project');
       assert.equal(actual.delegation, 'not_ready');

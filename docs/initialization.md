@@ -7,7 +7,7 @@
 ```sh
 astack init /absolute/project --dry-run --json
 astack init /absolute/project --id project-example --non-interactive --json
-astack init /absolute/project --role implementer --role reviewer --json
+astack init /absolute/project --with-skills --json
 astack init --project project-example --json
 astack init /absolute/project --herdr-session selected-session --herdr-socket /absolute/socket --json
 ```
@@ -26,14 +26,14 @@ Apply holds kernel-backed coordinator ownership before writable database migrati
 | --------------------------------------- | ---------------------------------------------------------- | ---- |
 | `.astack/.gitignore`                    | Managed stage and pending-journal exclusions               | 0644 |
 | `.astack/config.json`                   | Agent configuration starter with unset model and reasoning | 0644 |
-| `.agents/skills/.gitignore`             | Same operational exclusions, when roles selected           | 0644 |
-| `.agents/skills/astack-<role>/SKILL.md` | Explicitly selected packaged guides                        | 0644 |
+| `.agents/skills/.gitignore`             | Same operational exclusions, when skills selected          | 0644 |
+| `.agents/skills/astack-<role>/SKILL.md` | Bundled project skills                                     | 0644 |
 
 Directories are created privately; existing unsafe/symlinked project parents are refused. Public source files use Git-compatible modes so cloned/linked checkouts retain valid ownership evidence. Ownership/version/digest records are stored alongside the selected roots; completed project records may be tracked, but pending journals and stages must never be committed. Generated ignore files precede other project assets. Authored ignore files are preserved, so verify their exclusions yourself; a failure publishing the ignore file can leave an unignored pending journal.
 
 Existing instructions, scripts, environments, unrelated skills, authored/edited/deleted/foreign managed files and unresolved writer intents are preserved. There is no adoption, force, deletion or automatic pending-write reconciliation. Legacy host configuration is left untouched and is no longer read. Init creates no host copy of project settings.
 
-Codex's documented project skill location is `.agents/skills`; see [official skill discovery documentation](https://learn.chatgpt.com/docs/build-skills). Selected roles are optional and never automatically attached to assignments. Initialization only inspects user-level orchestrator availability at Astack's selected skill root (the existing `$CODEX_HOME/skills` or `~/.codex/skills` default, or explicit `--user-skills-root`). This is a selected compatibility/profile root, not a guarantee about every agent version's discovery configuration. It never installs globally or rewrites agent settings. Use explicit `skills install` at the appropriate selected profile root separately.
+Codex's documented project skill location is `.agents/skills`; see [official skill discovery documentation](https://learn.chatgpt.com/docs/build-skills). The skills are optional and never automatically attached to assignments. Initialization only inspects user-level orchestrator availability at Astack's selected skill root (the existing `$CODEX_HOME/skills` or `~/.codex/skills` default, or explicit `--user-skills-root`). This is a selected compatibility/profile root, not a guarantee about every agent version's discovery configuration. It never installs globally or rewrites agent settings. Use explicit `skills install` at the appropriate selected profile root separately.
 
 ## Detection, provider and readiness
 
