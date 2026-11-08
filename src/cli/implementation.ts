@@ -40,7 +40,7 @@ function append(value: string, values: string[] = []): string[] {
 export function wireImplementationCommands(program: Command) {
   const implementation = program
     .command('implement')
-    .description('Delegate an explicit implementation task to a selected owned checkout');
+    .description('Delegate an implementation task with an automatically prepared worker checkout');
   async function execute(
     json: boolean | undefined,
     action: (
@@ -75,10 +75,8 @@ export function wireImplementationCommands(program: Command) {
       'Persist task, instruction references, approved policy and attempt before dispatch',
     )
     .requiredOption('--project <id>', 'Registered project')
-    .requiredOption('--checkout <id>', 'Existing ready Astack-owned checkout')
     .requiredOption('--key <key>', 'Stable implementation submission key')
-    .requiredOption('--branch <branch>', 'Expected owned task branch')
-    .requiredOption('--commit <sha>', 'Expected initial full commit SHA')
+    .option('--base <sha>', 'Optional full base commit SHA; defaults to the current project commit')
     .requiredOption('--task <text>', 'Selected task without credentials')
     .option('--criterion <text>', 'Acceptance criterion; repeatable', append, [])
     .option(
@@ -94,10 +92,8 @@ export function wireImplementationCommands(program: Command) {
     .action(
       async (options: {
         project: string;
-        checkout: string;
         key: string;
-        branch: string;
-        commit: string;
+        base?: string;
         task: string;
         fixOf?: string;
         criterion: string[];
@@ -121,15 +117,11 @@ export function wireImplementationCommands(program: Command) {
         await execute(options.json, (state) =>
           requestLocalService(state.stateDirectory, {
             schemaVersion: 1,
-            operation: 'implement_submit',
+            operation: 'implement_worker_submit',
             ...(fixOf === undefined ? {} : { fixOf }),
             projectId: options.project,
-            checkoutId: options.checkout,
             key: options.key,
-            branch: options.branch.startsWith('refs/')
-              ? options.branch
-              : `refs/heads/${options.branch}`,
-            commit: options.commit,
+            ...(options.base === undefined ? {} : { baseCommit: options.base }),
             description: options.task,
             acceptanceCriteria: options.criterion,
             ...(options.instruction === undefined ? {} : { instructionPaths: options.instruction }),

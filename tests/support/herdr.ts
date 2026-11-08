@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import {
   configureHerdrProject,
   createNodeWorktreeFiles,
-  prepareWorktree,
   createWorktreeGit,
   nodeProcessRunner,
   submitServiceJob,
@@ -16,7 +15,8 @@ import {
   type ServiceJob,
 } from '../../src/index.js';
 import { completed } from '../../src/contracts/operation-result.js';
-import { fixture as serviceFixture, gitPath } from './service.js';
+import { fixture as serviceFixture, git, gitPath } from './service.js';
+import { prepareWorkerWorktree } from '../../src/application/worker-worktree.js';
 
 export function space(result: HerdrResult, outcome?: string): HerdrSpace {
   if (outcome) {
@@ -69,7 +69,7 @@ export async function fixture(
     };
 
     const worker = async (key = 'worker') => {
-      const prepared = await prepareWorktree(
+      const prepared = await prepareWorkerWorktree(
         {
           schemaVersion: 1,
           projectId: 'project-0',
@@ -78,12 +78,15 @@ export async function fixture(
           baseCommit: context.request(0, 'base').commit,
         },
         {
-          ...context.deps,
-          store: context.opened.worktrees,
-          files,
-          managedRoot: join(context.state, 'worktrees'),
-          effects: createWorktreeGit({ executable: gitPath, runner: nodeProcessRunner }),
-          nextId: (kind) => `${kind}-herdr-${++sequence}`,
+          worktrees: {
+            ...context.deps,
+            store: context.opened.worktrees,
+            files,
+            managedRoot: join(context.state, 'worktrees'),
+            effects: createWorktreeGit({ executable: gitPath, runner: nodeProcessRunner }),
+            nextId: (kind) => `${kind}-herdr-${++sequence}`,
+          },
+          herdr: deps,
         },
       );
 
@@ -189,27 +192,21 @@ export function fakeProvider() {
 
       return completed(null);
     },
-    async openWorker(input) {
-      calls.push({ operation: 'open', target: input.target, root: input.root });
-      const value = snapshot(input.target);
-      const parent = value.workspaces.find((item) => item.id === input.parent);
-      const root = value.panes.find((item) => item.workspaceId === input.parent)?.cwd;
+    async createWorker(input) {
+      calls.push({ operation: 'create-worker', target: input.target, root: input.root });
+      git(input.sourceRoot, 'worktree', 'add', '-b', input.branch, input.root, input.baseCommit);
+      const handle = add(input.target, input.root, input.label, input.sourceRoot);
 
-      assert.ok(parent && root);
-
-      parent.worktree = {
-        checkoutPath: root,
-        repositoryRoot: root,
-        repositoryKey: root,
-        linked: false,
-      };
-      add(input.target, input.root, input.label, root);
+      return completed({ workspaceId: handle.workspaceId });
+    },
+    async attachWorker(input) {
+      calls.push({ operation: 'attach', target: input.target, root: input.root });
 
       if (modes.open === 'after') {
-        throw new Error('fixture interrupt after opening');
+        throw new Error('fixture interrupt during worker attachment');
       }
 
-      return completed({ alreadyOpen: false });
+      return completed({});
     },
   };
 

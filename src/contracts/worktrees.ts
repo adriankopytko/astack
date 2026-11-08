@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { herdrServerSchema } from './herdr.js';
 import { join } from 'node:path';
 import { gitRefSchema, gitRepositoryInspectionSchema } from './git.js';
 import {
@@ -33,6 +34,13 @@ export const worktreeReconcileRequestSchema = z.strictObject({
   operationId: stateIdSchema,
   writerStopped: z.literal(true),
 });
+export const worktreeWorkspaceSchema = z.strictObject({
+  workspaceId: z.string().min(1).max(256),
+  parentWorkspaceId: z.string().min(1).max(256),
+  server: herdrServerSchema,
+  label: z.string().min(1).max(80),
+});
+export const worktreeWorkspaceIntentSchema = worktreeWorkspaceSchema.omit({ workspaceId: true });
 export const worktreeIntentSchema = z
   .strictObject({
     schemaVersion: z.literal(1),
@@ -51,6 +59,7 @@ export const worktreeIntentSchema = z
     containerPath: path,
     checkoutPath: path,
     markerToken: stateIdSchema,
+    workspace: worktreeWorkspaceIntentSchema.optional(),
     createdAt: timestamp,
   })
   .superRefine((value, context) => {
@@ -86,6 +95,7 @@ export const worktreeRecordSchema = z
     revision: z.number().int().nonnegative(),
     operationId: stateIdSchema,
     location: checkoutLocationSchema.nullable(),
+    workspace: worktreeWorkspaceSchema.optional(),
     removalCommit: gitRefSchema.shape.objectId.nullable(),
     reconciliation: z
       .strictObject({
@@ -180,3 +190,6 @@ export type WorktreeReason = z.infer<typeof worktreeReasonSchema>;
 export type WorktreeResult = z.infer<typeof worktreeResultSchema>;
 export type WorktreePrepareRequest = z.infer<typeof worktreePrepareRequestSchema>;
 export type WorktreeReconcileRequest = z.infer<typeof worktreeReconcileRequestSchema>;
+
+export type WorktreeWorkspace = z.infer<typeof worktreeWorkspaceSchema>;
+export type WorktreeWorkspaceIntent = z.infer<typeof worktreeWorkspaceIntentSchema>;

@@ -669,10 +669,10 @@ await test(
 );
 
 await test(
-  'CLI prepares and inspects an explicit project from a neutral cwd with structured outcomes',
+  'CLI requires the service for preparation and can inspect an existing worktree offline',
   options,
   async () => {
-    await fixture(async ({ state, root, input }) => {
+    await fixture(async ({ state, root, input, deps }) => {
       const command = (...args: string[]) =>
         spawnSync(
           process.execPath,
@@ -700,12 +700,10 @@ await test(
         input.baseCommit,
       );
 
-      assert.equal(prepared.status, 0, prepared.stderr + prepared.stdout);
+      assert.equal(prepared.status, 1, prepared.stderr + prepared.stdout);
+      assert.match(prepared.stdout, /service_unavailable/);
 
-      const owned = record(
-        worktreeResultSchema.parse(JSON.parse(prepared.stdout) as unknown),
-        'prepared',
-      );
+      const owned = record(await prepareWorktree(input, deps), 'prepared');
       const inspected = command('inspect', owned.intent.id);
 
       assert.equal(inspected.status, 0, inspected.stderr);

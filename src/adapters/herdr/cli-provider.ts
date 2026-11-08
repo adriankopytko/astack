@@ -403,17 +403,21 @@ export function createHerdrCliProvider(options: {
         ? completed(null)
         : rejected('herdr_invalid_output', 'Herdr did not acknowledge workspace creation.');
     },
-    async openWorker(input, signal) {
+    async createWorker(input, signal) {
       const result = await invoke(
         input.target,
-        input.root,
+        input.sourceRoot,
         [
           'worktree',
-          'open',
+          'create',
           '--workspace',
           input.parent,
           '--path',
           input.root,
+          '--branch',
+          input.branch,
+          '--base',
+          input.baseCommit,
           '--label',
           input.label,
           '--no-focus',
@@ -429,33 +433,21 @@ export function createHerdrCliProvider(options: {
       const parsed = z
         .object({
           result: z.object({
-            type: z.literal('worktree_opened'),
-            already_open: z.boolean(),
-            workspace: z.object({ workspace_id: z.string() }).optional(),
+            type: z.literal('worktree_created'),
+            workspace: z.object({ workspace_id: z.string().min(1) }),
           }),
         })
         .safeParse(result.value.body);
 
-      if (!parsed.success) {
-        return rejected(
-          'herdr_invalid_output',
-          'Herdr did not acknowledge the requested worktree opening.',
-        );
-      }
-
+      return parsed.success
+        ? completed({ workspaceId: parsed.data.result.workspace.workspace_id })
+        : rejected('herdr_invalid_output', 'Herdr did not acknowledge worktree creation.');
+    },
+    async attachWorker(input, signal) {
       const entries = Object.entries(input.environment ?? {});
 
-      if (!entries.length || parsed.data.result.already_open) {
-        return completed({ alreadyOpen: parsed.data.result.already_open });
-      }
-
-      const workspace = parsed.data.result.workspace?.workspace_id;
-
-      if (!workspace) {
-        return rejected(
-          'herdr_invalid_output',
-          'Herdr did not return the opened workspace identity.',
-        );
+      if (!entries.length) {
+        return completed({});
       }
 
       const created = await invoke(
@@ -465,7 +457,7 @@ export function createHerdrCliProvider(options: {
           'tab',
           'create',
           '--workspace',
-          workspace,
+          input.workspaceId,
           '--cwd',
           input.root,
           '--label',
@@ -487,13 +479,13 @@ export function createHerdrCliProvider(options: {
 
       if (
         !tab.success ||
-        tab.data.result.root_pane.workspace_id !== workspace ||
+        tab.data.result.root_pane.workspace_id !== input.workspaceId ||
         (tab.data.result.root_pane.cwd != null && tab.data.result.root_pane.cwd !== input.root)
       ) {
         return rejected('herdr_invalid_output', 'Herdr did not return the expected worker pane.');
       }
 
-      return completed({ alreadyOpen: false, handle: handle(tab.data.result.root_pane) });
+      return completed({ handle: handle(tab.data.result.root_pane) });
     },
   };
 

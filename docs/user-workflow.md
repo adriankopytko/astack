@@ -38,7 +38,7 @@ Initialization registers the project, creates an incomplete `.astack/config.json
 
 The generated project configuration starts with unset model and reasoning. Before delegation, fill each agent entry with its provider, model and reasoning. Optional instructions and project checks can be added when needed. Astack reads its current contents directly. Host state defaults to `~/.astack`; it has no separately editable copy of project settings, though accepted jobs retain private snapshots. Astack supplies the Codex launch arguments; executable and local file digests are not required in the project config. See [project initialization](initialization.md) and [runtime](runtime.md).
 
-**User experience:** the caller fills in the agent settings. Today it must also prepare a Git worktree before delegation; Astack automatically creates the worker’s grouped Herdr workspace during launch. The intended workflow is for Astack to prepare both without exposing those steps to the orchestrator. There is not yet a polished “initialize and delegate” experience.
+**User experience:** the caller fills in the agent settings. Astack automatically prepares a dedicated Git worktree and grouped Herdr workspace when the caller delegates a task. There is not yet a polished “initialize and delegate” experience.
 
 ### Configuration changes and the orchestrator
 
@@ -57,14 +57,7 @@ astack context --project <project-id> --json
 
 Inside a registered repository, it can discover that context. From a directory containing several projects, it does not guess which one you mean; the orchestrator selects the target.
 
-For a task, the orchestrator prepares an owned Git worktree from a full commit SHA:
-
-```sh
-astack worktree prepare --project <project-id> \
-  --key <checkout-key> --branch <branch> --base <full-sha> --json
-```
-
-Astack records who owns that checkout and checks its identity before later operations. This gives workers isolation and makes it possible to preserve work when something is uncertain or dirty.
+For each task, Astack asks Herdr to create a dedicated Git worktree and a grouped child workspace together. It records their identities and verifies the checkout before dispatch. The caller does not prepare a checkout.
 
 The project has a primary Herdr space, and workers appear in grouped worker workspaces for that project. The current integration uses **Codex through Herdr**. The architecture allows other adapters, but a second coding-agent provider is not implemented yet. See [project selection](projects.md), [worktrees](worktrees.md) and [Herdr integration](herdr.md).
 
@@ -76,12 +69,11 @@ The host starts the local service with the Codex runtime enabled:
 astack service run --codex-herdr --codex-executable /trusted/bin/codex
 ```
 
-The orchestrator submits a task against the prepared checkout:
+The orchestrator submits a task; Astack prepares its checkout automatically:
 
 ```sh
 astack implement submit \
-  --project <project-id> --checkout <checkout-id> \
-  --key <task-key> --branch <branch> --commit <full-sha> \
+  --project <project-id> --key <task-key> \
   --task "Implement the requested behavior." --json
 ```
 
@@ -181,8 +173,8 @@ Its strengths are substantial:
 
 The friction is also substantial:
 
-1. **First-time setup has many moving parts.** The project, Herdr target, agent model and reasoning, verification and optional automation still need to align.
-2. **The complete path spans many commands.** An orchestrator must prepare a checkout, submit, inspect, collect a report, verify, publish, prepare or select a reviewer checkout, and later reconcile and clean up.
+1. **First-time setup has many moving parts.** The project, Herdr target, agent model and reasoning, and optional automation still need to align.
+2. **The complete path spans many commands.** An orchestrator must submit and inspect the task, collect a report, publish, request review, and later reconcile and clean up. Checkout and workspace creation are automatic.
 3. **Some important transitions are still manual.** Report collection, publication authorization, shutdown evidence and parts of cleanup require explicit intervention.
 4. **Recovery can be demanding.** “Unknown” is preserved safely, but the next action can require a human to understand which controller or process might still be active.
 5. **The CLI needs some polish.** For example, the top-level `info` help says orchestration is not implemented, which is stale and misleading.

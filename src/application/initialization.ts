@@ -197,7 +197,7 @@ async function readiness(
           result.outcome === 'completed' &&
           result.value.status === 'ready' &&
           view.provider.status === 'ready'
-            ? 'requires_owned_checkout'
+            ? 'ready'
             : 'not_ready',
       });
     }
@@ -206,8 +206,8 @@ async function readiness(
   const policyReady = view.configuration.some(
     (item) => item.result.outcome === 'completed' && item.result.value.status === 'ready',
   );
-  view.delegation = view.configuration.some((item) => item.readiness === 'requires_owned_checkout')
-    ? 'requires_owned_checkout'
+  view.delegation = view.configuration.some((item) => item.readiness === 'ready')
+    ? 'ready'
     : 'not_ready';
 
   if (!policyReady) {
@@ -217,12 +217,6 @@ async function readiness(
       'Fill in the project configuration and resolve any reported prerequisites before delegating.',
     );
   }
-
-  diagnostic(
-    view,
-    'owned_task_checkout_required',
-    'Delegation still needs an explicit ready owned task checkout and accepted assignment.',
-  );
 }
 
 async function provider(

@@ -68,7 +68,7 @@ function render(result: InitializationResult, json?: boolean) {
           `Run astack doctor --project ${view.target.projectId} --role implementer and repeat for reviewer to check readiness.`,
         );
         steps.push(
-          'Prepare a dedicated Astack worktree for each implementation or review task before delegating.',
+          'Submit an implementation or review task; Astack prepares the worker checkout and workspace.',
         );
       }
     }
@@ -191,8 +191,6 @@ function compose(
                       'Select a trusted Herdr executable to prepare the project space.',
                     ),
                   createPrimary: async () => rejected('herdr_unavailable', 'Herdr is unavailable.'),
-                  openWorker: async () =>
-                    rejected('herdr_unavailable', 'Initialization never opens workers.'),
                 },
           },
         }

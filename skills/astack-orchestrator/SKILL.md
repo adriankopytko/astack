@@ -2,7 +2,7 @@
 name: astack-orchestrator
 description: Delegate implementation and code review through Astack, inspect accepted results, and choose explicit follow-up or recovery actions across registered projects.
 metadata:
-  asset-version: '1.0.15'
+  asset-version: '1.0.16'
 ---
 
 # Orchestrate with Astack
@@ -16,13 +16,13 @@ Read `astack --skill` for the installed command contracts when you need details;
 - `astack project list --json` finds registered identities. `astack context --project <project-id> --json` observes the selected checkout; explicit checkout/path/attempt selectors must agree. Invoking Astack from a directory containing several projects does not scan or choose one.
 - `astack project register <path> --json` deliberately registers an unregistered canonical checkout. Registration does not install files, approve configuration or authorize workers.
 - `astack doctor --project <project-id> --role implementer --json` checks current project configuration and prerequisites. Accepted jobs keep their own settings; edits apply to new jobs. Keep secrets out of descriptions, overrides, reports and logs.
-- Prepare a dedicated owned checkout with `astack worktree prepare --project <project-id> --key <checkout-key> --branch <branch> --base <full-sha> --json`. Select its returned checkout ID explicitly. Preparing a worktree does not start a worker or provision services.
+- Task submission creates a dedicated owned checkout and grouped Herdr workspace automatically. Use the same task key to inspect or retry an uncertain submission.
 
 ## Delegate and inspect
 
 Start the local service only with the required host opt-ins. `astack service run --codex-herdr` enables the supported native runtime; `astack service run` alone has no worker adapters. The project's saved Herdr primary space is used rather than the calling pane. Preserve user focus and unrelated workspaces.
 
-- `astack implement submit --project <project-id> --checkout <checkout-id> --key <task-key> --branch <branch> --commit <full-sha> --task <task-description> --json` delegates implementation with explicit acceptance criteria and instruction paths when needed. Use a fresh key for a genuinely different task, never to bypass an uncertain send.
+- `astack implement submit --project <project-id> --key <task-key> --task <task-description> --json` delegates implementation with explicit acceptance criteria and instruction paths when needed. Use a fresh key for a genuinely different task, never to bypass an uncertain send.
 - `astack run inspect <job-id> --json` reads accepted outcome, worker observation and retained resources separately. A worker's done/idle UI and a proposed JSON result are not accepted completion.
 - `astack run events --job <job-id> --after <cursor> --wait 20000 --json` waits on local durable events. Save/acknowledge a consumer cursor only after processing its events. This does not poll GitHub or automatically collect worker output.
 - `astack run collect-report <job-id> --key <report-key> --session-file <explicit-session-file> --json` collects a structured proposal from one host-selected matching session and submits it for ordinary validation. Never search unrelated transcripts or fabricate a completed report from the terminal badge.
@@ -33,11 +33,11 @@ When a report needs a decision, inspect the request. Record the chosen answer wi
 
 An accepted implementation does not push or request a reviewer automatically. Run project checks appropriate to the task. With coordinator/original writers excluded, `astack handoff finish --file <request.json> --writers-stopped --json` publishes the accepted commit; no separate Astack verification record is required. Its optional review request is not reviewer dispatch.
 
-For manual review, prepare a separate owned checkout at the exact PR head and use `astack review submit --project <project-id> --checkout <review-checkout-id> --key <review-key> --branch <branch> --commit <head-sha> --host <host> --repo <owner/repo> --pr <number> --json`. Use help for gate/check options and explicit no-CI/override policy; missing or skipped checks do not mean passing. The reviewer is read-only and must not start integration services.
+For manual review, use `astack review submit --project <project-id> --key <review-key> --commit <head-sha> --host <host> --repo <owner/repo> --pr <number> --json`. Astack creates a separate reviewer checkout and local branch at that SHA. Use help for gate/check options and explicit no-CI/override policy; missing or skipped checks do not mean passing. The reviewer is read-only and must not start integration services.
 
 For CI-triggered follow-up, explicitly enable project review automation and attach a dedicated checkout using `astack review automation enable --project <project-id> --revision <settings-revision> --json` and `astack review follow-up enqueue --handoff <source-job-id> --checkout <review-checkout-id> --branch <branch> --commit <head-sha> --json`. The service also needs `--observe-ci --after-handoff-review`. A disabled plan stays suspended until explicit resume; restoring flags does not silently resume backlog. Let the bounded CI observer and local events handle waiting.
 
-Inspect accepted findings with `astack review result inspect <review-job-id> --report-key <report-key> --json`. Publication is a separate authorized host action. For fixes, select finding indexes in the returned immutable fix reference, prepare a fresh implementation checkout at the reviewed SHA, and use `astack implement submit` with its `--fix-of` file. Keep historical findings attached to their original SHA. There is no automatic fix loop, merge or approval operation.
+Inspect accepted findings with `astack review result inspect <review-job-id> --report-key <report-key> --json`. Publication is a separate authorized host action. For fixes, select finding indexes in the returned immutable fix reference, use `astack implement submit` with its `--fix-of` file; Astack prepares a fresh implementation checkout at the reviewed SHA. Keep historical findings attached to their original SHA. There is no automatic fix loop, merge or approval operation.
 
 ## Recover and retain
 

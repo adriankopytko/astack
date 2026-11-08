@@ -5,6 +5,7 @@ import type {
   WorktreeRecord,
   WorktreeResult,
   WorktreeReason,
+  WorktreeWorkspaceIntent,
 } from '../contracts/worktrees.js';
 import type { WorktreeFiles, WorktreeGit, WorktreeStore } from '../ports/worktrees.js';
 import type { ProjectDependencies } from './project-facts.js';
@@ -23,6 +24,8 @@ export interface WorktreeDependencies extends ProjectDependencies {
   effects: WorktreeGit;
   managedRoot: string;
   nextId(kind: 'worktree' | 'checkout' | 'operation' | 'marker'): string;
+  workspaceIntent?(worktreeId: string): WorktreeWorkspaceIntent;
+  reviewBranchMayBeAbsent?: boolean;
   now(): number;
 }
 export function take<T>(result: OperationResult<T>): T {

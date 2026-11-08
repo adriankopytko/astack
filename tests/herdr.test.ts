@@ -1,10 +1,32 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createAgentPorts } from '../src/application/agent-ports.js';
+import {
+  prepareWorkerWorktree,
+  reconcileWorkerWorktree,
+} from '../src/application/worker-worktree.js';
+import { submitWorkerTask } from '../src/application/worker-submission.js';
+import { nodeImplementationContextReader } from '../src/adapters/filesystem/implementation-context.js';
+import { sha256 } from '../src/core/file-paths.js';
+import { createReviewCommitFetcher } from '../src/adapters/git/review-commit.js';
+import {
+  executeCleanup,
+  type CleanupDependencies,
+  type CleanupPlan,
+  type RunView,
+} from '../src/index.js';
+import {
+  createWorktreeGit,
+  createNodeWorktreeFiles,
+  nodeProcessRunner,
+  submitServiceJob,
+} from '../src/index.js';
+import { git, gitPath, writeProjectConfiguration } from './support/service.js';
+import { completed } from '../src/contracts/operation-result.js';
 import {
   ensureHerdrProject,
   inspectHerdrProject,
@@ -20,6 +42,7 @@ import {
   type HerdrResult,
   type ProcessRequest,
   type ProcessResult,
+  startLocalService,
 } from '../src/index.js';
 import { fixture, space } from './support/herdr.js';
 
@@ -218,7 +241,7 @@ await test(
 
       assert.equal(primary.server.changedAtNs, '2');
       assert.notEqual(primary.handle?.workspaceId, owned.primaryWorkspaceId);
-      assert.equal(fake.calls.filter((call) => call.operation === 'open').length, 1);
+      assert.equal(fake.calls.filter((call) => call.operation === 'attach').length, 1);
     });
   },
 );
@@ -239,7 +262,7 @@ await test(
       assert.ok(prepared.expectedAgentName);
       assert.notEqual(prepared.handle.workspaceId, prepared.primaryWorkspaceId);
       assert.equal(prepared.checkoutId, job.job.checkoutId);
-      assert.equal(fake.calls.filter((call) => call.operation === 'open').length, 1);
+      assert.equal(fake.calls.filter((call) => call.operation === 'attach').length, 1);
 
       const snapshot = fake.snapshot(prepared.target);
       snapshot.agents.push({
@@ -273,7 +296,7 @@ await test(
       );
 
       assert.equal(repeated.handle?.terminalId, bound.handle?.terminalId);
-      assert.equal(fake.calls.filter((call) => call.operation === 'open').length, 1);
+      assert.equal(fake.calls.filter((call) => call.operation === 'attach').length, 1);
 
       const primary = await inspectHerdrProject(project, deps);
 
@@ -394,7 +417,7 @@ await test(
       );
 
       assert.equal(repeated.outcome, 'pending');
-      assert.equal(fake.calls.filter((call) => call.operation === 'open').length, 1);
+      assert.equal(fake.calls.filter((call) => call.operation === 'attach').length, 1);
 
       space(
         await reconcileHerdrSpace(
@@ -429,7 +452,7 @@ await test(
       );
 
       assert.equal(reason(unowned), 'unowned_workspace');
-      assert.equal(fake.calls.filter((call) => call.operation === 'open').length, 1);
+      assert.equal(fake.calls.filter((call) => call.operation === 'attach').length, 1);
     });
   },
 );
@@ -461,6 +484,718 @@ await test(
     });
   },
 );
+
+await test(
+  'Herdr worktree preparation records one owned checkout and reuses its saved intent',
+  options,
+  async () => {
+    await fixture(async ({ configure, deps, opened, fake, state, sources }) => {
+      await configure();
+      let created = 0;
+      let sequence = 0;
+      let attached = 0;
+      const provider = {
+        ...fake.provider,
+        async attachWorker() {
+          attached++;
+
+          return completed({});
+        },
+        async createWorker(
+          input: NonNullable<Parameters<NonNullable<typeof fake.provider.createWorker>>[0]>,
+        ) {
+          created++;
+          git(
+            input.sourceRoot,
+            'worktree',
+            'add',
+            '-b',
+            input.branch,
+            input.root,
+            input.baseCommit,
+          );
+          const handle = fake.add(input.target, input.root, input.label, input.sourceRoot);
+
+          return completed({ workspaceId: handle.workspaceId });
+        },
+      };
+      const managedRoot = join(state, 'worktrees');
+      const worktrees = {
+        ...deps,
+        store: opened.worktrees,
+        files: createNodeWorktreeFiles(managedRoot),
+        effects: createWorktreeGit({ executable: gitPath, runner: nodeProcessRunner }),
+        managedRoot,
+        nextId: (kind: 'worktree' | 'checkout' | 'operation' | 'marker') =>
+          `${kind}-combined-${++sequence}`,
+        now: () => 1000,
+      };
+      const request = {
+        schemaVersion: 1,
+        projectId: 'project-0',
+        key: 'combined',
+        branch: 'refs/heads/astack/code-review-combined',
+        baseCommit: git(sources[0]!, 'rev-parse', 'HEAD'),
+      };
+      const first = await prepareWorkerWorktree(request, {
+        worktrees,
+        herdr: { ...deps, provider },
+      });
+      const second = await prepareWorkerWorktree(request, {
+        worktrees,
+        herdr: { ...deps, provider },
+      });
+
+      assert.equal(first.outcome, 'prepared', JSON.stringify(first));
+      assert.equal(second.outcome, 'reused', JSON.stringify(second));
+      assert.equal(created, 1);
+      assert.ok('record' in first && first.record?.workspace);
+
+      const accepted = await submitServiceJob(
+        {
+          schemaVersion: 1,
+          projectId: 'project-0',
+          checkoutId: first.record.intent.checkoutId,
+          role: 'implementer',
+          key: 'combined-job',
+          branch: request.branch,
+          commit: request.baseCommit,
+          task: {},
+          request: {},
+        },
+        {
+          ...deps,
+          queue: opened.service,
+          now: () => 1000,
+          nextId: (kind) => `${kind}-combined-job-${++sequence}`,
+        },
+      );
+
+      assert.equal(accepted.outcome, 'persisted', JSON.stringify(accepted));
+
+      if (accepted.outcome !== 'persisted') {
+        return;
+      }
+
+      const bound = await prepareHerdrWorker(
+        { schemaVersion: 1, attemptId: accepted.value.attempt.id },
+        { ...deps, provider },
+      );
+
+      assert.equal(bound.outcome, 'prepared', JSON.stringify(bound));
+      assert.equal(attached, 1);
+      assert.equal(fake.calls.filter((call) => call.operation === 'attach').length, 0);
+    });
+  },
+);
+
+await test(
+  'lost Herdr worktree acknowledgement keeps a pending intent without duplicate creation',
+  options,
+  async () => {
+    await fixture(async ({ configure, deps, opened, fake, state, sources }) => {
+      await configure();
+      let calls = 0;
+      let sequence = 0;
+      const provider = {
+        ...fake.provider,
+        async createWorker(
+          input: NonNullable<Parameters<NonNullable<typeof fake.provider.createWorker>>[0]>,
+        ) {
+          calls++;
+          git(
+            input.sourceRoot,
+            'worktree',
+            'add',
+            '-b',
+            input.branch,
+            input.root,
+            input.baseCommit,
+          );
+          fake.add(input.target, input.root, input.label, input.sourceRoot);
+
+          throw new Error('response lost');
+        },
+      };
+      const managedRoot = join(state, 'worktrees');
+      const worktrees = {
+        ...deps,
+        store: opened.worktrees,
+        files: createNodeWorktreeFiles(managedRoot),
+        effects: createWorktreeGit({ executable: gitPath, runner: nodeProcessRunner }),
+        managedRoot,
+        nextId: (kind: 'worktree' | 'checkout' | 'operation' | 'marker') =>
+          `${kind}-lost-${++sequence}`,
+        now: () => 1000,
+      };
+      const request = {
+        schemaVersion: 1,
+        projectId: 'project-0',
+        key: 'lost',
+        branch: 'refs/heads/astack/lost',
+        baseCommit: git(sources[0]!, 'rev-parse', 'HEAD'),
+      };
+      const first = await prepareWorkerWorktree(request, {
+        worktrees,
+        herdr: { ...deps, provider },
+      });
+      const second = await prepareWorkerWorktree(request, {
+        worktrees,
+        herdr: { ...deps, provider },
+      });
+
+      assert.equal(first.outcome, 'pending');
+      assert.equal(second.outcome, 'pending');
+      assert.equal(calls, 1);
+      assert.ok('record' in first && first.record);
+
+      const reconciled = await reconcileWorkerWorktree(
+        {
+          schemaVersion: 1,
+          id: first.record.intent.id,
+          operationId: first.record.operationId,
+          writerStopped: true,
+        },
+        { worktrees, herdr: { ...deps, provider } },
+      );
+
+      assert.equal(reconciled.outcome, 'reconciled', JSON.stringify(reconciled));
+      assert.ok('record' in reconciled && reconciled.record?.workspace);
+
+      const afterRecovery = await prepareWorkerWorktree(request, {
+        worktrees,
+        herdr: { ...deps, provider },
+      });
+
+      assert.equal(afterRecovery.outcome, 'reused', JSON.stringify(afterRecovery));
+      assert.equal(calls, 1);
+    });
+  },
+);
+
+await test(
+  'task submission automatically creates separate implementation and review worktrees',
+  options,
+  async () => {
+    await fixture(async ({ configure, deps, opened, fake, state, sources }) => {
+      await configure();
+      let sequence = 0;
+      let creates = 0;
+      const provider = {
+        ...fake.provider,
+        async createWorker(
+          input: NonNullable<Parameters<NonNullable<typeof fake.provider.createWorker>>[0]>,
+        ) {
+          creates++;
+          git(
+            input.sourceRoot,
+            'worktree',
+            'add',
+            '-b',
+            input.branch,
+            input.root,
+            input.baseCommit,
+          );
+          const handle = fake.add(input.target, input.root, input.label, input.sourceRoot);
+
+          return completed({ workspaceId: handle.workspaceId });
+        },
+      };
+      const managedRoot = join(state, 'worktrees');
+      const files = createNodeWorktreeFiles(managedRoot);
+      const worktrees = {
+        ...deps,
+        store: opened.worktrees,
+        files,
+        effects: createWorktreeGit({ executable: gitPath, runner: nodeProcessRunner }),
+        managedRoot,
+        nextId: (kind: 'worktree' | 'checkout' | 'operation' | 'marker') =>
+          `${kind}-auto-${++sequence}`,
+        now: () => 1000,
+      };
+      const implementation = {
+        ...deps,
+        queue: opened.service,
+        worktrees: opened.worktrees,
+        files,
+        instructions: nodeImplementationContextReader,
+        now: () => 1000,
+        nextId: (kind: 'job' | 'attempt' | 'effect' | 'claim') => `${kind}-auto-${++sequence}`,
+      };
+      const sha = git(sources[0]!, 'rev-parse', 'HEAD');
+      const target = { host: 'github.com', repository: 'example/project', number: 1, sha };
+      const review = {
+        ...implementation,
+        targets: {
+          read: async () =>
+            completed({
+              target,
+              baseSha: sha,
+              state: 'OPEN' as const,
+              draft: false,
+              sourceRepository: 'example/project',
+              checks: [],
+              observedAt: 1000,
+            }),
+        },
+      };
+      const dependencies = { implementation, review, worktrees, herdr: { ...deps, provider } };
+      const input = {
+        schemaVersion: 1,
+        projectId: 'project-0',
+        key: 'build-task',
+        description: 'Implement a small task',
+      };
+      const first = await submitWorkerTask('implementer', input, dependencies);
+      const repeated = await submitWorkerTask('implementer', input, dependencies);
+      const reviewed = await submitWorkerTask(
+        'reviewer',
+        { schemaVersion: 1, projectId: 'project-0', key: 'review-task', target },
+        dependencies,
+      );
+
+      const alias = await submitWorkerTask(
+        'reviewer',
+        { schemaVersion: 1, projectId: 'project-0', key: 'review-alias', target },
+        dependencies,
+      );
+
+      assert.equal(first.outcome, 'persisted', JSON.stringify(first));
+      assert.equal(repeated.outcome, 'persisted', JSON.stringify(repeated));
+      assert.equal(reviewed.outcome, 'persisted', JSON.stringify(reviewed));
+      assert.equal(alias.outcome, 'persisted', JSON.stringify(alias));
+      assert.equal(creates, 2);
+      assert.ok(first.outcome === 'persisted' && reviewed.outcome === 'persisted');
+      assert.notEqual(first.value.job.job.checkoutId, reviewed.value.job.job.checkoutId);
+      assert.match(reviewed.value.job.entry.branch, /^refs\/heads\/astack\/code-review-/);
+      assert.equal(reviewed.value.job.entry.commit, sha);
+    });
+  },
+);
+
+await test(
+  'CLI delegates implementation and review without a prepared checkout',
+  options,
+  async () => {
+    await fixture(async ({ configure, opened, fake, state, sources }) => {
+      await configure();
+      await writeProjectConfiguration({ state, sources }, 0);
+      let creates = 0;
+      let loseResponse = false;
+      const provider = {
+        ...fake.provider,
+        async createWorker(
+          input: NonNullable<Parameters<NonNullable<typeof fake.provider.createWorker>>[0]>,
+        ) {
+          creates++;
+          git(
+            input.sourceRoot,
+            'worktree',
+            'add',
+            '-b',
+            input.branch,
+            input.root,
+            input.baseCommit,
+          );
+          const handle = fake.add(input.target, input.root, input.label, input.sourceRoot);
+
+          if (loseResponse) {
+            loseResponse = false;
+
+            throw new Error('lost creation response');
+          }
+
+          return completed({ workspaceId: handle.workspaceId });
+        },
+      };
+      const sha = git(sources[0]!, 'rev-parse', 'HEAD');
+      const target = { host: 'github.com', repository: 'example/project', number: 1, sha };
+      const service = await startLocalService(
+        { schemaVersion: 1, stateDirectory: state, gitExecutable: gitPath },
+        {
+          workerSetupProvider: provider,
+          reviewTargets: {
+            read: async () =>
+              completed({
+                target,
+                baseSha: sha,
+                state: 'OPEN',
+                draft: false,
+                sourceRepository: 'example/project',
+                checks: [],
+                observedAt: 1000,
+              }),
+          },
+        },
+      );
+
+      assert.equal(service.outcome, 'listening', JSON.stringify(service));
+
+      if (service.outcome !== 'listening') {
+        return;
+      }
+
+      try {
+        const run = async (args: string[]) =>
+          new Promise<{ code: number | null; stdout: string }>((resolve, reject) => {
+            const child = spawn(process.execPath, [
+              cli,
+              '--state-directory',
+              state,
+              ...args,
+              '--json',
+            ]);
+            let stdout = '';
+            child.stdout.on('data', (chunk: Buffer) => {
+              stdout += chunk.toString();
+            });
+            child.on('error', reject);
+            child.on('close', (code) => resolve({ code, stdout }));
+          });
+        const implementation = await run([
+          'implement',
+          'submit',
+          '--project',
+          'project-0',
+          '--key',
+          'task',
+          '--task',
+          'Implement a task',
+        ]);
+        const repeated = await run([
+          'implement',
+          'submit',
+          '--project',
+          'project-0',
+          '--key',
+          'task',
+          '--task',
+          'Implement a task',
+        ]);
+        const review = await run([
+          'review',
+          'submit',
+          '--project',
+          'project-0',
+          '--key',
+          'review',
+          '--repo',
+          'example/project',
+          '--pr',
+          '1',
+          '--commit',
+          sha,
+        ]);
+        const implementationResult = JSON.parse(implementation.stdout) as {
+          outcome: string;
+          value?: { job: { job: { checkoutId: string } } };
+        };
+        const reviewResult = JSON.parse(review.stdout) as {
+          outcome: string;
+          value?: { job: { job: { checkoutId: string }; entry: { branch: string } } };
+        };
+
+        assert.equal(implementation.code, 0, implementation.stdout);
+        assert.equal(repeated.code, 0, repeated.stdout);
+        assert.equal(review.code, 0, review.stdout);
+        assert.equal(implementationResult.outcome, 'persisted');
+        assert.equal(reviewResult.outcome, 'persisted');
+        assert.notEqual(
+          implementationResult.value?.job.job.checkoutId,
+          reviewResult.value?.job.job.checkoutId,
+        );
+        assert.match(reviewResult.value!.job.entry.branch, /^refs\/heads\/astack\/code-review-/);
+        assert.equal(creates, 2);
+
+        loseResponse = true;
+        const lostTask = [
+          'implement',
+          'submit',
+          '--project',
+          'project-0',
+          '--key',
+          'lost-task',
+          '--task',
+          'Implement another task',
+        ];
+        const lost = await run(lostTask);
+
+        assert.equal(lost.code, 1, lost.stdout);
+        assert.match(lost.stdout, /state_reconciliation_required/);
+
+        const digest = sha256('project-0\0implementer\0lost-task').slice(0, 32);
+        const saved = opened.worktrees.find('project-0', `worker-implementer-${digest}`);
+
+        assert.ok(saved.outcome === 'completed' && saved.value);
+
+        const recovery = await run([
+          'worktree',
+          'reconcile',
+          saved.value.intent.id,
+          '--operation',
+          saved.value.operationId,
+          '--writer-stopped',
+        ]);
+
+        assert.equal(recovery.code, 0, recovery.stdout);
+        assert.match(recovery.stdout, /reconciled/);
+
+        const resumed = await run(lostTask);
+
+        assert.equal(resumed.code, 0, resumed.stdout);
+        assert.equal(creates, 3);
+      } finally {
+        await service.close();
+      }
+    });
+  },
+);
+
+await test(
+  'cleanup deletes only the generated reviewer branch after removing its checkout',
+  options,
+  async () => {
+    await fixture(async ({ configure, deps, opened, fake, state, sources, root }) => {
+      await configure();
+      let sequence = 0;
+      const taskKey = 'review-for-cleanup';
+      const digest = sha256(`project-0\0reviewer\0${taskKey}`).slice(0, 32);
+      const branch = `refs/heads/astack/code-review-${digest}`;
+      const provider = {
+        ...fake.provider,
+        async createWorker(
+          input: NonNullable<Parameters<NonNullable<typeof fake.provider.createWorker>>[0]>,
+        ) {
+          git(
+            input.sourceRoot,
+            'worktree',
+            'add',
+            '-b',
+            input.branch,
+            input.root,
+            input.baseCommit,
+          );
+          const handle = fake.add(input.target, input.root, input.label, input.sourceRoot);
+
+          return completed({ workspaceId: handle.workspaceId });
+        },
+      };
+      const managedRoot = join(state, 'worktrees');
+      const worktrees = {
+        ...deps,
+        store: opened.worktrees,
+        files: createNodeWorktreeFiles(managedRoot),
+        effects: createWorktreeGit({ executable: gitPath, runner: nodeProcessRunner }),
+        managedRoot,
+        nextId: (kind: 'worktree' | 'checkout' | 'operation' | 'marker') =>
+          `${kind}-review-cleanup-${++sequence}`,
+        now: () => 1000,
+      };
+      const sha = git(sources[0]!, 'rev-parse', 'HEAD');
+      git(sources[0]!, 'branch', 'keep-implementation', sha);
+      const prepared = await prepareWorkerWorktree(
+        {
+          schemaVersion: 1,
+          projectId: 'project-0',
+          key: `worker-reviewer-${digest}`,
+          branch,
+          baseCommit: sha,
+        },
+        { worktrees, herdr: { ...deps, provider } },
+      );
+
+      assert.ok(prepared.outcome === 'prepared', JSON.stringify(prepared));
+
+      let plan: CleanupPlan = {
+        schemaVersion: 1,
+        id: 'cleanup-review',
+        request: {
+          schemaVersion: 1,
+          jobId: 'review-job',
+          key: 'cleanup',
+          automatic: false,
+          notBefore: 0,
+          publication: 'not_required',
+        },
+        projectId: 'project-0',
+        repositoryId: prepared.record.intent.repositoryId,
+        attemptId: 'review-attempt',
+        checkoutId: prepared.record.intent.checkoutId,
+        worktreeId: prepared.record.intent.id,
+        branch,
+        commit: sha,
+        reportId: null,
+        phase: 'requested',
+        reason: null,
+        revision: 0,
+        createdAt: 0,
+        updatedAt: 0,
+      };
+      const run = {
+        job: {
+          job: {
+            projectId: 'project-0',
+            idempotencyKey: taskKey,
+            operation: 'delegate:reviewer',
+            checkoutId: prepared.record.intent.checkoutId,
+          },
+          entry: { role: 'reviewer', claim: null },
+        },
+        cleanup: { retainedResourceCount: 0 },
+        resumes: [],
+      } as unknown as RunView;
+      const cleanup = {
+        cleanups: {
+          read: () => completed(plan),
+          authorize: () => completed(null),
+          transition(input: { phase: CleanupPlan['phase']; reason: string | null; now: number }) {
+            plan = {
+              ...plan,
+              phase: input.phase,
+              reason: input.reason,
+              revision: plan.revision + 1,
+              updatedAt: input.now,
+            };
+
+            return {
+              schemaVersion: 1 as const,
+              outcome: 'persisted' as const,
+              disposition: 'updated' as const,
+              value: plan,
+            };
+          },
+        },
+        runs: { inspect: () => completed(run) },
+        worktrees: {
+          ...worktrees,
+          store: {
+            ...worktrees.store,
+            beginRemoval: (...args: Parameters<typeof worktrees.store.beginRemoval>) =>
+              worktrees.store.beginRemoval(args[0], args[1], args[2]),
+          },
+        },
+        cwd: root,
+        now: () => 1000,
+      } as unknown as CleanupDependencies;
+      const result = await executeCleanup(
+        { schemaVersion: 1, jobId: 'review-job', expectedRevision: 0 },
+        cleanup,
+      );
+
+      assert.ok(
+        result.outcome === 'persisted' && result.value.phase === 'completed',
+        JSON.stringify(result),
+      );
+      assert.equal(git(sources[0]!, 'branch', '--list', branch.slice('refs/heads/'.length)), '');
+      assert.match(
+        git(sources[0]!, 'branch', '--list', 'keep-implementation'),
+        /keep-implementation/,
+      );
+
+      git(sources[0]!, 'commit', '--allow-empty', '-m', 'advance after review');
+      git(sources[0]!, 'branch', branch.slice('refs/heads/'.length), 'HEAD');
+      const changedHead = git(sources[0]!, 'rev-parse', branch);
+      const refused = await worktrees.effects.deleteBranch!(prepared.record.intent, sha);
+
+      assert.ok(refused.outcome !== 'exited' || refused.exitCode !== 0);
+      assert.equal(git(sources[0]!, 'rev-parse', branch), changedHead);
+    });
+  },
+);
+
+await test('missing review commits are fetched from the exact PR without exposing credentials', async () => {
+  const calls: ProcessRequest[] = [];
+  let inspections = 0;
+  const fetcher = createReviewCommitFetcher({
+    executable: '/fixture/git',
+    githubExecutable: '/fixture/gh',
+    environment: { GH_TOKEN: 'secret-token' },
+    runner: {
+      async run(input) {
+        calls.push(input);
+        const value = execution('');
+
+        if (value.outcome === 'rejected') {
+          return value;
+        }
+
+        if (input.args.includes('cat-file') && inspections++ === 0) {
+          value.exitCode = 1;
+        }
+
+        return value;
+      },
+    },
+  });
+  const target = {
+    host: 'github.com',
+    repository: 'example/project',
+    number: 12,
+    sha: 'a'.repeat(40),
+  };
+  const result = await fetcher.ensure(target, '/fixture/project');
+
+  assert.equal(result.outcome, 'completed', JSON.stringify(result));
+
+  const fetch = calls.find((call) => call.args.includes('fetch'));
+
+  assert.ok(fetch);
+  assert.ok(fetch.args.includes('https://github.com/example/project.git'));
+  assert.ok(fetch.args.includes('refs/pull/12/head'));
+  assert.equal(JSON.stringify(fetch.args).includes('secret-token'), false);
+  assert.equal(calls.filter((call) => call.args.includes('cat-file')).length, 2);
+});
+
+await test('CLI provider creates a worktree and grouped workspace using an explicit base and branch', async () => {
+  const target: HerdrTarget = { session: 'default', socketPath: '/fixture/herdr.sock' };
+  const server = { ...target, device: '1', inode: '1', changedAtNs: '1', protocol: 22 as const };
+  const requests: ProcessRequest[] = [];
+  const provider = createHerdrCliProvider({
+    executable: '/fixture/herdr',
+    endpoint: {
+      async read() {
+        return server;
+      },
+    },
+    runner: {
+      async run(input) {
+        requests.push(processRequestSchema.parse(input));
+
+        return execution({
+          result: { type: 'worktree_created', workspace: { workspace_id: 'w-child' } },
+        });
+      },
+    },
+  });
+  const result = await provider.createWorker!({
+    target,
+    server,
+    sourceRoot: '/fixture/project',
+    root: '/fixture/task',
+    parent: 'w-main',
+    branch: 'astack/code-review-1',
+    baseCommit: 'a'.repeat(40),
+    label: 'review',
+  });
+
+  assert.equal(result.outcome, 'completed');
+  assert.deepEqual(requests[0]?.args, [
+    'worktree',
+    'create',
+    '--workspace',
+    'w-main',
+    '--path',
+    '/fixture/task',
+    '--branch',
+    'astack/code-review-1',
+    '--base',
+    'a'.repeat(40),
+    '--label',
+    'review',
+    '--no-focus',
+  ]);
+  assert.equal(requests[0]?.cwd, '/fixture/project');
+});
 
 await test('CLI provider uses explicit endpoint environment and no-focus argv, discarding metadata and raw diagnostics', async () => {
   const target: HerdrTarget = { session: 'default', socketPath: '/fixture/herdr.sock' };
@@ -501,8 +1236,8 @@ await test('CLI provider uses explicit endpoint environment and no-focus argv, d
 
         return execution({
           result: {
-            type: input.args[0] === 'workspace' ? 'workspace_created' : 'worktree_opened',
-            already_open: false,
+            type: input.args[0] === 'workspace' ? 'workspace_created' : 'worktree_created',
+            workspace: { workspace_id: 'w-child' },
           },
         });
       },
@@ -523,11 +1258,14 @@ await test('CLI provider uses explicit endpoint environment and no-focus argv, d
     root: '/fixture/project',
     label: 'Project; literal',
   });
-  await provider.openWorker({
+  await provider.createWorker!({
     target,
     server: observed.value.server,
+    sourceRoot: '/fixture/project',
     root: '/fixture/worktree',
     parent: 'w-parent',
+    branch: 'worker-branch',
+    baseCommit: 'a'.repeat(40),
     label: 'worker',
   });
 
@@ -552,11 +1290,15 @@ await test('CLI provider uses explicit endpoint environment and no-focus argv, d
   ]);
   assert.deepEqual(requests[2]?.args, [
     'worktree',
-    'open',
+    'create',
     '--workspace',
     'w-parent',
     '--path',
     '/fixture/worktree',
+    '--branch',
+    'worker-branch',
+    '--base',
+    'a'.repeat(40),
     '--label',
     'worker',
     '--no-focus',
@@ -679,16 +1421,6 @@ await test('CLI provider creates a port-configured tab inside the grouped worker
       run: async (input) => {
         requests.push(input);
 
-        if (input.args[0] === 'worktree') {
-          return execution({
-            result: {
-              type: 'worktree_opened',
-              already_open: false,
-              workspace: { workspace_id: 'child' },
-            },
-          });
-        }
-
         return execution({
           result: {
             type: 'tab_created',
@@ -704,11 +1436,11 @@ await test('CLI provider creates a port-configured tab inside the grouped worker
       },
     },
   });
-  const result = await provider.openWorker({
+  const result = await provider.attachWorker!({
     target,
     server,
     root: '/fixture/worktree',
-    parent: 'parent',
+    workspaceId: 'child',
     label: 'worker',
     environment: { APP_PORT: '31000', DB_PORT: '31001' },
   });
@@ -720,7 +1452,7 @@ await test('CLI provider creates a port-configured tab inside the grouped worker
     paneId: 'pane',
     terminalId: 'terminal',
   });
-  assert.deepEqual(requests[1]?.args, [
+  assert.deepEqual(requests[0]?.args, [
     'tab',
     'create',
     '--workspace',
@@ -761,11 +1493,15 @@ await test(
         configuration: deps.configuration,
         allocations: opened.allocations,
       });
-      const original = deps.provider.openWorker.bind(deps.provider);
+
+      const original = deps.provider.attachWorker?.bind(deps.provider);
+
+      assert.ok(original);
+
       let environment: Record<string, string> | undefined;
       const provider = {
         ...deps.provider,
-        async openWorker(input: Parameters<typeof original>[0], signal?: AbortSignal) {
+        async attachWorker(input: Parameters<typeof original>[0], signal?: AbortSignal) {
           environment = input.environment;
           const openedWorker = await original(input, signal);
 
@@ -791,7 +1527,6 @@ await test(
             schemaVersion: 1 as const,
             outcome: 'completed' as const,
             value: {
-              alreadyOpen: false,
               handle: {
                 workspaceId: handle.workspaceId,
                 tabId: handle.tabId,

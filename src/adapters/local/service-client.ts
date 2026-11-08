@@ -29,6 +29,17 @@ export async function requestLocalService(
     );
   }
 
+  const operation =
+    typeof request === 'object' && request !== null && 'operation' in request
+      ? request.operation
+      : null;
+  const setup = [
+    'implement_worker_submit',
+    'review_worker_submit',
+    'worker_worktree_prepare',
+    'worker_worktree_reconcile',
+  ].includes(String(operation));
+
   return new Promise((resolve) => {
     const socket = createConnection(path);
     let buffer = Buffer.alloc(0);
@@ -41,7 +52,7 @@ export async function requestLocalService(
             'Service did not acknowledge the request; inspect or retry using the same idempotency key.',
           ),
         ),
-      30_000,
+      setup ? 180_000 : 30_000,
     );
 
     function finish(result: ServiceRpcResponse): void {

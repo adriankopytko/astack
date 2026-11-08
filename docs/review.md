@@ -2,18 +2,17 @@
 
 ## Implemented scope
 
-An orchestrator requests a review for an explicit registered project, base repository host/name, PR number and full head SHA. No implementation job or claim is required. Manual initiation is the default; after-handoff initiation is separately opted in. The reviewer uses its own existing Astack-owned checkout, branch, role configuration, durable job and attempt. Agent hooks may start project services when configured. Legacy integration resource requests block dispatch; configure agent ports and hooks for new review jobs instead.
+An orchestrator requests a review for an explicit registered project, base repository host/name, PR number and full head SHA. No implementation job or claim is required. Manual initiation is the default; after-handoff initiation is separately opted in. Astack creates a dedicated reviewer checkout, a local `code-review` branch at the exact requested SHA, and a grouped Herdr workspace. Agent hooks may start project services when configured. Legacy integration resource requests block dispatch; configure agent ports and hooks for new review jobs instead.
 
-Worktree preparation stays explicit. The requested commit must already exist locally; this workflow never fetches, checks out remote refs, creates a worktree implicitly, discovers unrelated PRs, edits fixes, publishes GitHub reviews/comments, pushes or merges. Fork PRs are supported through their base repository/PR and verified head SHA, with source repository attribution recorded separately. Obtaining an external commit locally is a separate authorized operation.
+If the requested commit is not local, Astack fetches the explicitly selected PR head and verifies the requested commit is available. It does not discover unrelated PRs, edit fixes, publish GitHub reviews/comments, push or merge.
 
 ## CLI
 
-Prepare a fresh owned checkout at the selected full PR head SHA and configure the reviewer role and project Herdr target. Configure an approved Codex reviewer command with `--sandbox read-only` and the existing required native arguments. Start `service run --codex-herdr` explicitly. Then, from any directory:
+Configure the reviewer role and project Herdr target. Configure an approved Codex reviewer command with `--sandbox read-only` and the existing required native arguments. Start `service run --codex-herdr` explicitly. Then, from any directory:
 
 ```sh
 astack review submit \
-  --project project-a --checkout reviewer-checkout \
-  --key review-request-42 --branch review-42 --commit <full-pr-head-sha> \
+  --project project-a --key review-request-42 --commit <full-pr-head-sha> \
   --host github.com --repo example/project --pr 42 \
   --check test --check lint --json
 

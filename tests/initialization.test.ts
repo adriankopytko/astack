@@ -1006,10 +1006,10 @@ await test('initialization reports agent readiness independently', options, asyn
     );
     const result = view(await initializeProject(request, f.deps), 'initialized');
 
-    assert.equal(result.delegation, 'requires_owned_checkout');
+    assert.equal(result.delegation, 'ready');
     assert.equal(
       result.configuration.find((agent) => agent.role === 'implementer')?.readiness,
-      'requires_owned_checkout',
+      'ready',
     );
     assert.equal(
       result.configuration.find((agent) => agent.role === 'reviewer')?.readiness,

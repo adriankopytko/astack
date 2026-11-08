@@ -50,7 +50,7 @@ export async function listenLocalService(input: {
     connections.add(socket);
     socket.on('error', () => socket.destroy());
     socket.once('close', () => connections.delete(socket));
-    socket.setTimeout(30_000, () => socket.destroy());
+    socket.setTimeout(180_000, () => socket.destroy());
 
     if (!ready || closing) {
       socket.destroy();

@@ -1,3 +1,8 @@
+import { createReviewCommitFetcher } from '../adapters/git/review-commit.js';
+import { submitWorkerTask } from '../application/worker-submission.js';
+import { prepareWorkerWorktree, reconcileWorkerWorktree } from '../application/worker-worktree.js';
+import { createWorktreeGit } from '../adapters/git/worktree-git.js';
+import type { HerdrDependencies } from '../application/herdr.js';
 import type { HerdrProvider } from '../ports/herdr.js';
 import { homedir } from 'node:os';
 import {
@@ -97,6 +102,7 @@ export async function startLocalService(
   options: {
     runtimes?: readonly ServiceWorkerRuntime[];
     initializationHerdrProvider?: HerdrProvider;
+    workerSetupProvider?: HerdrProvider;
     ci?: { policy?: unknown; reader?: CiReader };
     afterHandoffReview?: boolean;
     cleanup?: boolean;
@@ -295,6 +301,7 @@ export async function startLocalService(
         ),
     };
     const runtimes = [...(options.runtimes ?? [])];
+    let workerProvider = options.workerSetupProvider;
 
     if (options.codexHerdr) {
       const herdr = await hostExecutable('herdr', options.codexHerdr.herdrExecutable);
@@ -310,6 +317,11 @@ export async function startLocalService(
         );
       }
 
+      workerProvider ??= createHerdrCliProvider({
+        executable: herdr,
+        runner: nodeProcessRunner,
+        endpoint: nodeHerdrEndpointReader,
+      });
       const codexRuntime = composeCodexHerdrRuntime({
         opened,
         dependencies,
@@ -323,6 +335,28 @@ export async function startLocalService(
       workerInput = options.runWorkerInput ?? codexRuntime.workerInput;
       workerControl = options.runWorkerControl ?? codexRuntime.workerControl;
     }
+
+    const workerHerdr: HerdrDependencies | null = workerProvider
+      ? {
+          ...dependencies,
+          state: opened.store,
+          herdr: opened.herdr,
+          provider: workerProvider,
+          files: implementationDependencies.files,
+          newId: randomUUID,
+          agentPorts,
+        }
+      : null;
+    const managedRoot = join(opened.stateDirectory, 'worktrees');
+    const workerWorktrees = {
+      ...dependencies,
+      store: opened.worktrees,
+      files: implementationDependencies.files,
+      effects: createWorktreeGit({ executable, runner: nodeProcessRunner }),
+      managedRoot,
+      now: Date.now,
+      nextId: (kind: 'worktree' | 'checkout' | 'operation' | 'marker') => `${kind}-${randomUUID()}`,
+    };
 
     const runDependencies: RunDependencies = {
       ...reviewDependencies,
@@ -437,6 +471,79 @@ export async function startLocalService(
         const request = parsed.value;
 
         switch (request.operation) {
+          case 'worker_worktree_prepare': {
+            if (!workerHerdr) {
+              return rejected(
+                'runtime_unavailable',
+                'Enable the Herdr worker runtime before preparing a worker.',
+              );
+            }
+
+            const { operation: _operation, ...value } = request;
+
+            return completed({
+              workerWorktree: await prepareWorkerWorktree(
+                value,
+                { worktrees: workerWorktrees, herdr: workerHerdr },
+                signal,
+              ),
+            });
+          }
+
+          case 'worker_worktree_reconcile': {
+            if (!workerHerdr) {
+              return rejected(
+                'runtime_unavailable',
+                'Enable the Herdr worker runtime before reconciling worker setup.',
+              );
+            }
+
+            const { operation: _operation, ...value } = request;
+
+            return completed({
+              workerWorktree: await reconcileWorkerWorktree(
+                value,
+                { worktrees: workerWorktrees, herdr: workerHerdr },
+                signal,
+              ),
+            });
+          }
+
+          case 'implement_worker_submit':
+          case 'review_worker_submit': {
+            if (!workerHerdr) {
+              return rejected(
+                'runtime_unavailable',
+                'Enable the Herdr worker runtime before submitting a task.',
+              );
+            }
+
+            const { operation, ...submission } = request;
+            const result = await submitWorkerTask(
+              operation === 'implement_worker_submit' ? 'implementer' : 'reviewer',
+              submission,
+              {
+                implementation: implementationDependencies,
+                review: reviewDependencies,
+                worktrees: workerWorktrees,
+                herdr: workerHerdr,
+                reviewCommit: createReviewCommitFetcher({
+                  executable,
+                  githubExecutable: gh,
+                  runner: nodeProcessRunner,
+                  environment,
+                }),
+              },
+              signal,
+            );
+
+            if (result.outcome === 'persisted') {
+              coordinator.wake();
+            }
+
+            return result;
+          }
+
           case 'project_initialize': {
             const common = {
               registry: opened.registry,
@@ -487,8 +594,6 @@ export async function startLocalService(
                           ),
                         createPrimary: async () =>
                           rejected('herdr_unavailable', 'Herdr is unavailable.'),
-                        openWorker: async () =>
-                          rejected('herdr_unavailable', 'Initialization never opens workers.'),
                       }),
               },
             };

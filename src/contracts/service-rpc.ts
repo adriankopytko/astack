@@ -1,3 +1,12 @@
+import {
+  worktreePrepareRequestSchema,
+  worktreeReconcileRequestSchema,
+  worktreeResultSchema,
+} from './worktrees.js';
+import {
+  implementationWorkerSubmissionSchema,
+  reviewWorkerSubmissionSchema,
+} from './worker-submission.js';
 import { initializationRequestSchema, initializationResultSchema } from './initialization.js';
 import { absoluteFilePathSchema } from './managed-files.js';
 import {
@@ -77,6 +86,12 @@ export const serviceRpcRequestSchema = z.discriminatedUnion('operation', [
     gitExecutable: absoluteFilePathSchema,
     herdrExecutable: absoluteFilePathSchema.nullable(),
   }),
+  worktreePrepareRequestSchema.extend({ operation: z.literal('worker_worktree_prepare') }),
+  worktreeReconcileRequestSchema.extend({ operation: z.literal('worker_worktree_reconcile') }),
+  implementationWorkerSubmissionSchema.safeExtend({
+    operation: z.literal('implement_worker_submit'),
+  }),
+  reviewWorkerSubmissionSchema.safeExtend({ operation: z.literal('review_worker_submit') }),
   cleanupRequestSchema.extend({ operation: z.literal('cleanup_request') }),
   cleanupControlSchema.extend({ operation: z.literal('cleanup_control') }),
   cleanupReadSchema.extend({ operation: z.literal('cleanup_inspect') }),
@@ -109,6 +124,7 @@ export const serviceRpcRequestSchema = z.discriminatedUnion('operation', [
   runCursorRequestSchema.extend({ operation: z.literal('run_checkpoint') }),
 ]);
 export const serviceRpcResponseSchema = z.union([
+  createOperationResultSchema(z.strictObject({ workerWorktree: worktreeResultSchema })),
   createOperationResultSchema(initializationResultSchema),
   cleanupReadResultSchema,
   cleanupWriteResultSchema,

@@ -215,7 +215,7 @@ export function createSqliteWorktreeStore(db: StateDatabase, now: () => number):
         return { value, disposition: 'updated' };
       });
     },
-    finish(record, phase, location, reconciliation) {
+    finish(record, phase, location, reconciliation, workspace) {
       return db.write(() => {
         const saved = current(record);
 
@@ -228,8 +228,30 @@ export function createSqliteWorktreeStore(db: StateDatabase, now: () => number):
           stateFailure('worktree_conflict');
         }
 
+        if (workspace && (saved.phase !== 'preparing' || phase !== 'ready' || saved.workspace)) {
+          stateFailure('worktree_conflict');
+        }
+
+        if (saved.phase === 'preparing' && phase === 'ready' && saved.intent.workspace) {
+          if (
+            !workspace ||
+            canonicalJson({
+              parentWorkspaceId: workspace.parentWorkspaceId,
+              server: workspace.server,
+              label: workspace.label,
+            }) !== canonicalJson(saved.intent.workspace)
+          ) {
+            stateFailure('worktree_conflict');
+          }
+        }
+
+        if (workspace && !saved.intent.workspace) {
+          stateFailure('worktree_conflict');
+        }
+
         const value = worktreeRecordSchema.parse({
           ...saved,
+          ...(workspace ? { workspace } : {}),
           phase,
           location,
           reconciliation,

@@ -412,7 +412,7 @@ await test(
 
       assert.match(
         saved(job.job.job.id, state.deps).job.entry.readiness?.message ?? '',
-        /provisioning/,
+        /agent ports and hooks/,
       );
       assert.equal(context.launches.length, 0);
       assert.equal(context.prompts.length, 0);

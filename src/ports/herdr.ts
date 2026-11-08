@@ -21,17 +21,30 @@ export interface HerdrProvider {
     input: { target: HerdrTarget; server: HerdrServer; root: string; label: string },
     signal?: AbortSignal,
   ): Promise<OperationResult<null>>;
-  openWorker(
+  createWorker?(
+    input: {
+      target: HerdrTarget;
+      server: HerdrServer;
+      sourceRoot: string;
+      root: string;
+      parent: string;
+      branch: string;
+      baseCommit: string;
+      label: string;
+    },
+    signal?: AbortSignal,
+  ): Promise<OperationResult<{ workspaceId: string }>>;
+  attachWorker?(
     input: {
       target: HerdrTarget;
       server: HerdrServer;
       root: string;
-      parent: string;
+      workspaceId: string;
       label: string;
       environment?: Record<string, string>;
     },
     signal?: AbortSignal,
-  ): Promise<OperationResult<{ alreadyOpen: boolean; handle?: HerdrHandle }>>;
+  ): Promise<OperationResult<{ handle?: HerdrHandle }>>;
 }
 export interface HerdrEndpointReader {
   read(target: HerdrTarget): Promise<Omit<HerdrServer, 'protocol'>>;

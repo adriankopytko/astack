@@ -5,6 +5,7 @@ import type {
   WorktreeIntent,
   WorktreeRecord,
   WorktreeObservation,
+  WorktreeWorkspace,
 } from '../contracts/worktrees.js';
 import type { CheckoutLocation } from '../contracts/projects.js';
 
@@ -24,6 +25,7 @@ export interface WorktreeStore {
     phase: 'ready' | 'removed' | 'abandoned',
     location: CheckoutLocation | null,
     reconciliation: WorktreeRecord['reconciliation'],
+    workspace?: WorktreeWorkspace,
   ): StateWriteResult<WorktreeRecord>;
 }
 export interface WorktreeFiles {
@@ -31,8 +33,16 @@ export interface WorktreeFiles {
   observe(intent: WorktreeIntent): Promise<Pick<WorktreeObservation, 'container' | 'checkout'>>;
 }
 export interface WorktreeGit {
-  create(intent: WorktreeIntent, signal?: AbortSignal): Promise<ProcessResult>;
+  create(
+    intent: WorktreeIntent,
+    signal?: AbortSignal,
+  ): Promise<ProcessResult | OperationResult<WorktreeWorkspace>>;
   remove(intent: WorktreeIntent, signal?: AbortSignal): Promise<ProcessResult>;
+  deleteBranch?(
+    intent: WorktreeIntent,
+    expectedHead: string,
+    signal?: AbortSignal,
+  ): Promise<ProcessResult>;
   ignored(intent: WorktreeIntent, signal?: AbortSignal): Promise<OperationResult<boolean>>;
   preflight(intent: WorktreeIntent, signal?: AbortSignal): Promise<OperationResult<null>>;
 }

@@ -1,12 +1,9 @@
+import { requestLocalService } from '../adapters/local/service-client.js';
+import { worktreeResultSchema } from '../contracts/worktrees.js';
 import { randomUUID } from 'node:crypto';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { Command } from 'commander';
-import {
-  prepareWorktree,
-  inspectWorktree,
-  removeWorktree,
-  reconcileWorktree,
-} from '../application/worktrees.js';
+import { inspectWorktree, removeWorktree } from '../application/worktrees.js';
 import type { WorktreeDependencies } from '../application/worktree-evidence.js';
 import { openSqliteState } from '../adapters/state/open-sqlite-state.js';
 import { createNodeWorktreeFiles } from '../adapters/filesystem/worktree-files.js';
@@ -121,22 +118,34 @@ export function wireWorktreeCommands(program: Command): void {
         base: string;
         json?: boolean;
       }) => {
-        await execute(program, true, options.json, (dependencies) =>
-          prepareWorktree(
-            {
-              schemaVersion: 1,
-              projectId: options.project,
-              key: options.key,
-              branch: options.branch.startsWith('refs/')
-                ? options.branch
-                : `refs/heads/${options.branch}`,
-              baseCommit: options.base,
-              ...(options.checkout === undefined ? {} : { checkoutId: options.checkout }),
-              ...(options.run === undefined ? {} : { runId: options.run }),
-            },
-            dependencies,
-          ),
-        );
+        await execute(program, false, options.json, async (dependencies) => {
+          const response = await requestLocalService(dirname(dependencies.managedRoot), {
+            schemaVersion: 1,
+            operation: 'worker_worktree_prepare',
+            projectId: options.project,
+            key: options.key,
+            branch: options.branch.startsWith('refs/')
+              ? options.branch
+              : `refs/heads/${options.branch}`,
+            baseCommit: options.base,
+            ...(options.checkout === undefined ? {} : { checkoutId: options.checkout }),
+            ...(options.run === undefined ? {} : { runId: options.run }),
+          });
+
+          if (response.outcome === 'rejected') {
+            return response;
+          }
+
+          const result = worktreeResultSchema.safeParse(
+            response.outcome === 'completed' && response.value && 'workerWorktree' in response.value
+              ? response.value.workerWorktree
+              : null,
+          );
+
+          return result.success
+            ? result.data
+            : rejected('service_protocol_error', 'The service returned invalid worktree evidence.');
+        });
       },
     );
   worktree
@@ -173,17 +182,35 @@ export function wireWorktreeCommands(program: Command): void {
         id: string,
         options: { operation: string; writerStopped: boolean; json?: boolean },
       ) => {
-        await execute(program, true, options.json, (dependencies) =>
-          reconcileWorktree(
-            {
-              schemaVersion: 1,
-              id,
-              operationId: options.operation,
-              writerStopped: options.writerStopped,
-            },
-            dependencies,
-          ),
-        );
+        await execute(program, false, options.json, async (dependencies) => {
+          const input = {
+            schemaVersion: 1,
+            id,
+            operationId: options.operation,
+            writerStopped: options.writerStopped,
+          };
+          const response = await requestLocalService(dirname(dependencies.managedRoot), {
+            ...input,
+            operation: 'worker_worktree_reconcile',
+          });
+
+          if (response.outcome === 'rejected') {
+            return response;
+          }
+
+          const result = worktreeResultSchema.safeParse(
+            response.outcome === 'completed' && response.value && 'workerWorktree' in response.value
+              ? response.value.workerWorktree
+              : null,
+          );
+
+          return result.success
+            ? result.data
+            : rejected(
+                'service_protocol_error',
+                'The service returned invalid reconciliation evidence.',
+              );
+        });
       },
     );
 }

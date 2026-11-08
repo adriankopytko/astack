@@ -5,6 +5,7 @@ import {
   worktreeIdRequestSchema,
   worktreeReconcileRequestSchema,
   type WorktreeRecord,
+  type WorktreeWorkspace,
   type WorktreeResult,
 } from '../contracts/worktrees.js';
 import { rejected } from '../contracts/operation-result.js';
@@ -148,6 +149,7 @@ export async function prepareWorktree(
       containerPath: join(dependencies.managedRoot, id),
       checkoutPath: join(dependencies.managedRoot, id, 'checkout'),
       markerToken: dependencies.nextId('marker'),
+      ...(dependencies.workspaceIntent ? { workspace: dependencies.workspaceIntent(id) } : {}),
       createdAt: dependencies.now(),
     });
     await observe(dependencies.effects.preflight(intent, signal), signal);
@@ -178,7 +180,7 @@ export async function prepareWorktree(
 
     const effect = await dependencies.effects.create(intent, signal);
 
-    if (!gitSucceeded(effect)) {
+    if (effect.outcome !== 'completed' && !gitSucceeded(effect)) {
       return pending(record, effect.outcome === 'cancelled' ? 'cancelled' : 'provider_uncertain');
     }
 
@@ -194,6 +196,7 @@ export async function prepareWorktree(
       'ready',
       evidence.observation.location,
       null,
+      effect.outcome === 'completed' ? effect.value : undefined,
     );
 
     if (finished.outcome === 'uncertain') {
@@ -260,7 +263,7 @@ export async function removeWorktree(
     if (record.phase === 'removed') {
       const evidence = await worktreeEvidence(record, dependencies, signal);
 
-      return removalAbsent(record, evidence)
+      return removalAbsent(record, evidence, dependencies.reviewBranchMayBeAbsent)
         ? { schemaVersion: 1, outcome: 'removed', record, observation: evidence.observation }
         : blocked(record, 'identity_changed');
     }
@@ -340,13 +343,15 @@ export async function removeWorktree(
 function removalAbsent(
   record: WorktreeRecord,
   evidence: Awaited<ReturnType<typeof worktreeEvidence>>,
+  reviewBranchMayBeAbsent = false,
 ): boolean {
+  const branch = evidence.source.git.refs.find((ref) => ref.name === record.intent.branch);
+
   return (
     evidence.observation.container === 'owned' &&
     evidence.observation.checkout === 'absent' &&
     !evidence.source.git.worktrees.some((tree) => tree.path === record.intent.checkoutPath) &&
-    evidence.source.git.refs.find((ref) => ref.name === record.intent.branch)?.objectId ===
-      record.removalCommit
+    (branch?.objectId === record.removalCommit || (reviewBranchMayBeAbsent && branch === undefined))
   );
 }
 
@@ -354,6 +359,7 @@ export async function reconcileWorktree(
   input: unknown,
   dependencies: WorktreeDependencies,
   signal?: AbortSignal,
+  workspace?: WorktreeWorkspace,
 ): Promise<WorktreeResult> {
   const request = parseOperationRequest(worktreeReconcileRequestSchema, input);
 
@@ -401,16 +407,26 @@ export async function reconcileWorktree(
         return blocked(record, problem);
       }
 
+      if (record.phase === 'preparing' && intent.workspace && !workspace) {
+        return blocked(record, 'provider_uncertain');
+      }
+
       phase = 'ready';
       location = evidence.observation.location;
     }
 
     checkProjectCancellation(signal);
-    const settled = dependencies.store.finish(record, phase, location, {
-      operationId: record.operationId,
-      source: 'host-attestation',
-      at: dependencies.now(),
-    });
+    const settled = dependencies.store.finish(
+      record,
+      phase,
+      location,
+      {
+        operationId: record.operationId,
+        source: 'host-attestation',
+        at: dependencies.now(),
+      },
+      workspace,
+    );
 
     return settled.outcome === 'persisted'
       ? {

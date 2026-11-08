@@ -316,8 +316,21 @@ export async function prepareHerdrWorker(
 
     const snapshot = read(await dependencies.provider.snapshot(config.target, config.root, signal));
 
-    if (matching(snapshot, selected.checkout.checkout.rootPath, 'worker').length) {
-      return result('blocked', null, 'unowned_workspace');
+    const candidates = matching(snapshot, selected.checkout.checkout.rootPath, 'worker');
+    const receipt = managed.workspace;
+    const ownedWorkspace =
+      receipt &&
+      same(receipt.server, snapshot.server) &&
+      receipt.parentWorkspaceId === primary.handle.workspaceId &&
+      candidates.length === 1 &&
+      candidates[0]?.id === receipt.workspaceId &&
+      candidates[0].label === receipt.label &&
+      candidates[0].worktree?.repositoryRoot === config.root
+        ? candidates[0]
+        : null;
+
+    if (!receipt || !ownedWorkspace) {
+      return result('blocked', null, candidates.length ? 'unowned_workspace' : 'layout_missing');
     }
 
     const operationId = dependencies.newId();
@@ -338,7 +351,7 @@ export async function prepareHerdrWorker(
       phase: 'pending',
       operationId,
       revision: 0,
-      label: `astack-${sha256(`${attemptId}:${operationId}`).slice(0, 24)}`,
+      label: receipt.label,
       primaryWorkspaceId: primary.handle.workspaceId,
       primaryRoot: config.root,
       expectedAgentName: `astack-${sha256(`${run.projectId}:${attemptId}`).slice(0, 24)}`,
@@ -361,21 +374,25 @@ export async function prepareHerdrWorker(
     }
 
     try {
-      const opened = await dependencies.provider.openWorker(
+      const environment = ports?.outcome === 'completed' ? ports.value : {};
+
+      if (!dependencies.provider.attachWorker) {
+        return result('pending', record, 'provider_uncertain');
+      }
+
+      const opened = await dependencies.provider.attachWorker(
         {
           target: config.target,
           server: record.server,
           root: record.root,
-          parent: record.primaryWorkspaceId ?? '',
+          workspaceId: ownedWorkspace.id,
           label: record.label,
-          ...(ports?.outcome === 'completed' && Object.keys(ports.value).length
-            ? { environment: ports.value }
-            : {}),
+          environment,
         },
         signal,
       );
 
-      if (opened.outcome === 'rejected' || opened.value.alreadyOpen) {
+      if (opened.outcome === 'rejected') {
         return result('pending', record, 'provider_uncertain');
       }
 

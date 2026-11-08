@@ -2,20 +2,19 @@
 
 ## Implemented scope
 
-An orchestrator selects a task, project, ready owned checkout, branch and initial full SHA. `implement submit` accepts a durable implementation job through the local service. The coordinator launches the configured worker and hands it a deterministic initial prompt through the runtime's durable input primitive. `implement inspect` reads saved delivery and blocker evidence, including after the service stops.
+An orchestrator selects a task and project; Astack creates the task checkout, branch and grouped Herdr workspace. `implement submit` accepts a durable implementation job through the local service. The coordinator launches the configured worker and hands it a deterministic initial prompt through the runtime's durable input primitive. `implement inspect` reads saved delivery and blocker evidence, including after the service stops.
 
-This workflow does not select issues, create a checkout implicitly, provision project environments, publish changes, open PRs, trigger review automatically, automatically ingest reports or clean up workers. Worktree preparation is an explicit existing primitive. Workers can submit their own report through `run report --stdin`; the coordinator validates it. UI idle/done and terminal-input acknowledgement are insufficient.
+This workflow does not select issues, publish changes, open PRs, trigger review automatically, automatically ingest reports or automatically enroll cleanup. Configured before/after hooks run around worker execution. Workers can submit their own report through `run report --stdin`; the coordinator validates it. UI idle/done and terminal-input acknowledgement are insufficient.
 
 ## CLI sequence
 
-Prepare an owned checkout and configure the selected project agent and Herdr target using the existing commands. `worktree prepare` returns the allocated registered checkout ID. Start the service with the explicit runtime opt-in, then submit from any directory:
+Configure the selected project agent and Herdr target. Start the service with the explicit runtime opt-in, then submit from any directory:
 
 ```sh
 astack service run --codex-herdr --codex-executable /trusted/bin/codex
 
 astack implement submit \
-  --project project-a --checkout allocated-checkout \
-  --key selected-task-42 --branch task-42 --commit <full-initial-sha> \
+  --project project-a --key selected-task-42 \
   --task 'Implement the selected behavior.' \
   --criterion 'Preserve the existing public interface.' --json
 
@@ -26,7 +25,7 @@ Use global `--state-directory` and `--herdr-executable` to select explicit host 
 
 `--criterion` is repeatable. `--instruction <relative-Markdown-path>` is repeatable and replaces the default instruction path list (`AGENTS.md`, `AGENTS.override.md`). Include the defaults yourself when adding other instruction references. Missing files are explicitly recorded as absent. An empty instruction list is available to library callers; the prompt still requires applicable repository/native instructions. Directory-specific instructions must be read as the worker enters those directories. There is no recursive repository discovery, automatic tracker lookup, or implicit target from ambient cwd/focus.
 
-The role is fixed to `implementer`, resolved under the current project configuration. The existing runtime currently blocks hooks, pinned skill delivery and explicit environment requirements that it cannot satisfy. Do not remove required configuration merely to make submission/launch succeed. The checkout must already be registered as a ready Astack-owned worktree in this project, with intact ownership/location, a clean Git status and exact initial branch/SHA. A primary or unowned checkout is refused. Preparation and task acceptance are separate operations, so an unused prepared checkout can remain after a rejected submission; nothing is automatically deleted.
+The role is fixed to `implementer`. Astack creates a dedicated worktree at the primary checkout's current commit, or at an explicitly selected `--base` commit. It persists the checkout identity and Herdr workspace before accepting the job. An uncertain setup remains inspectable and is not automatically repeated.
 
 ## Durable acceptance and idempotency
 

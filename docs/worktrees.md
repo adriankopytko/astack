@@ -2,7 +2,7 @@
 
 ## Implemented scope
 
-Issue #13 adds `prepareWorktree`, `inspectWorktree`, `removeWorktree`, and `reconcileWorktree`, with matching `astack worktree` commands. These operations create isolated Git checkouts, persist ownership, and preserve uncertain or unsafe resources. They do not launch agents, provision applications, run project hooks, close workspaces, allocate ports, or publish GitHub objects.
+Astack tracks owned worktrees through prepare, inspect, remove and reconcile operations. The CLI prepares worker checkouts through the running Herdr-enabled service, which creates a grouped workspace with the checkout. Task submission normally performs this automatically. These operations persist ownership and do not themselves launch agents, run project hooks or publish GitHub objects.
 
 ```sh
 astack worktree prepare --project example --key task-42 \
@@ -11,7 +11,7 @@ astack worktree inspect <worktree-id> --json
 astack worktree remove <worktree-id> --json
 ```
 
-Host `--state-directory` and `--git-executable` options are shared with project commands. Commands target registered identity or an owned worktree ID independently of caller cwd. The library requires full `refs/heads/...` branch names; the CLI also accepts short branch names and normalizes them.
+Preparation and reconciliation require the running Herdr-enabled service. Host `--state-directory` and `--git-executable` options are shared with project commands. Commands target registered identity or an owned worktree ID independently of caller cwd. The library requires full `refs/heads/...` branch names; the CLI also accepts short branch names and normalizes them.
 
 ## Inputs, bindings, and dependencies
 
@@ -52,7 +52,7 @@ Removal claims the ready record with a new operation ID and revision, retaining 
 
 Immediately before the Git write, repeat ownership, directory identity, Git membership, branch/SHA, lock/prune, tracked/untracked status, and ignored-file checks. Both ordinary and ignored files block cleanup. An externally switched branch, detached HEAD, changed directory identity, edited marker, locked/prunable worktree, or incomplete evidence preserves the resource. Source checkout identity is also rechecked; no automatic switch to another source occurs.
 
-Run only `git worktree remove` without force. There is no recursive filesystem deletion, task-branch deletion, remote branch deletion, unlocking of user locks, or worktree pruning. Git can additionally refuse initialized submodules or other unsupported states; retain pending evidence rather than forcing removal.
+Run only `git worktree remove` without force. There is no recursive filesystem deletion, remote branch deletion, implementation branch deletion, unlocking of user locks, or worktree pruning. The cleanup workflow separately removes an unchanged Astack-generated reviewer branch after removing its checkout. Git can additionally refuse initialized submodules or other unsupported states; retain pending evidence rather than forcing removal.
 
 After removal, verify both checkout-path absence and Git-registration absence, and verify the task branch still references the recorded removal commit. Then persist `removed` and release the corresponding attempt worktree resource atomically. Container/marker and historical checkout registration remain for audit/recovery; retention cleanup is later work. A removed checkout ID resolves as stale if selected as a live checkout. Repeated removal verifies the retained evidence and does not launch another removal.
 

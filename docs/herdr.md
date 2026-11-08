@@ -6,7 +6,7 @@ Issue #16 adds project-bound Herdr settings, persistent primary project spaces, 
 
 The integration was implemented against the installed Herdr 0.9.0 bundled protocol 22 schema (`herdr api schema --json`). The adapter explicitly supports protocol 22 and rejects incompatible snapshots. No live user layouts or agents are needed for default verification.
 
-Herdr documents existing-checkout opening and grouping in its [CLI reference](https://herdr.dev/docs/cli-reference/#worktrees). Its [socket API](https://herdr.dev/docs/socket-api/) describes snapshot fields and scoped runtime identities. The installed schema is the authority for this adapter's supported wire shape; raw diagnostics and unrelated metadata do not become Astack results.
+Herdr documents worktree creation and grouping in its [CLI reference](https://herdr.dev/docs/cli-reference/#worktrees). Its [socket API](https://herdr.dev/docs/socket-api/) describes snapshot fields and scoped runtime identities. The installed schema is the authority for this adapter's supported wire shape; raw diagnostics and unrelated metadata do not become Astack results.
 
 ## Commands
 
@@ -38,23 +38,9 @@ The saved target and workspace handle keep later operations directed at the sele
 
 ## Grouped owned workers
 
-`prepareHerdrWorker({ schemaVersion: 1, attemptId }, dependencies, signal?)` resolves the persisted attempt and job. The project, repository, checkout, branch, commit and accepted policy come from those records. The target checkout must already be an Astack-managed ready worktree with matching registered filesystem identities and an intact ownership marker. Initial preparation requires the exact saved branch and full commit. It does not create a Git checkout, adopt an arbitrary linked worktree, or infer a parent from the calling orchestrator.
+Task submission persists an owned worktree intent, then asks Herdr to create the Git worktree and grouped child workspace together with an explicit path, branch and base commit. Astack verifies the checkout, workspace, parent and server, and stores the workspace receipt with the owned worktree. Runtime startup binds to this exact saved workspace; it does not reopen an existing checkout.
 
-The saved job configuration is rechecked before opening a worker layout. The operation ensures the registered project's primary, reserves one durable worker intent for the attempt/checkout, and invokes:
-
-```sh
-herdr worktree open --workspace <saved-primary-workspace-id> --path <owned-checkout> --label <operation-label> --no-focus
-```
-
-When the accepted agent configuration declares ports, Astack then creates a tab in the resulting grouped workspace with `--env NAME=PORT` for each reservation. It binds the worker to that tab's returned pane after a fresh snapshot verifies the exact workspace, terminal and checkout. If either provider operation is uncertain, the saved layout remains pending and is not automatically repeated.
-
-No `worktree create`, `worktree remove`, `--force`, `--trust-repository`, pane input or agent-start command is used. Git worktree ownership remains with Astack's worktree operations. Opening an existing checkout can start a Herdr shell and trigger the server's own configured plugin behavior; Herdr's shell/plugin configuration is trusted host behavior, not a portable PR permission source. Astack does not install or alter it.
-
-A fresh snapshot verifies the linked worker checkout, project repository root, parent workspace existence, exact worker pane cwd and workspace/tab/pane/terminal relationships. An already-open unowned worker workspace is preserved and blocked. A race yielding `already_open` leaves pending evidence rather than adopting another creator's layout.
-
-Ready worker handles and attempt-bound retained `herdr-space` resources are committed together. One worker association per attempt and checkout prevents another writer from adopting the same prepared layout. This slice does not release worker resources, recycle them for another attempt, or close their checkout/workspace. Review workflows can prepare a separate owned checkout; cleanup/handoff policy comes later.
-
-Subsequent inspection permits commits made on the assigned branch while preserving the original base commit as assignment evidence. A changed branch, edited marker or replaced checkout blocks. Inspection does not claim that current HEAD still equals the starting commit or that new commits satisfy the task.
+Configured ports are added to a new tab in the same child workspace before the agent starts. Before/after hooks run in the worker checkout. If creation is interrupted, the saved worktree intent prevents a duplicate create. After the original writer has stopped, `astack worktree reconcile <id> --operation <operation-id> --writer-stopped` asks the running service to inspect the matching Herdr workspace and settle the intent.
 
 ## Agent attribution
 

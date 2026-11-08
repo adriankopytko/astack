@@ -72,9 +72,7 @@ export function wireReviewCommands(program: Command) {
   review
     .command('submit')
     .requiredOption('--project <id>', 'Registered project')
-    .requiredOption('--checkout <id>', 'Dedicated clean, ready Astack-owned reviewer checkout')
     .requiredOption('--key <key>', 'Stable request key')
-    .requiredOption('--branch <branch>', 'Expected local reviewer branch')
     .requiredOption('--commit <sha>', 'Explicit full PR head SHA already present locally')
     .requiredOption('--repo <owner/repo>', 'Explicit base repository; normalized to lowercase')
     .requiredOption('--pr <number>', 'Explicit PR number')
@@ -109,9 +107,7 @@ export function wireReviewCommands(program: Command) {
     .action(
       async (options: {
         project: string;
-        checkout: string;
         key: string;
-        branch: string;
         commit: string;
         repo: string;
         pr: string;
@@ -127,14 +123,9 @@ export function wireReviewCommands(program: Command) {
         await execute(options.json, (state) =>
           requestLocalService(state.stateDirectory, {
             schemaVersion: 1,
-            operation: 'review_submit',
+            operation: 'review_worker_submit',
             projectId: options.project,
-            checkoutId: options.checkout,
             key: options.key,
-            branch: options.branch.startsWith('refs/')
-              ? options.branch
-              : `refs/heads/${options.branch}`,
-            commit: options.commit,
             target: {
               host: options.host.toLowerCase(),
               repository: options.repo.toLowerCase(),
