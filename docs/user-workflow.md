@@ -31,7 +31,7 @@ Start by initializing or registering a repository:
 
 ```sh
 astack init /path/to/project --dry-run --json
-astack init /path/to/project --non-interactive --with-skills --json
+astack init /path/to/project --with-skills --json
 ```
 
 Initialization registers the project, creates an incomplete `.astack/config.json` starter, optionally installs all bundled project skills, and ensures its named Herdr workspace. Init works with the local service running or stopped. It reuses an existing workspace with that name or creates one. The user or agent inspects the project and fills in its configuration; Astack does not discover tools or execute project scripts during init.

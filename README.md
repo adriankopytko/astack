@@ -64,7 +64,7 @@ Next, connect remaining project setup and runtime integrations to these run cont
 
 ```sh
 astack init /absolute/project --dry-run --json
-astack init /absolute/project --non-interactive --with-skills --json
+astack init /absolute/project --with-skills --json
 ```
 
 `init` registers one repository, creates an incomplete `.astack/config.json` starter where safe, and optionally installs all bundled project skills. Existing authored or edited setup is preserved. User-level skill availability is inspected without changing global setup. Init ensures the project primary Herdr workspace by name using the saved target or standard default session/socket. Add `--herdr-session <session> --herdr-socket <path>` to select a different target. No workers, project scripts or dependency installation run. Initialization success is separate from delegation readiness; see [initialization and recovery](docs/initialization.md).

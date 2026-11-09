@@ -37,7 +37,6 @@ interface Options {
   checkout?: string;
   id?: string;
   dryRun?: boolean;
-  nonInteractive?: boolean;
   withSkills?: boolean;
   userSkillsRoot?: string;
   herdrSession?: string;
@@ -139,7 +138,7 @@ function render(result: InitializationResult, json?: boolean) {
 
     if (view.userSkills.outcome === 'completed') {
       process.stdout.write(
-        `User orchestrator skill: ${view.userSkills.value.available ? 'available' : 'missing/outdated'}\n`,
+        `User-level managed orchestrator skill: ${view.userSkills.value.available ? 'current' : 'not current or not managed by Astack'}\n`,
       );
     }
 
@@ -244,7 +243,6 @@ export function wireInitializationCommand(program: Command) {
     .option('--checkout <id>', 'Select an existing registered checkout; selectors must agree')
     .option('--id <id>', 'Assign a new project ID or assert the selected saved ID')
     .option('--dry-run', 'Read-only plan; no registration, files, state or provider setup')
-    .option('--non-interactive', 'Report remaining decisions without prompts (also the default)')
     .option('--with-skills', 'Install all bundled project skills')
     .option(
       '--user-skills-root <directory>',

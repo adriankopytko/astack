@@ -33,13 +33,11 @@ import {
   createBundledSkillReader,
   nodeSkillDirectories,
   createNodeWorktreeFiles,
-  registerProject,
   resolveConfiguration,
   submitServiceJob,
   checkConfigurationDispatch,
   inspectSkills,
   reconcileHerdrSpace,
-  hostConfigurationPolicySchema,
   projectConfigurationFileSchema,
   type InitializationDependencies,
   type InitializationResult,
@@ -435,31 +433,10 @@ await test(
 );
 
 await test(
-  'legacy host setup and authored files remain untouched while init creates project configuration',
+  'authored ignore rules remain untouched while init creates project configuration',
   options,
   async () => {
     await fixture(async (f) => {
-      const registered = await registerProject(
-        { schemaVersion: 1, path: f.source, projectId: 'existing-project' },
-        f.deps,
-      );
-
-      assert.ok(registered.outcome === 'persisted');
-
-      await mkdir(join(f.state, 'config'), { mode: 0o700 });
-      const policy = hostConfigurationPolicySchema.parse({
-        schemaVersion: 1,
-        projectId: registered.value.project.id,
-        repositoryId: registered.value.repository.id,
-        project: { roles: { implementer: { runtime: 'codex-herdr' } } },
-        execution: {
-          allowedEnvironment: [],
-          commands: {},
-          skills: [],
-        },
-      });
-      const contents = `${JSON.stringify(policy)}\n`;
-      await writeFile(join(f.state, 'config', 'existing-project.json'), contents, { mode: 0o600 });
       await mkdir(join(f.source, '.astack'));
       await writeFile(join(f.source, '.astack', '.gitignore'), '# Authored rules\n');
       const initialized = view(
@@ -474,10 +451,6 @@ await test(
 
       await access(join(f.source, '.astack', 'config.json'));
 
-      assert.equal(
-        await readFile(join(f.state, 'config', 'existing-project.json'), 'utf8'),
-        contents,
-      );
       assert.equal(
         await readFile(join(f.source, '.astack', '.gitignore'), 'utf8'),
         '# Authored rules\n',
@@ -750,7 +723,7 @@ await test(
 );
 
 await test(
-  'packed init preview and neutral-directory failure create no state; noninteractive init remains conservative',
+  'packed init preview and neutral-directory failure create no state',
   options,
   async () => {
     const root = await realpath(await mkdtemp(join(tmpdir(), 'astack-init-cli-')));
@@ -809,7 +782,7 @@ await test(
       await assert.rejects(access(state), { code: 'ENOENT' });
       await assert.rejects(access(userSkills), { code: 'ENOENT' });
       await assert.rejects(access(join(source, '.astack')), { code: 'ENOENT' });
-      const neutral = call(['--non-interactive']);
+      const neutral = call([]);
 
       assert.equal(neutral.status, 1);
 
@@ -818,13 +791,7 @@ await test(
       assert.ok(failed.outcome === 'rejected' && failed.error.code === 'project_context_required');
 
       await assert.rejects(access(state), { code: 'ENOENT' });
-      const initialized = call([
-        source,
-        '--id',
-        'packed-project',
-        '--non-interactive',
-        '--with-skills',
-      ]);
+      const initialized = call([source, '--id', 'packed-project', '--with-skills']);
 
       assert.equal(initialized.status, 1, initialized.stderr || initialized.stdout);
 

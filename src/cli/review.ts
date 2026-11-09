@@ -1,9 +1,8 @@
 import { wireReviewResultCommands } from './review-results.js';
 import { wireAutomaticReviewCommands } from './automatic-review.js';
-import { ensureLocalService } from './ensure-service.js';
+import { requestStartingService } from './ensure-service.js';
 import { resolve } from 'node:path';
 import { Command } from 'commander';
-import { requestLocalService } from '../adapters/local/service-client.js';
 import { openSqliteState } from '../adapters/state/open-sqlite-state.js';
 import { inspectReview } from '../application/review.js';
 import type { ServiceRpcResponse } from '../contracts/service-rpc.js';
@@ -121,35 +120,36 @@ export function wireReviewCommands(program: Command) {
         instruction?: string[];
         json?: boolean;
       }) => {
-        await execute(options.json, async (state) => {
+        await execute(options.json, (state) => {
           const host = program.opts<{ gitExecutable?: string; herdrExecutable?: string }>();
-          const service = await ensureLocalService(state.stateDirectory, host);
 
-          if (service.outcome === 'rejected') {
-            return service;
-          }
-
-          return requestLocalService(state.stateDirectory, {
-            schemaVersion: 1,
-            operation: 'review_worker_submit',
-            projectId: options.project,
-            key: options.key,
-            target: {
-              host: options.host.toLowerCase(),
-              repository: options.repo.toLowerCase(),
-              number: Number(options.pr),
-              sha: options.commit,
+          return requestStartingService(
+            state.stateDirectory,
+            {
+              schemaVersion: 1,
+              operation: 'review_worker_submit',
+              projectId: options.project,
+              key: options.key,
+              target: {
+                host: options.host.toLowerCase(),
+                repository: options.repo.toLowerCase(),
+                number: Number(options.pr),
+                sha: options.commit,
+              },
+              gate: {
+                requiredChecks: options.check,
+                overrideReason: options.overrideGate ?? null,
+                ...(options.allowNoChecks ? { allowNoChecks: true } : {}),
+              },
+              repeat: options.repeat ?? false,
+              resources: options.resource,
+              ...(options.instruction === undefined
+                ? {}
+                : { instructionPaths: options.instruction }),
+              request: {},
             },
-            gate: {
-              requiredChecks: options.check,
-              overrideReason: options.overrideGate ?? null,
-              ...(options.allowNoChecks ? { allowNoChecks: true } : {}),
-            },
-            repeat: options.repeat ?? false,
-            resources: options.resource,
-            ...(options.instruction === undefined ? {} : { instructionPaths: options.instruction }),
-            request: {},
-          });
+            host,
+          );
         });
       },
     );

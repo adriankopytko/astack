@@ -222,11 +222,6 @@ async function readiness(
       'project_configuration',
       `Fill in the project configuration at ${join(view.target.root, '.astack', 'config.json')} using the project's instructions and tooling.`,
     );
-    diagnostic(
-      view,
-      'execution_policy_required',
-      'Fill in the project configuration and resolve any reported prerequisites before delegating.',
-    );
   }
 }
 
@@ -409,7 +404,6 @@ export async function initializeProject(
       delegation: 'not_checked',
       diagnostics: [],
     };
-    view.target.location = location;
 
     if (deps.herdr && selected.project) {
       const settings = deps.herdr.herdr.settings(selected.project.project.id);
@@ -512,27 +506,24 @@ export async function initializeProject(
       return { schemaVersion: 1, outcome: 'partial', view, registration };
     }
 
-    for (const [root, paths] of [
-      [
-        view.target.root,
-        ['.astack', ...(request.skills.length ? ['.agents', '.agents/skills'] : [])],
-      ],
-    ] as const) {
-      const ready = await sameTarget(selected, deps, signal);
+    const ready = await sameTarget(selected, deps, signal);
 
-      if (ready.outcome === 'rejected') {
-        diagnostic(view, ready.error.code, ready.error.message);
+    if (ready.outcome === 'rejected') {
+      diagnostic(view, ready.error.code, ready.error.message);
 
-        return { schemaVersion: 1, outcome: 'partial', view, registration };
-      }
+      return { schemaVersion: 1, outcome: 'partial', view, registration };
+    }
 
-      const prepared = await deps.layout.prepare(root, paths, signal);
+    const prepared = await deps.layout.prepare(
+      view.target.root,
+      ['.astack', ...(request.skills.length ? ['.agents', '.agents/skills'] : [])],
+      signal,
+    );
 
-      if (prepared.outcome === 'rejected') {
-        diagnostic(view, prepared.error.code, prepared.error.message);
+    if (prepared.outcome === 'rejected') {
+      diagnostic(view, prepared.error.code, prepared.error.message);
 
-        return { schemaVersion: 1, outcome: 'partial', view, registration };
-      }
+      return { schemaVersion: 1, outcome: 'partial', view, registration };
     }
 
     for (const [index, plan] of plans.entries()) {
@@ -544,10 +535,7 @@ export async function initializeProject(
         return { schemaVersion: 1, outcome: 'partial', view, registration };
       }
 
-      const asset =
-        view.assets[index]?.reason === 'legacy_host_setup'
-          ? view.assets[index]!
-          : await writeInitializationAsset(plan, deps, signal);
+      const asset = await writeInitializationAsset(plan, deps, signal);
       view.assets[index] = asset;
 
       if (asset.state === 'preserved') {
@@ -556,7 +544,7 @@ export async function initializeProject(
           `preserved_${asset.kind}`,
           asset.kind.endsWith('ignore')
             ? 'Authored ignore rules were preserved; ensure pending journals and stages stay out of commits.'
-            : 'Authored, edited or legacy setup was preserved; inspect it before changing configuration.',
+            : 'Authored or edited setup was preserved; inspect it before changing configuration.',
         );
       }
 

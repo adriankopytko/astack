@@ -34,6 +34,7 @@ export async function requestLocalService(
       ? request.operation
       : null;
   const setup = [
+    'project_initialize',
     'implement_worker_submit',
     'review_worker_submit',
     'worker_worktree_prepare',

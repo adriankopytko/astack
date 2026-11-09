@@ -1,9 +1,8 @@
 import { readRequestFile } from './request-file.js';
-import { ensureLocalService } from './ensure-service.js';
+import { requestStartingService } from './ensure-service.js';
 import { rejected } from '../contracts/operation-result.js';
 import { resolve } from 'node:path';
 import { Command } from 'commander';
-import { requestLocalService } from '../adapters/local/service-client.js';
 import { openSqliteState } from '../adapters/state/open-sqlite-state.js';
 import { inspectImplementation } from '../application/implementation.js';
 import type { ServiceRpcResponse } from '../contracts/service-rpc.js';
@@ -115,26 +114,27 @@ export function wireImplementationCommands(program: Command) {
           return;
         }
 
-        await execute(options.json, async (state) => {
+        await execute(options.json, (state) => {
           const host = program.opts<{ gitExecutable?: string; herdrExecutable?: string }>();
-          const service = await ensureLocalService(state.stateDirectory, host);
 
-          if (service.outcome === 'rejected') {
-            return service;
-          }
-
-          return requestLocalService(state.stateDirectory, {
-            schemaVersion: 1,
-            operation: 'implement_worker_submit',
-            ...(fixOf === undefined ? {} : { fixOf }),
-            projectId: options.project,
-            key: options.key,
-            ...(options.base === undefined ? {} : { baseCommit: options.base }),
-            description: options.task,
-            acceptanceCriteria: options.criterion,
-            ...(options.instruction === undefined ? {} : { instructionPaths: options.instruction }),
-            request: {},
-          });
+          return requestStartingService(
+            state.stateDirectory,
+            {
+              schemaVersion: 1,
+              operation: 'implement_worker_submit',
+              ...(fixOf === undefined ? {} : { fixOf }),
+              projectId: options.project,
+              key: options.key,
+              ...(options.base === undefined ? {} : { baseCommit: options.base }),
+              description: options.task,
+              acceptanceCriteria: options.criterion,
+              ...(options.instruction === undefined
+                ? {}
+                : { instructionPaths: options.instruction }),
+              request: {},
+            },
+            host,
+          );
         });
       },
     );

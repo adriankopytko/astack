@@ -2,7 +2,7 @@
 name: astack-orchestrator
 description: Delegate implementation and code review through Astack, inspect accepted results, and choose explicit follow-up or recovery actions across registered projects.
 metadata:
-  asset-version: '1.0.16'
+  asset-version: '1.0.17'
 ---
 
 # Orchestrate with Astack
@@ -20,7 +20,7 @@ Read `astack --skill` for the installed command contracts when you need details;
 
 ## Delegate and inspect
 
-Start the local service only with the required host opt-ins. `astack service run --codex-herdr` enables the supported native runtime; `astack service run` alone has no worker adapters. The project's saved Herdr primary space is used rather than the calling pane. Preserve user focus and unrelated workspaces.
+Submitting work starts the local service if needed; the job selects its runtime from project configuration. The project's saved Herdr primary space is used rather than the calling pane. Preserve user focus and unrelated workspaces.
 
 - `astack implement submit --project <project-id> --key <task-key> --task <task-description> --json` delegates implementation with explicit acceptance criteria and instruction paths when needed. Use a fresh key for a genuinely different task, never to bypass an uncertain send.
 - `astack run inspect <job-id> --json` reads accepted outcome, worker observation and retained resources separately. A worker's done/idle UI and a proposed JSON result are not accepted completion.
@@ -50,9 +50,9 @@ Report concrete job/attempt/checkout/commit identities, accepted outcomes, block
 
 ## Bootstrap a project deliberately
 
-For a new project, inspect `astack init <path> --dry-run --json`. Apply with `astack init <path> --non-interactive --json` only within authorized setup scope. Optional repeated `--role implementer --role reviewer` installs project-local guides; user-level orchestrator availability is read-only and never installed implicitly. Initialization preserves authored setup and creates an incomplete `.astack/config.json` starter; fill it; Astack reads changes directly. Delegation readiness is separate. Init ensures the named Herdr workspace using the saved target or default session/socket; it reports whether the workspace was created or reused. Inspect project instructions and tooling yourself and fill the project configuration; initialization does not discover tools or run scripts, dependencies or agents. Preserve partial registration and pending writer intents; inspect their component recovery contracts before retrying. See `astack init --help` and the canonical `astack --skill` guide.
+For a new project, inspect `astack init <path> --dry-run --json`. Apply with `astack init <path> --with-skills --json` to install the bundled project skills. Initialization preserves authored setup and creates an incomplete `.astack/config.json` starter; fill it using project instructions. Init creates or reuses the named Herdr workspace. Commit and push project skills and instructions so they are available in worker worktrees. It does not discover tools or run scripts, dependencies or agents. Preserve partial registration and pending writer intents; inspect their component recovery contracts before retrying. See `astack init --help` and the canonical `astack --skill` guide.
 
-Before a new Codex worker starts, configure its agent provider, model and reasoning. Instructions are optional. Astack supplies launch flags and uses the saved job settings; project-agent launches do not require executable or configuration-file hashes. Preserve pending launch records and resource holds for deliberate recovery. The runtime service still requires `--codex-herdr`.
+Before a new Codex worker starts, configure its agent provider, model and reasoning. Instructions are optional. Astack supplies launch flags and uses the saved job settings; project-agent launches do not require executable or configuration-file hashes. Preserve pending launch records and resource holds for deliberate recovery.
 
 Per-agent `hooks.before` and `hooks.after` run automatically. Before failure blocks launch; after runs for terminal tasks, not needs_decision. Inspect hook outcomes with `astack run inspect <job-id> --json`.
 

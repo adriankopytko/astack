@@ -1,12 +1,12 @@
 # Conservative project initialization
 
-`initializeProject` and `astack init` compose existing registration, managed-file, skill, configuration and Herdr operations. They initialize one explicitly selected repository. They never scan/register every child of a collection directory. See ADR 0022.
+`initializeProject` and `astack init` compose existing registration, managed-file, skill, configuration and Herdr operations. They initialize one explicitly selected repository. They never scan/register every child of a collection directory. ADRs 0027–0029 record the current project configuration and workspace decisions.
 
 ## Inputs and selection
 
 ```sh
 astack init /absolute/project --dry-run --json
-astack init /absolute/project --id project-example --non-interactive --json
+astack init /absolute/project --id project-example --json
 astack init /absolute/project --with-skills --json
 astack init --project project-example --json
 astack init /absolute/project --herdr-session selected-session --herdr-socket /absolute/socket --json
@@ -47,7 +47,7 @@ Preview reports `not_checked` when workspace availability was not observed and n
 
 ## Results, failures, retry and cancellation
 
-Version 1 results are `previewed`, `initialized`, `partial` or a stable rejected operation result. `initialized` can coexist with `not_ready` or preserved authored assets. Requested skill/provider stages that cannot complete produce `partial`. JSON retains registration receipts, per-asset inspections/write results, configuration and provider evidence. Human output summarizes diagnostics. CLI exits nonzero on rejection/partial; noninteractive reporting is always the default (`--non-interactive` is explicit documentation of that behavior).
+Version 1 results are `previewed`, `initialized`, `partial` or a stable rejected operation result. `initialized` can coexist with `not_ready` or preserved authored assets. Requested skill/provider stages that cannot complete produce `partial`. JSON retains registration receipts, per-asset inspections/write results, configuration and provider evidence. Human output summarizes diagnostics. CLI exits nonzero on rejection/partial; initialization does not prompt.
 
 Successful stages remain durable on later failure; no rollback removes files, registry entries or primary spaces. Repeat setup reuses registration IDs and matching managed assets without replacing files. Pending file writers stop setup and retain journals. Pending Herdr creation stays pending on retry; reconcile through explicit Herdr operations after establishing the required stopped-writer evidence. Never retry uncertain effects by deleting metadata, age or PID absence. A caught adapter failure returns partial evidence plus an inspection requirement; missing evidence is not proof that no effect occurred.
 

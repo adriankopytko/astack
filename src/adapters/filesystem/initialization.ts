@@ -82,13 +82,6 @@ export const nodeInitializationFiles: InitializationFiles = {
       const root = await canonicalFileRoot(path);
 
       for (const name of paths) {
-        if (!pathsAllowed.has(name)) {
-          return rejected(
-            'invalid_request',
-            'Initialization directory is not part of the supported layout.',
-          );
-        }
-
         if (signal?.aborted) {
           return rejected('cancelled', 'Initialization directory setup was cancelled.');
         }
