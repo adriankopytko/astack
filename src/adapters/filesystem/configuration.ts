@@ -184,6 +184,9 @@ export function createNodeConfigurationReader(
                   command: null,
                   model: agent.model,
                   reasoning: agent.reasoning,
+                  ...(agent.workspacePrefix === undefined
+                    ? {}
+                    : { workspacePrefix: agent.workspacePrefix }),
                   ...(agent.instructions === undefined ? {} : { instructions: agent.instructions }),
                 },
               ]),

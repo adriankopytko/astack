@@ -40,6 +40,8 @@ The saved target and workspace handle keep later operations directed at the sele
 
 Task submission persists an owned worktree intent, then asks Herdr to create the Git worktree and grouped child workspace together with an explicit path, branch and base commit. Astack verifies the checkout, workspace, parent and server, and stores the workspace receipt with the owned worktree. Runtime startup binds to this exact saved workspace; it does not reopen an existing checkout.
 
+Project agents can set `workspacePrefix` to identify their child spaces. Implementation and review use `IMPL` and `CR` when no prefix is configured; a unique suffix distinguishes workers.
+
 Configured ports are added to a new tab in the same child workspace before the agent starts. Before/after hooks run in the worker checkout. If creation is interrupted, the saved worktree intent prevents a duplicate create. After the original writer has stopped, `astack worktree reconcile <id> --operation <operation-id> --writer-stopped` asks the running service to inspect the matching Herdr workspace and settle the intent.
 
 ## Agent attribution

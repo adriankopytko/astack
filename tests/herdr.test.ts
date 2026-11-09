@@ -780,7 +780,14 @@ await test(
     await fixture(async ({ configure, opened, fake, state, sources }) => {
       await configure();
       await writeProjectConfiguration({ state, sources }, 0);
+      const configPath = join(sources[0]!, '.astack', 'config.json');
+      const projectConfig = JSON.parse(await readFile(configPath, 'utf8')) as {
+        agents: { implementer: { workspacePrefix?: string } };
+      };
+      projectConfig.agents.implementer.workspacePrefix = 'DEV';
+      await writeFile(configPath, JSON.stringify(projectConfig));
       let creates = 0;
+      const labels: string[] = [];
       let loseResponse = false;
       const provider = {
         ...fake.provider,
@@ -788,6 +795,7 @@ await test(
           input: NonNullable<Parameters<NonNullable<typeof fake.provider.createWorker>>[0]>,
         ) {
           creates++;
+          labels.push(input.label);
           git(
             input.sourceRoot,
             'worktree',
@@ -907,6 +915,8 @@ await test(
         );
         assert.match(reviewResult.value!.job.entry.branch, /^refs\/heads\/astack\/code-review-/);
         assert.equal(creates, 2);
+        assert.match(labels[0]!, /^DEV-/);
+        assert.match(labels[1]!, /^CR-/);
 
         loseResponse = true;
         const lostTask = [

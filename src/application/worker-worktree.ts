@@ -14,7 +14,11 @@ import type { WorktreeDependencies } from './worktree-evidence.js';
 /** Prepare an owned checkout and its Herdr child workspace as one provider effect. */
 export async function prepareWorkerWorktree(
   input: unknown,
-  dependencies: { worktrees: WorktreeDependencies; herdr: HerdrDependencies },
+  dependencies: {
+    worktrees: WorktreeDependencies;
+    herdr: HerdrDependencies;
+    workspacePrefix?: string;
+  },
   signal?: AbortSignal,
 ): Promise<WorktreeResult> {
   const request = parseOperationRequest(worktreePrepareRequestSchema, input);
@@ -55,7 +59,7 @@ export async function prepareWorkerWorktree(
       workspaceIntent: (id) => ({
         parentWorkspaceId: workspace.handle!.workspaceId,
         server: workspace.server,
-        label: workerWorkspaceLabel(id),
+        label: workerWorkspaceLabel(id, dependencies.workspacePrefix),
       }),
       effects: {
         ...worktrees.effects,
@@ -69,7 +73,7 @@ export async function prepareWorkerWorktree(
               parent: workspace.handle!.workspaceId,
               branch: intent.branch.slice('refs/heads/'.length),
               baseCommit: intent.baseCommit,
-              label: workerWorkspaceLabel(intent.id),
+              label: intent.workspace!.label,
             },
             effectSignal,
           );
@@ -94,7 +98,7 @@ export async function prepareWorkerWorktree(
 
           if (
             !isDeepStrictEqual(snapshot.value.server, workspace.server) ||
-            child?.label !== workerWorkspaceLabel(intent.id) ||
+            child?.label !== intent.workspace!.label ||
             child.worktree?.checkoutPath !== intent.checkoutPath ||
             child.worktree.repositoryRoot !== intent.sourceRoot ||
             !child.worktree.linked ||
@@ -110,7 +114,7 @@ export async function prepareWorkerWorktree(
             workspaceId: created.value.workspaceId,
             parentWorkspaceId: workspace.handle!.workspaceId,
             server: workspace.server,
-            label: workerWorkspaceLabel(intent.id),
+            label: intent.workspace!.label,
           });
         },
       },

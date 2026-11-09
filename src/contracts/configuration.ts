@@ -34,6 +34,10 @@ const roleFields = {
   model: z.string().min(1).max(128).nullable().optional(),
   reasoning: name.nullable().optional(),
   instructions: z.string().min(1).max(4000).optional(),
+  workspacePrefix: z
+    .string()
+    .regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,19}$/)
+    .optional(),
 };
 export const configurationRoleSchema = z.strictObject(roleFields);
 const rolePatch = configurationRoleSchema.partial();
@@ -52,6 +56,11 @@ export const effectiveConfigurationSchema = z.strictObject({
 });
 export const projectAgentSchema = z.strictObject({
   provider: name.describe('Agent provider. The built-in provider is codex.'),
+  workspacePrefix: z
+    .string()
+    .regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,19}$/)
+    .optional()
+    .describe('Prefix for this agent’s Herdr workspace label.'),
   permissions: z
     .strictObject({ files: z.enum(['readonly', 'write']).describe('File access for this agent.') })
     .optional(),

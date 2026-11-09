@@ -198,7 +198,13 @@ export async function submitWorkerTask(
 
   const tree = await prepareWorkerWorktree(
     { schemaVersion: 1, projectId: request.projectId, key: worktreeKey, branch, baseCommit: base },
-    { worktrees: deps.worktrees, herdr: deps.herdr },
+    {
+      worktrees: deps.worktrees,
+      herdr: deps.herdr,
+      workspacePrefix:
+        config.value.snapshot?.effective.roles[kind]?.workspacePrefix ??
+        (kind === 'reviewer' ? 'CR' : 'IMPL'),
+    },
     signal,
   );
 
