@@ -6,6 +6,8 @@ An orchestrator requests a review for a registered project, base repository host
 
 If the requested commit is not local, Astack fetches the explicitly selected PR head and verifies the requested commit is available. It does not discover unrelated PRs, edit fixes, publish GitHub reviews/comments, push or merge.
 
+The default comparison base is the PR base SHA recorded in the acceptance snapshot. Supply `--base <full-sha>` to review a narrower, explicit comparison instead; the PR base remains separately recorded and checked for changes. If the selected comparison commit is unavailable in the checkout, the reviewer reports that it needs a decision.
+
 ## CLI
 
 Configure the reviewer role and project Herdr target. Configure an approved Codex reviewer command with `--sandbox read-only` and the existing required native arguments. Astack starts its service on submission when needed. From any directory:

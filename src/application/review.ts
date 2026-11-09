@@ -231,7 +231,7 @@ async function submitReviewAuthorized(
       instructions,
       initialSnapshot: snapshot,
       resultContractVersion: 1,
-      promptVersion: automatic ? 4 : 3,
+      promptVersion: automatic ? 4 : value.comparisonBase ? 5 : 3,
     });
     const approvedDigest = await policy(task, deps, signal);
 

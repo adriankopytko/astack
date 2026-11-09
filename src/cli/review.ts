@@ -82,6 +82,7 @@ export function wireReviewCommands(program: Command) {
     .option('--project <id>', 'Registered project; inferred from the current repository if omitted')
     .requiredOption('--key <key>', 'Stable request key')
     .requiredOption('--commit <sha>', 'Explicit full PR head SHA already present locally')
+    .option('--base <sha>', 'Full comparison base SHA; defaults to the PR base')
     .requiredOption('--repo <owner/repo>', 'Explicit base repository; normalized to lowercase')
     .requiredOption('--pr <number>', 'Explicit PR number')
     .option('--host <host>', 'Explicit GitHub hostname', 'github.com')
@@ -117,6 +118,7 @@ export function wireReviewCommands(program: Command) {
         project?: string;
         key: string;
         commit: string;
+        base?: string;
         repo: string;
         pr: string;
         host: string;
@@ -149,6 +151,7 @@ export function wireReviewCommands(program: Command) {
                 operation: 'review_worker_submit',
                 projectId: project.value,
                 key: options.key,
+                ...(options.base === undefined ? {} : { comparisonBase: options.base }),
                 target: {
                   host: options.host.toLowerCase(),
                   repository: options.repo.toLowerCase(),

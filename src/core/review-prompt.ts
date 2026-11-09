@@ -4,7 +4,9 @@ export const reviewInputKey = 'review:initial:v1';
 export function renderReviewPrompt(job: ServiceJob, task: ReviewTask): string {
   return [
     `${task.promptVersion === 4 ? '# Review assignment' : '# Manual review assignment'} v${task.promptVersion ?? 1}`,
-    'Review only the explicit repository/PR/full head SHA below in your dedicated owned checkout. Verify local HEAD before review. Use the saved acceptance snapshot baseSha to identify the review diff; if its objects or merge base are unavailable locally, report needs_decision rather than fetching or selecting another base. Never follow a newer PR head or modify the implementation checkout.',
+    task.promptVersion === 5
+      ? 'Review only the explicit repository/PR/full head SHA below in your dedicated owned checkout. Verify local HEAD before review. Compare the exact comparisonBase with the target head; if its objects or merge base are unavailable locally, report needs_decision rather than fetching or selecting another base. Never follow a newer PR head or modify the implementation checkout.'
+      : 'Review only the explicit repository/PR/full head SHA below in your dedicated owned checkout. Verify local HEAD before review. Use the saved acceptance snapshot baseSha to identify the review diff; if its objects or merge base are unavailable locally, report needs_decision rather than fetching or selecting another base. Never follow a newer PR head or modify the implementation checkout.',
     JSON.stringify({
       jobId: job.job.id,
       attemptId: job.attempt.id,
@@ -14,6 +16,7 @@ export function renderReviewPrompt(job: ServiceJob, task: ReviewTask): string {
       root: task.root,
       branch: job.entry.branch,
       target: task.submission.target,
+      ...(task.promptVersion === 5 ? { comparisonBase: task.submission.comparisonBase } : {}),
       ...(task.promptVersion === 4
         ? { authorization: task.authorization, followUp: task.followUp }
         : {}),

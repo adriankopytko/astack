@@ -61,6 +61,7 @@ export const reviewSubmitRequestSchema = z
   .omit({ description: true, acceptanceCriteria: true, fixOf: true })
   .extend({
     target: reviewTargetSchema,
+    comparisonBase: implementationSubmitRequestSchema.shape.commit.optional(),
     gate: reviewGatePolicySchema.default({ requiredChecks: [], overrideReason: null }),
     repeat: z.boolean().default(false),
     resources: z
@@ -86,13 +87,17 @@ export const reviewTaskSchema = z
     instructions: z.array(instructionReferenceSchema).max(8),
     initialSnapshot: reviewSnapshotSchema,
     resultContractVersion: z.literal(1),
-    promptVersion: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).optional(),
+    promptVersion: z
+      .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)])
+      .optional(),
   })
   .refine(
     (v) =>
       (v.authorization === 'after-handoff'
         ? v.followUp !== undefined && v.promptVersion === 4
         : v.followUp === undefined) &&
+      (v.submission.comparisonBase === undefined || v.promptVersion === 5) &&
+      (v.promptVersion !== 5 || v.submission.comparisonBase !== undefined) &&
       JSON.stringify(v.submission.target) === JSON.stringify(v.initialSnapshot.target) &&
       v.instructions.length === v.submission.instructionPaths.length &&
       v.instructions.every((x, i) => x.path === v.submission.instructionPaths[i]) &&

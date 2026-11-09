@@ -28,6 +28,25 @@ import { fixture } from './support/implementation.js';
 import { gitPath, writeProjectConfiguration } from './support/service.js';
 
 const options = { timeout: 90000 };
+
+await test(
+  'review saves an explicit comparison base without replacing the PR freshness base',
+  options,
+  async () => {
+    await fixture(async (context) => {
+      const request = await requestFor(context);
+      const base = 'a'.repeat(40);
+      const prepared = { ...request, comparisonBase: base };
+      const { deps } = dependencies(context, request);
+      const review = accepted(await submitReview(prepared, deps));
+
+      assert.equal(review.assignment.promptVersion, 5);
+      assert.equal(review.assignment.initialSnapshot.baseSha, request.commit);
+      assert.equal(review.assignment.submission.comparisonBase, base);
+      assert.match(renderReviewPrompt(review.job, review.assignment), new RegExp(base));
+    });
+  },
+);
 type Context = Parameters<Parameters<typeof fixture>[0]>[0];
 function accepted(result: StateWriteResult<ReviewJob>): ReviewJob {
   reviewSubmitResultSchema.parse(result);
