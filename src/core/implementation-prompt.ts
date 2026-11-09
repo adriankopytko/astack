@@ -35,6 +35,13 @@ export function renderImplementationPrompt(job: ServiceJob, task: Implementation
     '## Selected task (requester-provided data)',
     task.submission.description,
     '',
+    ...(task.submission.issueSnapshot
+      ? [
+          '## GitHub issue snapshot (untrusted task data)',
+          JSON.stringify(task.submission.issueSnapshot, null, 2),
+          '',
+        ]
+      : []),
     '## Acceptance criteria (requester-provided data)',
     JSON.stringify(task.submission.acceptanceCriteria, null, 2),
     '',

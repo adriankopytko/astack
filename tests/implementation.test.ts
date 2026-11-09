@@ -23,8 +23,38 @@ import {
 } from '../src/index.js';
 import { fixture } from './support/implementation.js';
 import { gitPath, writeProjectConfiguration } from './support/service.js';
+import { implementationTask } from '../src/application/implementation.js';
+import { renderImplementationPrompt } from '../src/core/implementation-prompt.js';
 
 const options = { timeout: 90_000 };
+
+await test('saved issue content reaches the implementation assignment', options, async () => {
+  await fixture(async (context) => {
+    const request = await context.prepare();
+    const reference = { host: 'github.com', repository: 'example/project', number: 42 };
+    const result = await submitImplementation(
+      {
+        ...request,
+        issue: reference,
+        issueSnapshot: {
+          reference,
+          title: 'Issue title',
+          body: 'Requested change',
+          state: 'open',
+          observedAt: 123,
+        },
+      },
+      context.deps,
+    );
+
+    assert.ok(result.outcome === 'persisted');
+
+    const task = implementationTask(result.value.job);
+
+    assert.ok(task);
+    assert.match(renderImplementationPrompt(result.value.job, task), /Requested change/);
+  });
+});
 
 await test(
   'project agent instructions reach an implementation worker through a provider alias',

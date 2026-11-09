@@ -94,6 +94,7 @@ import { createNodeWorktreeFiles } from '../adapters/filesystem/worktree-files.j
 import { nodeImplementationContextReader } from '../adapters/filesystem/implementation-context.js';
 import { submitReview, inspectReview, type ReviewDependencies } from '../application/review.js';
 import { createGhReviewTargetReader } from '../adapters/github/review-target.js';
+import { createGhReadPrimitives } from '../adapters/github/read.js';
 import type { ReviewTargetReader } from '../ports/review.js';
 import { composeCodexHerdrRuntime } from './codex-runtime.js';
 import { listenLocalService } from '../service/local-transport.js';
@@ -281,6 +282,14 @@ export async function startLocalService(
                 ),
             }),
     };
+    const githubReads = gh
+      ? createGhReadPrimitives({
+          executable: gh,
+          runner: nodeProcessRunner,
+          environment,
+          now: Date.now,
+        })
+      : null;
     let workerInput: ImplementationWorkerInput = options.runWorkerInput ?? {
       receipt({ attemptId, key }) {
         const result = opened.runtime.action(attemptId, key);
@@ -429,7 +438,9 @@ export async function startLocalService(
         try {
           result = await submitWorkerTask(
             item.request.kind,
-            item.request.submission,
+            item.request.kind === 'implementer' && item.issueSnapshot
+              ? { ...item.request.submission, issueSnapshot: item.issueSnapshot }
+              : item.request.submission,
             {
               implementation,
               review,
@@ -683,6 +694,38 @@ export async function startLocalService(
                 ...dependencies,
                 workerQueue: opened.workerQueue,
                 available: availableWorkerRuntimes(),
+                ...(githubReads
+                  ? {
+                      githubIssues: {
+                        async read({ reference, root }, issueSignal) {
+                          const result = await githubReads.issue(
+                            {
+                              repository: {
+                                host: reference.host,
+                                repository: reference.repository,
+                              },
+                              number: reference.number,
+                              root,
+                              maxAgeMs: 60000,
+                            },
+                            issueSignal,
+                          );
+
+                          if (result.outcome === 'rejected') {
+                            return result;
+                          }
+
+                          return completed({
+                            reference,
+                            title: result.value.value.title,
+                            body: result.value.value.body,
+                            state: result.value.value.state,
+                            observedAt: result.value.observedAt,
+                          });
+                        },
+                      },
+                    }
+                  : {}),
                 nextId: () => `job-${randomUUID()}`,
                 now: Date.now,
               },

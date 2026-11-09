@@ -88,7 +88,10 @@ export function wireImplementationCommands(program: Command) {
       '--base <sha>',
       'Optional full base commit SHA; defaults to freshly fetched origin/main',
     )
-    .requiredOption('--task <text>', 'Selected task without credentials')
+    .option('--task <text>', 'Selected task without credentials')
+    .option('--issue <number>', 'GitHub issue number to include in the assignment')
+    .option('--repo <owner/repo>', 'Issue repository')
+    .option('--host <host>', 'Issue GitHub hostname', 'github.com')
     .option('--criterion <text>', 'Acceptance criterion; repeatable', append, [])
     .option(
       '--instruction <relative-path>',
@@ -105,12 +108,24 @@ export function wireImplementationCommands(program: Command) {
         project?: string;
         key: string;
         base?: string;
-        task: string;
+        task?: string;
+        issue?: string;
+        repo?: string;
+        host: string;
         fixOf?: string;
         criterion: string[];
         instruction?: string[];
         json?: boolean;
       }) => {
+        if ((!options.task && !options.issue) || Boolean(options.issue) !== Boolean(options.repo)) {
+          render(
+            rejected('invalid_request', 'Provide --task or both --issue and --repo.'),
+            options.json,
+          );
+
+          return;
+        }
+
         let fixOf: unknown;
 
         try {
@@ -148,7 +163,16 @@ export function wireImplementationCommands(program: Command) {
                 projectId: project.value,
                 key: options.key,
                 ...(options.base === undefined ? {} : { baseCommit: options.base }),
-                description: options.task,
+                description: options.task ?? 'Implement the referenced GitHub issue.',
+                ...(options.issue && options.repo
+                  ? {
+                      issue: {
+                        host: options.host.toLowerCase(),
+                        repository: options.repo.toLowerCase(),
+                        number: Number(options.issue),
+                      },
+                    }
+                  : {}),
                 acceptanceCriteria: options.criterion,
                 ...(options.instruction === undefined
                   ? {}

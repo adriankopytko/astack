@@ -11,6 +11,52 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { reconcileLocalQueuedWorker } from '../src/host/reconcile-run.js';
 
+await test('issue assignments save one immutable issue snapshot and retries do not refetch', async () => {
+  await fixture(async ({ deps, opened }) => {
+    let calls = 0;
+    const reference = { host: 'github.com', repository: 'example/project', number: 42 };
+    const dependencies = {
+      ...deps,
+      workerQueue: opened.workerQueue,
+      nextId: () => 'job-issue',
+      githubIssues: {
+        async read() {
+          calls++;
+
+          return completed({
+            reference,
+            title: 'Fix it',
+            body: 'Issue details',
+            state: 'open' as const,
+            observedAt: 123,
+          });
+        },
+      },
+    };
+    const request = {
+      kind: 'implementer',
+      submission: {
+        schemaVersion: 1,
+        projectId: 'project-0',
+        key: 'issue',
+        description: 'Implement the issue',
+        issue: reference,
+      },
+    };
+    const first = await enqueueWorker(request, dependencies);
+    const again = await enqueueWorker(request, dependencies);
+
+    assert.ok(first.outcome === 'persisted' && again.outcome === 'persisted');
+    assert.equal(calls, 1);
+
+    const saved = opened.workerQueue.read(first.value.id);
+
+    assert.ok(saved.outcome === 'completed' && saved.value);
+    assert.equal(saved.value.issueSnapshot?.body, 'Issue details');
+    assert.equal(saved.value.issueSnapshot?.observedAt, 123);
+  });
+});
+
 await test(
   'cancelling during preparation prevents the worker job from starting',
   { timeout: 60000 },

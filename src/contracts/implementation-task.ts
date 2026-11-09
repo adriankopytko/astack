@@ -30,6 +30,21 @@ export const reviewFixReferenceSchema = z
     findingIndexes: z.array(z.number().int().min(0).max(31)).min(1).max(32),
   })
   .refine((v) => new Set(v.findingIndexes).size === v.findingIndexes.length);
+export const issueReferenceSchema = z.strictObject({
+  host: z
+    .string()
+    .regex(/^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/)
+    .refine((value) => !value.includes('..')),
+  repository: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,99}\/[a-z0-9][a-z0-9._-]{0,99}$/),
+  number: z.number().int().positive().max(2147483647),
+});
+export const issueSnapshotSchema = z.strictObject({
+  reference: issueReferenceSchema,
+  title: z.string().max(256),
+  body: z.string().refine((value) => Buffer.byteLength(value) <= 3500),
+  state: z.enum(['open', 'closed']),
+  observedAt: z.number().int().nonnegative(),
+});
 export const implementationSubmitRequestSchema = z
   .strictObject({
     schemaVersion: z.literal(1),
@@ -39,6 +54,8 @@ export const implementationSubmitRequestSchema = z
     branch: worktreePrepareRequestSchema.shape.branch,
     commit: worktreePrepareRequestSchema.shape.baseCommit,
     fixOf: reviewFixReferenceSchema.optional(),
+    issue: issueReferenceSchema.optional(),
+    issueSnapshot: issueSnapshotSchema.optional(),
     description: workerInputTextSchema.refine((value) => Buffer.byteLength(value) <= 6000),
     acceptanceCriteria: z
       .array(workerInputTextSchema.refine((value) => Buffer.byteLength(value) <= 512))

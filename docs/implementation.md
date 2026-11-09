@@ -4,7 +4,7 @@
 
 An orchestrator selects a task and project; `implement submit` durably queues it without preparing a checkout. When capacity is reserved, Astack creates the task checkout, branch and grouped Herdr workspace. The coordinator launches the configured worker and hands it a deterministic initial prompt through the runtime's durable input primitive. `implement inspect` reads queue, delivery and blocker evidence, including after the service stops.
 
-This workflow does not select issues, publish changes, open PRs, trigger review automatically, automatically ingest reports or automatically enroll cleanup. Configured before/after hooks run around worker execution. Workers can submit their own report through `run report --stdin`; the coordinator validates it. UI idle/done and terminal-input acknowledgement are insufficient.
+This workflow does not automatically select issues, publish changes, open PRs, trigger review automatically, automatically ingest reports or automatically enroll cleanup. Configured before/after hooks run around worker execution. Workers can submit their own report through `run report --stdin`; the coordinator validates it. UI idle/done and terminal-input acknowledgement are insufficient.
 
 ## CLI sequence
 
@@ -24,6 +24,8 @@ Use global `--state-directory` and `--herdr-executable` to select explicit host 
 Omit `--project` when submitting from inside a registered project; Astack resolves it from the current repository. Outside a registered repository, select the target explicitly with `--project`.
 
 `--criterion` is repeatable. `--instruction <relative-Markdown-path>` is repeatable and replaces the default instruction path list (`AGENTS.md`, `AGENTS.override.md`). Include the defaults yourself when adding other instruction references. Missing files are explicitly recorded as absent. An empty instruction list is available to library callers; the prompt still requires applicable repository/native instructions. Directory-specific instructions must be read as the worker enters those directories. There is no recursive repository discovery, automatic tracker lookup, or implicit target from ambient cwd/focus.
+
+For a specific GitHub issue, use `--issue 42 --repo owner/repository` and optionally `--host github.com` and `--task 'Additional instructions'`. Astack fetches and saves the title and body before accepting the request and includes them as task data in the worker prompt. A retry with the same key reuses that snapshot. The issue body is limited to 3,500 UTF-8 bytes; oversized assignments are rejected rather than silently shortened. The service shares recent reads in memory for up to one minute.
 
 The role is fixed to `implementer`. At dispatch Astack fetches `origin/main` and creates a dedicated worktree at its latest commit, or uses an explicitly selected `--base` commit. Review-fix tasks retain their reviewed commit as the base. The fetch updates the local `origin/main` tracking reference; it does not switch or change the primary checkout. A fetch failure blocks preparation rather than silently using an older commit. A queued task uses the agent configuration saved at submission. An uncertain setup remains inspectable and is not automatically repeated.
 

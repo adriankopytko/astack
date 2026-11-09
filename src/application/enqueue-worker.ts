@@ -5,6 +5,10 @@ import { rejected } from '../contracts/operation-result.js';
 import { configurationDigest } from '../core/configuration.js';
 import type { WorkerQueueStore } from '../ports/worker-queue.js';
 import { resolveConfiguration, type ConfigurationDependencies } from './configuration.js';
+import type { OperationResult } from '../contracts/operation-result.js';
+import type { z } from 'zod';
+import { issueReferenceSchema, issueSnapshotSchema } from '../contracts/implementation-task.js';
+import { implementationWorkerSubmissionSchema } from '../contracts/worker-submission.js';
 
 /** Save the task and its current configuration without creating a workspace. */
 export async function enqueueWorker(
@@ -14,6 +18,12 @@ export async function enqueueWorker(
     nextId: () => string;
     now: () => number;
     available?: Readonly<Record<string, readonly string[]>>;
+    githubIssues?: {
+      read(
+        input: { reference: z.infer<typeof issueReferenceSchema>; root: string },
+        signal?: AbortSignal,
+      ): Promise<OperationResult<z.infer<typeof issueSnapshotSchema>>>;
+    };
   },
   signal?: AbortSignal,
 ) {
@@ -24,6 +34,14 @@ export async function enqueueWorker(
   }
 
   const request = parsed.data;
+
+  if (request.kind === 'implementer' && request.submission.issueSnapshot) {
+    return rejected(
+      'invalid_request',
+      'Issue snapshots are fetched by Astack, not supplied with the request.',
+    );
+  }
+
   const prior = deps.workerQueue.find(
     request.submission.projectId,
     request.kind,
@@ -101,11 +119,73 @@ export async function enqueueWorker(
     );
   }
 
+  let issueSnapshot: z.infer<typeof issueSnapshotSchema> | undefined;
+
+  if (request.kind === 'implementer' && request.submission.issue) {
+    if (!deps.githubIssues) {
+      return rejected('github_unavailable', 'GitHub issue reads are unavailable in the service.');
+    }
+
+    const project = await deps.registry.readProject(request.submission.projectId);
+
+    if (project.outcome === 'rejected') {
+      return project;
+    }
+
+    if (!project.value) {
+      return rejected('project_not_found', 'Registered project not found.');
+    }
+
+    const checkout = await deps.registry.readCheckout(project.value.project.primaryCheckoutId);
+
+    if (checkout.outcome === 'rejected') {
+      return checkout;
+    }
+
+    if (!checkout.value?.registered) {
+      return rejected('checkout_not_found', 'Registered project checkout not found.');
+    }
+
+    const result = await deps.githubIssues.read(
+      { reference: request.submission.issue, root: checkout.value.checkout.rootPath },
+      signal,
+    );
+
+    if (result.outcome === 'rejected') {
+      return result;
+    }
+
+    const parsedIssue = issueSnapshotSchema.safeParse(result.value);
+
+    if (
+      !parsedIssue.success ||
+      !isDeepStrictEqual(parsedIssue.data.reference, request.submission.issue)
+    ) {
+      return rejected(
+        'github_invalid_output',
+        'The issue is too large or does not match the requested repository and number.',
+      );
+    }
+
+    issueSnapshot = parsedIssue.data;
+
+    if (
+      !implementationWorkerSubmissionSchema.safeParse({ ...request.submission, issueSnapshot })
+        .success
+    ) {
+      return rejected(
+        'invalid_request',
+        'The task and issue content together exceed the assignment size limit.',
+      );
+    }
+  }
+
   const result = deps.workerQueue.enqueue({
     id: deps.nextId(),
     request,
     policy: policy.data,
     runtime,
+    ...(issueSnapshot ? { issueSnapshot } : {}),
     state: 'queued',
     jobId: null,
     error: null,

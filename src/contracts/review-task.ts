@@ -58,7 +58,13 @@ export const reviewSnapshotSchema = z
   .refine((v) => new Set(v.checks.map((c) => c.name)).size === v.checks.length);
 export const reviewSubmitRequestSchema = z
   .strictObject(implementationSubmitRequestSchema.shape)
-  .omit({ description: true, acceptanceCriteria: true, fixOf: true })
+  .omit({
+    description: true,
+    acceptanceCriteria: true,
+    fixOf: true,
+    issue: true,
+    issueSnapshot: true,
+  })
   .extend({
     target: reviewTargetSchema,
     comparisonBase: implementationSubmitRequestSchema.shape.commit.optional(),
