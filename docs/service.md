@@ -79,7 +79,7 @@ Queue inspection uses bounded pages ordered by acceptance timestamp with job ID 
 | `blocked`         | Preflight failed, runtime absent, or launch was definitively refused             | No; uncertain effects cannot enter this state |
 | `awaiting_result` | Runtime verifies a known launch is now quiescent, including its writers/children | No; task success remains unestablished        |
 
-The host sets global and per-role capacity; defaults are one globally and one per role. CLI flags set global/default role limits, while library limits can supply individual `perRole` overrides. The claiming transaction counts dispatching, started and unknown jobs across all projects. It also serializes jobs sharing a checkout or repository/branch. An active/unknown writer therefore cannot be bypassed by another role or by claim expiry.
+The host sets global and per-role capacity; defaults are four globally and four per agent type. CLI flags set global/default role limits, while library limits can supply individual `perRole` overrides. The claiming transaction counts dispatching, started and unknown jobs across all projects. It also serializes jobs sharing a checkout or repository/branch. An active/unknown writer therefore cannot be bypassed by another role or by claim expiry.
 
 Claims last 10 seconds and bind the attempt/effect to coordinator session and claim token. Expiry is not authorization for takeover or another launch; uncertain jobs retain their slot. Claiming atomically changes the effect claim and entry to dispatching before the provider call. A storage error or uncertain commit stops the coordinator before another effect; reopen/inspect rather than automatically retrying writes.
 
