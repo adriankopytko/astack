@@ -681,6 +681,7 @@ await test(
       await configure();
       let sequence = 0;
       let creates = 0;
+      let baseResolutions = 0;
       const provider = {
         ...fake.provider,
         async createWorker(
@@ -739,7 +740,19 @@ await test(
             }),
         },
       };
-      const dependencies = { implementation, review, worktrees, herdr: { ...deps, provider } };
+      const dependencies = {
+        implementation,
+        review,
+        worktrees,
+        herdr: { ...deps, provider },
+        implementationBase: {
+          resolve: async () => {
+            baseResolutions++;
+
+            return completed(sha);
+          },
+        },
+      };
       const input = {
         schemaVersion: 1,
         projectId: 'project-0',
@@ -765,6 +778,7 @@ await test(
       assert.equal(reviewed.outcome, 'persisted', JSON.stringify(reviewed));
       assert.equal(alias.outcome, 'persisted', JSON.stringify(alias));
       assert.equal(creates, 2);
+      assert.equal(baseResolutions, 1);
       assert.ok(first.outcome === 'persisted' && reviewed.outcome === 'persisted');
       assert.notEqual(first.value.job.job.checkoutId, reviewed.value.job.job.checkoutId);
       assert.match(reviewed.value.job.entry.branch, /^refs\/heads\/astack\/code-review-/);
@@ -822,6 +836,7 @@ await test(
         { schemaVersion: 1, stateDirectory: state, gitExecutable: gitPath },
         {
           workerSetupProvider: provider,
+          implementationBase: { resolve: async () => completed(sha) },
           reviewTargets: {
             read: async () =>
               completed({

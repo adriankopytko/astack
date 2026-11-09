@@ -1,4 +1,5 @@
 import { createReviewCommitFetcher } from '../adapters/git/review-commit.js';
+import { createMainBaseResolver } from '../adapters/git/main-base.js';
 import { submitWorkerTask } from '../application/worker-submission.js';
 import { prepareWorkerWorktree, reconcileWorkerWorktree } from '../application/worker-worktree.js';
 import { createWorktreeGit } from '../adapters/git/worktree-git.js';
@@ -102,6 +103,9 @@ export async function startLocalService(
   options: {
     runtimes?: readonly ServiceWorkerRuntime[];
     initializationHerdrProvider?: HerdrProvider;
+    implementationBase?: {
+      resolve(root: string, signal?: AbortSignal): Promise<OperationResult<string>>;
+    };
     workerSetupProvider?: HerdrProvider;
     ci?: { policy?: unknown; reader?: CiReader };
     afterHandoffReview?: boolean;
@@ -540,6 +544,13 @@ export async function startLocalService(
                   runner: nodeProcessRunner,
                   environment,
                 }),
+                implementationBase:
+                  options.implementationBase ??
+                  createMainBaseResolver({
+                    executable,
+                    runner: nodeProcessRunner,
+                    environment: process.env,
+                  }),
               },
               signal,
             );

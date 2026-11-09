@@ -26,6 +26,9 @@ type Dependencies = {
   review: ReviewDependencies;
   worktrees: WorktreeDependencies;
   herdr: HerdrDependencies;
+  implementationBase: {
+    resolve(root: string, signal?: AbortSignal): Promise<OperationResult<string>>;
+  };
   reviewCommit?: {
     ensure(
       target: ReviewTarget,
@@ -125,13 +128,20 @@ export async function submitWorkerTask(
     return source;
   }
 
-  const base =
+  let base =
     'target' in request
       ? request.target.sha
-      : (request.baseCommit ??
-        request.fixOf?.commit ??
-        previous.value?.intent.baseCommit ??
-        source.value.git.checkout.head.commit);
+      : (request.baseCommit ?? request.fixOf?.commit ?? previous.value?.intent.baseCommit);
+
+  if (!base && kind === 'implementer') {
+    const main = await deps.implementationBase.resolve(source.value.git.checkout.rootPath, signal);
+
+    if (main.outcome === 'rejected') {
+      return main;
+    }
+
+    base = main.value;
+  }
 
   if (!base) {
     return rejected('invalid_request', 'The project needs a base commit before starting a worker.');

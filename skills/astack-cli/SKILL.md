@@ -147,7 +147,9 @@ For implementation and manual review submission, `--project` is optional inside 
 
 Set `agents.<name>.workspacePrefix` in project configuration to customize the Herdr worker workspace label; implementation and review default to `IMPL` and `CR` respectively.
 
-Run the Herdr-enabled service and use `implement submit --project <id> --key <stable-key> --task '<selected task>' [--base <full-sha>] [--criterion '<criterion>'] [--json]`. Astack creates the dedicated Git checkout and grouped Herdr workspace before accepting the job. Criteria are repeatable. It does not select issues, publish changes or trigger review automatically. Use the same key after an uncertain response; inspect the worktree before reconciliation.
+Use `implement submit --project <id> --key <stable-key> --task '<selected task>' [--base <full-sha>] [--criterion '<criterion>'] [--json]`. Astack creates the dedicated Git checkout and grouped Herdr workspace before accepting the job. Criteria are repeatable. It does not select issues, publish changes or trigger review automatically. Use the same key after an uncertain response; inspect the worktree before reconciliation.
+
+New implementation tasks fetch `origin/main` for their default base. An explicit `--base` or a review-fix reference uses the selected commit instead. Fetch failures are reported rather than falling back to a stale base.
 
 Acceptance saves task/criteria, instruction references, configuration snapshot, job/attempt and pending effect before launch. Repeating the same normalized submission returns its original identity and saved state, including after worker edits or policy revocation; it grants no new execution authority. Changed intent under that key conflicts. A disconnected client must retry the same key, not create another worker. Scope project/checkout explicitly from any cwd.
 

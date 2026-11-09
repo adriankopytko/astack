@@ -77,7 +77,10 @@ export function wireImplementationCommands(program: Command) {
     )
     .option('--project <id>', 'Registered project; inferred from the current repository if omitted')
     .requiredOption('--key <key>', 'Stable implementation submission key')
-    .option('--base <sha>', 'Optional full base commit SHA; defaults to the current project commit')
+    .option(
+      '--base <sha>',
+      'Optional full base commit SHA; defaults to freshly fetched origin/main',
+    )
     .requiredOption('--task <text>', 'Selected task without credentials')
     .option('--criterion <text>', 'Acceptance criterion; repeatable', append, [])
     .option(
