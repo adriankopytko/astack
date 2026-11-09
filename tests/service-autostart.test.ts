@@ -6,8 +6,27 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
 import { openSqliteState } from '../src/adapters/state/open-sqlite-state.js';
+import { serviceRunRequestSchema } from '../src/contracts/service.js';
+import { readServiceSettings } from '../src/cli/service-settings.js';
 
 const entry = fileURLToPath(new URL('../dist/cli/main.js', import.meta.url));
+
+await test('service defaults to four workers and rejects invalid settings', async () => {
+  const root = await realpath(
+    await mkdtemp(join(existsSync('/private/tmp') ? '/private/tmp' : '/tmp', 'as-settings-')),
+  );
+
+  try {
+    assert.equal(serviceRunRequestSchema.parse({ schemaVersion: 1 }).limits.global, 4);
+    assert.equal(serviceRunRequestSchema.parse({ schemaVersion: 1 }).limits.defaultRole, 4);
+
+    await writeFile(join(root, 'service.json'), JSON.stringify({ concurrency: { global: 0 } }));
+
+    assert.equal((await readServiceSettings(root)).outcome, 'rejected');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 await test(
   'concurrent submissions start one background service and do not start agents',
@@ -38,6 +57,10 @@ await test(
       }
 
       opened.store.close();
+      await writeFile(
+        join(state, 'service.json'),
+        JSON.stringify({ concurrency: { global: 6, perAgent: 3 } }),
+      );
       const call = (key: string) =>
         new Promise<{ code: number | null; output: string }>((resolve, reject) => {
           const child = spawn(
@@ -81,6 +104,16 @@ await test(
       const running = processes();
 
       assert.equal(running.length, 1);
+
+      const status = spawnSync(
+        process.execPath,
+        [entry, '--state-directory', state, 'service', 'status', '--json'],
+        { encoding: 'utf8' },
+      );
+
+      assert.equal(status.status, 0, status.stderr);
+      assert.equal(JSON.parse(status.stdout).value.limits.global, 6);
+      assert.equal(JSON.parse(status.stdout).value.limits.defaultRole, 3);
 
       const subsequent = await call('three');
 

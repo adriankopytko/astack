@@ -6,6 +6,14 @@ Astack runs one coordinator per private local state directory. Implementation an
 
 Use `astack service stop` to stop the coordinator gracefully. It drains its own operations and does not stop Herdr-owned agents or establish that their processes have stopped. A later submission starts the coordinator again. Stop and restart it after installing a previously missing runtime or updating the service.
 
+The default capacity is four workers globally and four per agent type. To change these limits for automatically started services, create `~/.astack/service.json` (or `service.json` in the selected state directory):
+
+```json
+{ "concurrency": { "global": 6, "perAgent": 3 } }
+```
+
+Restart the service after editing these host-wide settings. Foreground `--capacity` and `--role-capacity` override them. Worker worktrees are currently prepared at submission, before capacity is claimed.
+
 Initialization uses the running service when it owns the state directory, allowing new projects to be set up while workers continue. A disconnected initialization request can leave partial setup; inspect the result before retrying. Library hosts use `startLocalService(request, { runtimes? })`. The CLI and socket transport share application operations; the dispatcher contains no CLI parsing, socket objects, or ambient project selection. `createServiceCoordinator` is the injected application mechanism; a real host must hold coordinator ownership throughout its lifetime.
 
 ## Commands

@@ -111,6 +111,8 @@ The CLI makes the built-in `codex-herdr` runtime available when Codex and Herdr 
 
 Use `astack service stop` to stop the coordinator gracefully. It does not stop Herdr agents or establish worker shutdown. A later submission starts the service again.
 
+Host-wide worker capacity defaults to four globally and four per agent type. Configure it in `~/.astack/service.json`, for example `{ "concurrency": { "global": 6, "perAgent": 3 } }`, and restart the service to apply changes. Worker workspaces are currently prepared before the worker claims capacity.
+
 One coordinator owns each private state directory through a kernel-backed lock. Other instances reject. SIGINT/SIGTERM drain foreground work and release the coordinator; they do not prove existing workers stopped. On restart, claimed launches are inspected without replaying them. Unknown launches retain capacity despite claim expiry. Only trusted runtime evidence can establish launch absence or quiescence. `awaiting_result` means a known worker stopped, not that the task succeeded.
 
 Transport is a private Unix socket with same-host-user authority, not a TCP service or restricted worker-report endpoint. Use a short private state path if socket length is rejected. Preserve edited/unowned endpoint files and obtain host inspection; do not remove sockets, steal locks or force cleanup as an automatic repair. Runtime events, submissions, startup and explicit wake drive reconciliation; there is no recurring GitHub polling loop.

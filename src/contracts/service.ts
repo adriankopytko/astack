@@ -13,11 +13,11 @@ import { operationErrorSchema } from './operation-result.js';
 
 const metadata = stateEffectSchema.shape.intent.shape.payload;
 export const serviceLimitsSchema = z.strictObject({
-  global: z.number().int().min(1).max(64).default(1),
+  global: z.number().int().min(1).max(64).default(4),
   perRole: z
     .record(configurationRequestSchema.shape.role, z.number().int().min(1).max(64))
     .default({}),
-  defaultRole: z.number().int().min(1).max(64).default(1),
+  defaultRole: z.number().int().min(1).max(64).default(4),
 });
 export const serviceSubmitRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -129,7 +129,7 @@ export const serviceRunRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   stateDirectory: z.string().optional(),
   gitExecutable: z.string().optional(),
-  limits: serviceLimitsSchema.default({ global: 1, perRole: {}, defaultRole: 1 }),
+  limits: serviceLimitsSchema.default({ global: 4, perRole: {}, defaultRole: 4 }),
 });
 export type ServiceSubmitRequest = z.infer<typeof serviceSubmitRequestSchema>;
 export type WorkerObservation = z.infer<typeof workerObservationSchema>;

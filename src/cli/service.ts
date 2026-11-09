@@ -1,4 +1,5 @@
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
+import { homedir } from 'node:os';
 import { Command, InvalidArgumentError } from 'commander';
 import { startLocalService } from '../host/local-service.js';
 import { requestLocalService } from '../adapters/local/service-client.js';
@@ -7,6 +8,7 @@ import type { ServiceRpcResponse } from '../contracts/service-rpc.js';
 import { inspectServiceJob } from '../application/service.js';
 import { hostExecutable } from '../core/host-git.js';
 import { requestStartingService } from './ensure-service.js';
+import { readServiceSettings } from './service-settings.js';
 
 function integer(value: string): number {
   if (!/^[1-9][0-9]*$/.test(value) || Number(value) > 64) {
@@ -73,13 +75,13 @@ export function wireServiceCommands(program: Command): void {
       '--codex-executable <absolute-path>',
       'Host Codex path; Herdr resolves its own Codex for project agents',
     )
-    .option('--capacity <count>', 'Global active/uncertain capacity', integer, 1)
-    .option('--role-capacity <count>', 'Default capacity per role', integer, 1)
+    .option('--capacity <count>', 'Override global active/uncertain capacity', integer)
+    .option('--role-capacity <count>', 'Override default capacity per agent', integer)
     .option('--json', 'Print the listening event as JSON')
     .action(
       async (options: {
-        capacity: number;
-        roleCapacity: number;
+        capacity?: number;
+        roleCapacity?: number;
         observeCi?: boolean;
         afterHandoffReview?: boolean;
         cleanup?: boolean;
@@ -91,6 +93,18 @@ export function wireServiceCommands(program: Command): void {
           gitExecutable?: string;
           herdrExecutable?: string;
         }>();
+        const stateDirectory =
+          host.stateDirectory === undefined
+            ? join(homedir(), '.astack')
+            : resolve(process.cwd(), host.stateDirectory);
+        const settings = await readServiceSettings(stateDirectory);
+
+        if (settings.outcome === 'rejected') {
+          render(settings, options.json);
+
+          return;
+        }
+
         const herdr = await hostExecutable('herdr', host.herdrExecutable);
         const codex = await hostExecutable('codex', options.codexExecutable);
         const codexAvailable = Boolean(herdr && codex);
@@ -101,7 +115,11 @@ export function wireServiceCommands(program: Command): void {
               ? {}
               : { stateDirectory: resolve(process.cwd(), host.stateDirectory) }),
             ...(host.gitExecutable === undefined ? {} : { gitExecutable: host.gitExecutable }),
-            limits: { global: options.capacity, defaultRole: options.roleCapacity, perRole: {} },
+            limits: {
+              global: options.capacity ?? settings.value.concurrency?.global ?? 4,
+              defaultRole: options.roleCapacity ?? settings.value.concurrency?.perAgent ?? 4,
+              perRole: {},
+            },
           },
           {
             ...(options.observeCi ? { ci: {} } : {}),
