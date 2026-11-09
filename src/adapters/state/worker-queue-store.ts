@@ -187,7 +187,14 @@ export function createSqliteWorkerQueueStore(db: StateDatabase): WorkerQueueStor
           stateFailure('state_conflict');
         }
 
-        return { value: save({ ...item, state: 'started', jobId }), disposition: 'updated' };
+        return {
+          value: save(
+            item.cancelRequested
+              ? { ...item, state: 'cancelled', jobId: null }
+              : { ...item, state: 'started', jobId },
+          ),
+          disposition: 'updated',
+        };
       });
     },
     reconciled(worktree) {

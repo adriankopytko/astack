@@ -11,6 +11,41 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { reconcileLocalQueuedWorker } from '../src/host/reconcile-run.js';
 
+await test('cancellation during preparation does not alias or cancel an existing job', async () => {
+  await fixture(async ({ deps, opened }) => {
+    const request = {
+      kind: 'implementer',
+      submission: {
+        schemaVersion: 1,
+        projectId: 'project-0',
+        key: 'cancel-alias',
+        description: 'Task',
+      },
+    };
+    const queued = await enqueueWorker(request, {
+      ...deps,
+      workerQueue: opened.workerQueue,
+      nextId: () => 'job-alias',
+    });
+
+    assert.ok(queued.outcome === 'persisted');
+
+    const claimed = opened.workerQueue.claim(
+      { global: 1, defaultRole: 1, perRole: {} },
+      { implementer: ['fixture'] },
+    );
+
+    assert.ok(claimed.outcome === 'persisted' && claimed.value);
+    assert.equal(opened.workerQueue.cancel(queued.value.id).outcome, 'persisted');
+
+    const settled = opened.workerQueue.alias(queued.value.id, 'job-existing');
+
+    assert.ok(settled.outcome === 'persisted');
+    assert.equal(settled.value.state, 'cancelled');
+    assert.equal(settled.value.jobId, null);
+  });
+});
+
 await test('issue assignments save one immutable issue snapshot and retries do not refetch', async () => {
   await fixture(async ({ deps, opened }) => {
     let calls = 0;
