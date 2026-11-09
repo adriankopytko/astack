@@ -510,6 +510,9 @@ async function nativeSetup(f: CiReviewFixture) {
   const { readFile, writeFile } = await import('node:fs/promises');
   const { hostConfigurationPolicySchema, configureHerdrProject } = await import('../src/index.js');
   const { fakeProvider } = await import('./support/herdr.js');
+  const { prepareWorkerWorktree } = await import('../src/application/worker-worktree.js');
+  const { createWorktreeGit, nodeProcessRunner } = await import('../src/index.js');
+  const { gitPath } = await import('./support/service.js');
   const path = join(f.f.context.context.state, 'config', `${f.f.job.job.projectId}.json`);
   const policy = hostConfigurationPolicySchema.parse(
     JSON.parse(await readFile(path, 'utf8')) as unknown,
@@ -584,7 +587,35 @@ async function nativeSetup(f: CiReviewFixture) {
   assert.equal(configured.outcome, 'persisted', JSON.stringify(configured));
 
   await f.enable();
-  const plan = await f.enqueue(await f.reviewer());
+  const prepared = await prepareWorkerWorktree(
+    {
+      schemaVersion: 1,
+      projectId: f.f.job.job.projectId,
+      key: 'native-review-checkout',
+      branch: 'refs/heads/native-review-checkout',
+      baseCommit: f.f.head,
+    },
+    {
+      worktrees: {
+        ...f.f.context.deps,
+        store: f.opened.worktrees,
+        files: f.f.deps.files,
+        managedRoot: join(f.f.context.context.state, 'worktrees'),
+        effects: createWorktreeGit({ executable: gitPath, runner: nodeProcessRunner }),
+        nextId: (kind) => `${kind}-native-review-${++sequence}`,
+      },
+      herdr: deps,
+    },
+  );
+
+  assert.ok('record' in prepared && prepared.record?.phase === 'ready', JSON.stringify(prepared));
+
+  const plan = await f.enqueue({
+    checkoutId: prepared.record.intent.checkoutId,
+    branch: prepared.record.intent.branch,
+    commit: f.f.head,
+    root: prepared.record.intent.checkoutPath,
+  });
   await ready(f, plan.id);
   await f.dispatch();
   const queued = f.savedPlan(plan.id);
