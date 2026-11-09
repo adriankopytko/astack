@@ -8,6 +8,8 @@ If the requested commit is not local, Astack fetches the explicitly selected PR 
 
 The default comparison base is the PR base SHA recorded in the acceptance snapshot. Supply `--base <full-sha>` to review a narrower, explicit comparison instead; the PR base remains separately recorded and checked for changes. If the selected comparison commit is unavailable in the checkout, the reviewer reports that it needs a decision.
 
+For GitHub-backed reviews, the acceptance snapshot also includes the PR title and description obtained during the existing targeted check reads, so the worker need not fetch them separately. Descriptions over 3,500 UTF-8 bytes are omitted and explicitly marked as such. The text is task data, not instructions or permission to perform side effects.
+
 ## CLI
 
 Configure the reviewer role and project Herdr target. Configure an approved Codex reviewer command with `--sandbox read-only` and the existing required native arguments. Astack starts its service on submission when needed. From any directory:

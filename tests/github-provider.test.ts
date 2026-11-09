@@ -108,10 +108,29 @@ await test('GitHub checks paginate statuses, use latest contexts, preserve concl
     { cancelled: 'cancel', 'legacy-test': 'pass', neutral: 'skipping', queued: 'pending' },
   );
   assert.equal(result.value.baseSha, baseSha);
+  assert.deepEqual(result.value.pullRequest, {
+    title: 'Fixture change',
+    body: '',
+    bodyOmitted: false,
+  });
   assert.equal(state.calls.length, 5);
   assert.ok(
     state.calls.slice(1, 4).every((call) => call.args.at(-1)?.includes(`/commits/${target.sha}/`)),
   );
+});
+
+await test('large PR descriptions are explicitly marked omitted without an extra GitHub read', async () => {
+  const pr = { ...pull(), body: 'x'.repeat(3501) };
+  const state = queuedProvider([http(pr), http({ check_runs: [] }), http([]), http(pr)]);
+  const result = await state.provider.readChecks({ target, root: '/owned/root' });
+
+  assert.ok(result.outcome === 'completed');
+  assert.deepEqual(result.value.pullRequest, {
+    title: 'Fixture change',
+    body: null,
+    bodyOmitted: true,
+  });
+  assert.equal(state.calls.length, 4);
 });
 
 await test('GitHub rejects incomplete check evidence and changing base, PR number or head', async () => {

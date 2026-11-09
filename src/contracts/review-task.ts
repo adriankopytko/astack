@@ -52,6 +52,13 @@ export const reviewSnapshotSchema = z
       .string()
       .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/)
       .nullable(),
+    pullRequest: z
+      .strictObject({
+        title: z.string().max(256),
+        body: z.string().nullable(),
+        bodyOmitted: z.boolean(),
+      })
+      .optional(),
     checks: z.array(reviewCheckSchema).max(64),
     observedAt: z.number().int().nonnegative(),
   })

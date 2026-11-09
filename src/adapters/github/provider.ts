@@ -375,6 +375,11 @@ export function createGhProvider(options: GhProviderOptions): GithubProvider {
             state: before.state,
             draft: before.draft,
             sourceRepository: before.sourceRepository,
+            pullRequest: {
+              title: before.title,
+              body: Buffer.byteLength(before.body) <= 3500 ? before.body : null,
+              bodyOmitted: Buffer.byteLength(before.body) > 3500,
+            },
             checks: checks.sort((a, b) => a.name.localeCompare(b.name)),
             observedAt: options.now(),
           }),

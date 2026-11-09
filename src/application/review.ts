@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
+import { z } from 'zod';
 import {
   reviewSubmitRequestSchema,
   reviewReadRequestSchema,
@@ -391,7 +392,7 @@ export function createReviewRuntime(input: {
         ...observation,
         evidence: {
           ...observation.evidence,
-          reviewGate: snapshot,
+          reviewGate: z.json().parse(snapshot),
           ...(blocker
             ? {
                 reviewFreshness: { reason: blocker },
