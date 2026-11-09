@@ -53,20 +53,44 @@ function render(result: InitializationResult, json?: boolean) {
     if (result.outcome === 'previewed') {
       steps.push('Run astack init without --dry-run to apply this plan.');
     } else {
-      steps.push(
-        `Review project instructions and set each agent's provider, model and reasoning in ${join(view.target.root, '.astack', 'config.json')}.`,
+      const unconfigured = view.configuration.filter(
+        (item) => item.result.outcome !== 'completed' || item.result.value.status !== 'ready',
       );
 
-      if (view.provider.status !== 'ready') {
+      if (unconfigured.length || view.configuration.length === 0) {
         steps.push(
-          'Resolve the Herdr workspace diagnostics before delegating; inspect any pending operation before retrying.',
+          `Review project instructions and configure ${unconfigured.map((item) => item.role).join(', ') || 'the agents'} in ${join(view.target.root, '.astack', 'config.json')}; use astack config-schema for valid fields.`,
         );
       }
 
-      if (view.target.projectId) {
+      if (
+        view.projectSkills?.outcome === 'installed' ||
+        view.projectSkills?.outcome === 'unchanged'
+      ) {
         steps.push(
-          `Run astack doctor --project ${view.target.projectId} --role implementer and repeat for reviewer to check readiness.`,
+          'Commit and push the project setup, skills and instructions before delegation so they are present in the commit used for worker worktrees.',
         );
+      }
+
+      if (view.provider.status === 'blocked' || view.provider.status === 'pending') {
+        steps.push(
+          'Resolve the Herdr workspace error before delegating; inspect any pending operation before retrying.',
+        );
+      }
+
+      if (view.target.projectId && unconfigured.length) {
+        steps.push(
+          `Run astack doctor --project ${view.target.projectId} --role <agent> to check the configuration.`,
+        );
+      }
+
+      if (result.outcome === 'initialized' && view.provider.status === 'ready') {
+        steps.push(
+          'Ensure the Astack service is running with the Codex runtime enabled: astack service run --codex-herdr (if it is not already running).',
+        );
+      }
+
+      if (result.outcome === 'initialized' && view.delegation === 'ready') {
         steps.push(
           'Submit an implementation or review task; Astack prepares the worker checkout and workspace.',
         );
@@ -83,13 +107,31 @@ function render(result: InitializationResult, json?: boolean) {
   } else {
     const view = result.view;
     process.stdout.write(
-      `Outcome: ${result.outcome}\nRoot: ${view.target.root}\nProject: ${view.target.projectId ?? 'registration required'}\nRegistration: ${view.registration}\nDelegation: ${view.delegation}\nProvider: ${view.provider.status}\n`,
+      `Outcome: ${result.outcome}\nRoot: ${view.target.root}\nProject: ${view.target.projectId ?? 'registration required'}\nRegistration: ${view.registration}\nDelegation: ${view.delegation} (configuration and workspace only; service not checked)\nHerdr workspace: ${view.provider.status === 'planned' ? 'not checked' : view.provider.status}\n`,
     );
 
     for (const asset of view.assets) {
       process.stdout.write(
         `${asset.kind}: ${asset.state}${asset.reason ? ` (${asset.reason})` : ''}\n`,
       );
+    }
+
+    const projectSkills = view.projectSkills;
+
+    if (projectSkills?.outcome === 'rejected') {
+      process.stdout.write(
+        `Project skills: ${projectSkills.error.code}: ${projectSkills.error.message}\n`,
+      );
+    } else if (projectSkills) {
+      const skills =
+        projectSkills.outcome === 'completed' ? projectSkills.value : projectSkills.view;
+      process.stdout.write(`Project skills: ${projectSkills.outcome}\n`);
+
+      for (const skill of skills.skills) {
+        process.stdout.write(
+          `  ${skill.asset.name}: ${skill.state}${skill.reason ? ` (${skill.reason})` : ''}\n`,
+        );
+      }
     }
 
     if (view.provider.result && 'record' in view.provider.result && view.provider.result.record) {

@@ -773,7 +773,7 @@ await test(
 
       await symlink(join(repo, 'node_modules'), join(root, 'package', 'node_modules'));
       const entry = join(root, 'package', 'dist', 'cli', 'main.js');
-      const call = (args: string[], cwd = root) =>
+      const call = (args: string[], cwd = root, json = true) =>
         spawnSync(
           process.execPath,
           [
@@ -784,7 +784,7 @@ await test(
             '--user-skills-root',
             userSkills,
             ...args,
-            '--json',
+            ...(json ? ['--json'] : []),
           ],
           {
             cwd,
@@ -804,6 +804,7 @@ await test(
       );
 
       assert.ok(previewView.nextSteps?.some((step) => step.includes('astack init')));
+      assert.equal(previewView.delegation, 'not_checked');
 
       await assert.rejects(access(state), { code: 'ENOENT' });
       await assert.rejects(access(userSkills), { code: 'ENOENT' });
@@ -835,6 +836,9 @@ await test(
       assert.equal(actual.provider.status, 'blocked');
       assert.ok(actual.nextSteps?.some((step) => step.includes('.astack/config.json')));
       assert.ok(actual.nextSteps?.some((step) => step.includes('Herdr')));
+      assert.ok(actual.nextSteps?.some((step) => step.includes('Commit and push')));
+      assert.ok(!actual.nextSteps?.some((step) => step.includes('Submit an implementation')));
+      assert.ok(actual.diagnostics.some((item) => item.code.startsWith('herdr_')));
 
       for (const name of ['astack-orchestrator', 'astack-implementer', 'astack-reviewer']) {
         await access(join(source, '.agents', 'skills', name, 'SKILL.md'));
@@ -842,6 +846,18 @@ await test(
 
       assert.equal(actual.target.projectId, 'packed-project');
       assert.equal(actual.delegation, 'not_ready');
+
+      const human = call(['--project', 'packed-project', '--with-skills'], root, false);
+
+      assert.equal(human.status, 1);
+      assert.match(human.stdout, /Project skills: unchanged/);
+      assert.match(human.stdout, /astack-implementer: current/);
+      assert.match(human.stdout, /Commit and push/);
+      assert.match(human.stdout, /herdr_[a-z_]+:/);
+
+      const humanPreview = call(['--project', 'packed-project', '--dry-run'], root, false);
+
+      assert.match(humanPreview.stdout, /Herdr workspace: not checked/);
 
       const readonly = call(['--project', 'packed-project', '--dry-run']);
 
@@ -1013,6 +1029,21 @@ await test('initialization reports agent readiness independently', options, asyn
     );
     assert.equal(
       result.configuration.find((agent) => agent.role === 'reviewer')?.readiness,
+      'not_ready',
+    );
+
+    const preview = view(
+      await initializeProject({ ...request, preview: true }, f.deps),
+      'previewed',
+    );
+
+    assert.equal(preview.delegation, 'not_checked');
+    assert.equal(
+      preview.configuration.find((agent) => agent.role === 'implementer')?.readiness,
+      'not_checked',
+    );
+    assert.equal(
+      preview.configuration.find((agent) => agent.role === 'reviewer')?.readiness,
       'not_ready',
     );
   });

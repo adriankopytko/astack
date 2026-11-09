@@ -69,12 +69,12 @@ export const initializationViewSchema = z.strictObject({
     .array(
       z.strictObject({
         role: z.enum(['implementer', 'reviewer']),
-        readiness: z.enum(['not_ready', 'ready']),
+        readiness: z.enum(['not_checked', 'not_ready', 'ready']),
         result: configurationResultSchema,
       }),
     )
     .max(2),
-  delegation: z.enum(['not_ready', 'ready']),
+  delegation: z.enum(['not_checked', 'not_ready', 'ready']),
   nextSteps: z.array(z.string().min(1)).optional(),
   diagnostics: z
     .array(

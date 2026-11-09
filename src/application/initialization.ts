@@ -194,11 +194,13 @@ async function readiness(
         role,
         result,
         readiness:
-          result.outcome === 'completed' &&
-          result.value.status === 'ready' &&
-          view.provider.status === 'ready'
-            ? 'ready'
-            : 'not_ready',
+          result.outcome !== 'completed' || result.value.status !== 'ready'
+            ? 'not_ready'
+            : view.provider.status === 'planned'
+              ? 'not_checked'
+              : view.provider.status === 'ready'
+                ? 'ready'
+                : 'not_ready',
       });
     }
   }
@@ -208,9 +210,18 @@ async function readiness(
   );
   view.delegation = view.configuration.some((item) => item.readiness === 'ready')
     ? 'ready'
-    : 'not_ready';
+    : view.provider.status === 'planned' &&
+        (view.configuration.length === 0 ||
+          view.configuration.some((item) => item.readiness === 'not_checked'))
+      ? 'not_checked'
+      : 'not_ready';
 
   if (!policyReady) {
+    diagnostic(
+      view,
+      'project_configuration',
+      `Fill in the project configuration at ${join(view.target.root, '.astack', 'config.json')} using the project's instructions and tooling.`,
+    );
     diagnostic(
       view,
       'execution_policy_required',
@@ -395,15 +406,10 @@ export async function initializeProject(
         result: null,
       },
       configuration: [],
-      delegation: 'not_ready',
+      delegation: 'not_checked',
       diagnostics: [],
     };
     view.target.location = location;
-    diagnostic(
-      view,
-      'project_configuration',
-      `Fill in the project configuration at ${join(view.target.root, '.astack', 'config.json')} using the project's instructions and tooling.`,
-    );
 
     if (deps.herdr && selected.project) {
       const settings = deps.herdr.herdr.settings(selected.project.project.id);
