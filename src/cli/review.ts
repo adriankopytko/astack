@@ -1,5 +1,6 @@
 import { wireReviewResultCommands } from './review-results.js';
 import { wireAutomaticReviewCommands } from './automatic-review.js';
+import { ensureLocalService } from './ensure-service.js';
 import { resolve } from 'node:path';
 import { Command } from 'commander';
 import { requestLocalService } from '../adapters/local/service-client.js';
@@ -120,8 +121,15 @@ export function wireReviewCommands(program: Command) {
         instruction?: string[];
         json?: boolean;
       }) => {
-        await execute(options.json, (state) =>
-          requestLocalService(state.stateDirectory, {
+        await execute(options.json, async (state) => {
+          const host = program.opts<{ gitExecutable?: string; herdrExecutable?: string }>();
+          const service = await ensureLocalService(state.stateDirectory, host);
+
+          if (service.outcome === 'rejected') {
+            return service;
+          }
+
+          return requestLocalService(state.stateDirectory, {
             schemaVersion: 1,
             operation: 'review_worker_submit',
             projectId: options.project,
@@ -141,8 +149,8 @@ export function wireReviewCommands(program: Command) {
             resources: options.resource,
             ...(options.instruction === undefined ? {} : { instructionPaths: options.instruction }),
             request: {},
-          }),
-        );
+          });
+        });
       },
     );
   review

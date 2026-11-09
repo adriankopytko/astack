@@ -63,13 +63,7 @@ The project has a primary Herdr space, and workers appear in grouped worker work
 
 ### 3. Delegate implementation
 
-The host starts the local service with the Codex runtime enabled:
-
-```sh
-astack service run --codex-herdr --codex-executable /trusted/bin/codex
-```
-
-The orchestrator submits a task; Astack prepares its checkout automatically:
+The orchestrator submits a task; Astack starts its service when needed and prepares the checkout automatically:
 
 ```sh
 astack implement submit \

@@ -84,15 +84,9 @@ function render(result: InitializationResult, json?: boolean) {
         );
       }
 
-      if (result.outcome === 'initialized' && view.provider.status === 'ready') {
-        steps.push(
-          'Ensure the Astack service is running with the Codex runtime enabled: astack service run --codex-herdr (if it is not already running).',
-        );
-      }
-
       if (result.outcome === 'initialized' && view.delegation === 'ready') {
         steps.push(
-          'Submit an implementation or review task; Astack prepares the worker checkout and workspace.',
+          'Submit an implementation or review task; Astack starts its service if needed and prepares the worker checkout and workspace.',
         );
       }
     }

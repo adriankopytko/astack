@@ -2,7 +2,7 @@
 
 ## Implemented scope
 
-Issue #16 adds project-bound Herdr settings, persistent primary project spaces, grouped workspaces for Astack-owned worker checkouts, and verified attribution of already detected agents. It does **not** launch Codex, send prompts, execute project hooks, close workspaces, or register a service worker runtime. Those are separate operations. The separate [interactive runtime](runtime.md) now supplies opt-in service execution.
+Issue #16 adds project-bound Herdr settings, persistent primary project spaces, grouped workspaces for Astack-owned worker checkouts, and verified attribution of already detected agents. It does **not** launch Codex, send prompts, execute project hooks, close workspaces, or register a service worker runtime. Those are separate operations. The separate [interactive runtime](runtime.md) supplies service execution.
 
 The integration was implemented against the installed Herdr 0.9.0 bundled protocol 22 schema (`herdr api schema --json`). The adapter explicitly supports protocol 22 and rejects incompatible snapshots. No live user layouts or agents are needed for default verification.
 

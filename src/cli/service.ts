@@ -5,6 +5,8 @@ import { requestLocalService } from '../adapters/local/service-client.js';
 import { openSqliteState } from '../adapters/state/open-sqlite-state.js';
 import type { ServiceRpcResponse } from '../contracts/service-rpc.js';
 import { inspectServiceJob } from '../application/service.js';
+import { hostExecutable } from '../core/host-git.js';
+import { requestStartingService } from './ensure-service.js';
 
 function integer(value: string): number {
   if (!/^[1-9][0-9]*$/.test(value) || Number(value) > 64) {
@@ -24,6 +26,8 @@ function render(result: ServiceRpcResponse, json?: boolean): void {
 
     if (value === null) {
       process.stdout.write('Job not found.\n');
+    } else if ('stopping' in value) {
+      process.stdout.write('Service is stopping. Running agents are not stopped.\n');
     } else if ('sessionId' in value) {
       process.stdout.write(
         `Service: ${value.phase}\nSession: ${value.sessionId}\nRuntimes: ${value.runtimes.join(', ') || 'none installed'}\nJobs: ${JSON.stringify(value.counts)}\n`,
@@ -58,14 +62,13 @@ export function wireServiceCommands(program: Command): void {
     .description('Own a durable local queue through a private Unix socket');
   service
     .command('run')
-    .description('Run the coordinator in the foreground with explicitly enabled runtimes')
+    .description('Run the coordinator in the foreground')
     .option('--cleanup', 'Execute explicitly opted-in cleanup after verified shutdown')
     .option(
       '--after-handoff-review',
       'Enable the project-controlled follow-up executor; requires --observe-ci',
     )
     .option('--observe-ci', 'Enable bounded targeted CI observations for persisted requests')
-    .option('--codex-herdr', 'Trust Herdr-owned Codex execution in each configured project server')
     .option(
       '--codex-executable <absolute-path>',
       'Host Codex path; Herdr resolves its own Codex for project agents',
@@ -77,7 +80,6 @@ export function wireServiceCommands(program: Command): void {
       async (options: {
         capacity: number;
         roleCapacity: number;
-        codexHerdr?: boolean;
         observeCi?: boolean;
         afterHandoffReview?: boolean;
         cleanup?: boolean;
@@ -89,6 +91,9 @@ export function wireServiceCommands(program: Command): void {
           gitExecutable?: string;
           herdrExecutable?: string;
         }>();
+        const herdr = await hostExecutable('herdr', host.herdrExecutable);
+        const codex = await hostExecutable('codex', options.codexExecutable);
+        const codexAvailable = Boolean(herdr && codex);
         const started = await startLocalService(
           {
             schemaVersion: 1,
@@ -103,15 +108,11 @@ export function wireServiceCommands(program: Command): void {
             afterHandoffReview: options.afterHandoffReview ?? false,
             cleanup: options.cleanup ?? false,
             ...(host.herdrExecutable ? { cleanupHerdrExecutable: host.herdrExecutable } : {}),
-            ...(options.codexHerdr
+            ...(codexAvailable
               ? {
                   codexHerdr: {
-                    ...(host.herdrExecutable === undefined
-                      ? {}
-                      : { herdrExecutable: host.herdrExecutable }),
-                    ...(options.codexExecutable === undefined
-                      ? {}
-                      : { codexExecutable: options.codexExecutable }),
+                    herdrExecutable: herdr!,
+                    codexExecutable: codex!,
                   },
                 }
               : {}),
@@ -133,7 +134,7 @@ export function wireServiceCommands(program: Command): void {
         process.stdout.write(
           options.json
             ? `${JSON.stringify({ schemaVersion: 1, outcome: 'listening', sessionId: started.sessionId, socketPath: started.socketPath })}\n`
-            : `Service listening at ${started.socketPath}\nRuntimes: ${options.codexHerdr ? 'codex-herdr' : 'none enabled'}.\nCI observations: ${options.observeCi ? 'enabled' : 'disabled'}.\nAfter-handoff executor: ${options.afterHandoffReview ? 'enabled' : 'disabled'}.\nCleanup executor: ${options.cleanup ? 'enabled' : 'disabled'}.\n`,
+            : `Service listening at ${started.socketPath}\nRuntimes: ${codexAvailable ? 'codex-herdr' : 'Codex unavailable (install Codex and Herdr, then restart the service)'}.\nCI observations: ${options.observeCi ? 'enabled' : 'disabled'}.\nAfter-handoff executor: ${options.afterHandoffReview ? 'enabled' : 'disabled'}.\nCleanup executor: ${options.cleanup ? 'enabled' : 'disabled'}.\n`,
         );
 
         try {
@@ -151,7 +152,11 @@ export function wireServiceCommands(program: Command): void {
     );
 
   async function request(input: unknown, json?: boolean, inspectId?: string): Promise<void> {
-    const host = program.opts<{ stateDirectory?: string }>();
+    const host = program.opts<{
+      stateDirectory?: string;
+      gitExecutable?: string;
+      herdrExecutable?: string;
+    }>();
     const opened = await openSqliteState({
       schemaVersion: 1,
       mode: 'read-only',
@@ -169,7 +174,12 @@ export function wireServiceCommands(program: Command): void {
     try {
       render(
         inspectId === undefined
-          ? await requestLocalService(opened.stateDirectory, input)
+          ? typeof input === 'object' &&
+            input !== null &&
+            'operation' in input &&
+            (input.operation === 'status' || input.operation === 'stop')
+            ? await requestLocalService(opened.stateDirectory, input)
+            : await requestStartingService(opened.stateDirectory, input, host)
           : inspectServiceJob({ schemaVersion: 1, jobId: inspectId }, opened.service),
         json,
       );
@@ -178,13 +188,15 @@ export function wireServiceCommands(program: Command): void {
     }
   }
 
-  for (const operation of ['status', 'wake'] as const) {
+  for (const operation of ['status', 'wake', 'stop'] as const) {
     service
       .command(operation)
       .description(
         operation === 'status'
           ? 'Inspect the live local coordinator'
-          : 'Request fresh reconciliation and queue dispatch',
+          : operation === 'stop'
+            ? 'Stop the coordinator without stopping agents'
+            : 'Request fresh reconciliation and queue dispatch',
       )
       .option('--json', 'Print structured evidence')
       .action(async (options: { json?: boolean }) => {

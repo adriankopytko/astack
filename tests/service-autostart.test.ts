@@ -1,0 +1,117 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawn, spawnSync } from 'node:child_process';
+import { openSqliteState } from '../src/adapters/state/open-sqlite-state.js';
+
+const entry = fileURLToPath(new URL('../dist/cli/main.js', import.meta.url));
+
+await test(
+  'concurrent submissions start one background service and do not start agents',
+  { timeout: 60000 },
+  async () => {
+    const root = await realpath(
+      await mkdtemp(join(existsSync('/private/tmp') ? '/private/tmp' : '/tmp', 'as-')),
+    );
+    const state = join(root, 'state');
+    const codex = join(root, 'codex');
+    const processes = () => {
+      const result = spawnSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' });
+
+      return result.stdout
+        .split('\n')
+        .filter((line) => line.includes(state) && line.includes('service run'))
+        .map((line) => Number(line.trim().split(/\s+/)[0]));
+    };
+
+    try {
+      await writeFile(codex, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+      const opened = await openSqliteState({ schemaVersion: 1, stateDirectory: state });
+
+      assert.equal(opened.outcome, 'opened');
+
+      if (opened.outcome !== 'opened') {
+        return;
+      }
+
+      opened.store.close();
+      const call = (key: string) =>
+        new Promise<{ code: number | null; output: string }>((resolve, reject) => {
+          const child = spawn(
+            process.execPath,
+            [
+              entry,
+              '--state-directory',
+              state,
+              '--herdr-executable',
+              '/usr/bin/false',
+              'implement',
+              'submit',
+              '--project',
+              'missing-project',
+              '--key',
+              key,
+              '--task',
+              'test',
+              '--json',
+            ],
+            {
+              env: { ...process.env, PATH: `${root}:${process.env.PATH ?? ''}` },
+              stdio: ['ignore', 'pipe', 'pipe'],
+            },
+          );
+          let output = '';
+          child.stdout.on('data', (chunk: Buffer) => {
+            output += chunk.toString();
+          });
+          child.on('error', reject);
+          child.on('close', (code) => resolve({ code, output }));
+        });
+      const results = await Promise.all([call('one'), call('two')]);
+
+      for (const result of results) {
+        assert.equal(result.code, 1, result.output);
+        assert.doesNotMatch(result.output, /service_unavailable|service_endpoint_unsafe/);
+        assert.match(result.output, /project_not_found/);
+      }
+
+      const running = processes();
+
+      assert.equal(running.length, 1);
+
+      const subsequent = await call('three');
+
+      assert.match(subsequent.output, /project_not_found/);
+      assert.deepEqual(processes(), running);
+
+      const stop = spawnSync(
+        process.execPath,
+        [entry, '--state-directory', state, 'service', 'stop', '--json'],
+        { encoding: 'utf8' },
+      );
+
+      assert.equal(stop.status, 0, stop.stdout + stop.stderr);
+      assert.equal(JSON.parse(stop.stdout).value.stopping, true);
+
+      for (let attempt = 0; attempt < 30 && processes().length > 0; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      assert.equal(processes().length, 0);
+    } finally {
+      for (const pid of processes()) {
+        try {
+          process.kill(pid, 'SIGTERM');
+        } catch {
+          continue;
+        }
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);

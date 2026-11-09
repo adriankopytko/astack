@@ -17,6 +17,7 @@ export async function listenLocalService(input: {
   stateDirectory: string;
   sessionId: string;
   handle: (request: unknown, signal: AbortSignal) => Promise<ServiceRpcResponse>;
+  afterResponse?: (request: unknown) => void;
 }) {
   const root = await serviceRoot(input.stateDirectory);
   const path = join(root.path, serviceSocketName);
@@ -84,6 +85,7 @@ export async function listenLocalService(input: {
       received = true;
       const pending = (async () => {
         let result: ServiceRpcResponse;
+        let request: unknown;
 
         try {
           const text = new TextDecoder('utf8', { fatal: true }).decode(buffer.subarray(0, newline));
@@ -95,7 +97,8 @@ export async function listenLocalService(input: {
             throw new Error('One request per connection');
           }
 
-          result = await input.handle(JSON.parse(text) as unknown, controller.signal);
+          request = JSON.parse(text) as unknown;
+          result = await input.handle(request, controller.signal);
         } catch {
           result = rejected(
             'service_protocol_error',
@@ -104,7 +107,7 @@ export async function listenLocalService(input: {
         }
 
         if (!socket.destroyed) {
-          socket.end(`${JSON.stringify(result)}\n`);
+          socket.end(`${JSON.stringify(result)}\n`, () => input.afterResponse?.(request));
         }
       })();
       requests.add(pending);

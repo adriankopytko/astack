@@ -15,7 +15,7 @@ Three decisions are separate:
 3. The service enables its follow-up executor and CI observer.
 
 ```sh
-astack service run --observe-ci --after-handoff-review --codex-herdr
+astack service run --observe-ci --after-handoff-review
 astack review automation inspect --project <project-id> --json
 astack review automation enable --project <project-id> --revision 0 --json
 # Prepare a distinct owned checkout using worktree prepare at the accepted full head SHA.
@@ -26,7 +26,7 @@ astack review automation disable --project <project-id> --revision <settings-rev
 astack review follow-up resume <plan-id> --revision <plan-revision> --json
 ```
 
-`--after-handoff-review` requires `--observe-ci`. `--codex-herdr` independently enables the built-in agent runtime; library hosts can install another approved review-capable runtime. Without a runtime the review job remains queued/blocked rather than starting an agent by another path. Runtime adapters for automatic reviews must implement fresh preflight and preserve the supplied authorization gates.
+`--after-handoff-review` requires `--observe-ci`. The CLI makes the Codex runtime available when its executables are installed; library hosts can inject another review-capable runtime. Without a runtime the review job remains queued/blocked rather than starting an agent by another path. Runtime adapters for automatic reviews must implement fresh preflight and preserve the supplied authorization gates.
 
 All commands honor `--state-directory`. Inspection/listing work offline against existing migrated state. Mutations use the owning service. `enable`/`disable` require the exact project settings revision; follow-up `suspend`, `resume` and `cancel` require the exact plan revision. Enqueue accepts `--timeout-ms` for each CI generation, default one hour and bounded to one second–seven days. There is one immutable plan per accepted follow-up ID; changing its checkout/branch/SHA under the same plan rejects.
 

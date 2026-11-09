@@ -8,11 +8,9 @@ This workflow does not select issues, publish changes, open PRs, trigger review 
 
 ## CLI sequence
 
-Configure the selected project agent and Herdr target. Start the service with the explicit runtime opt-in, then submit from any directory:
+Configure the selected project agent and Herdr target. Submit from any directory; Astack starts the service when necessary:
 
 ```sh
-astack service run --codex-herdr --codex-executable /trusted/bin/codex
-
 astack implement submit \
   --project project-a --key selected-task-42 \
   --task 'Implement the selected behavior.' \

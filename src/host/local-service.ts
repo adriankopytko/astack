@@ -454,6 +454,13 @@ export async function startLocalService(
     const transport = await listenLocalService({
       stateDirectory: opened.stateDirectory,
       sessionId,
+      afterResponse(input) {
+        const parsed = serviceRpcRequestSchema.safeParse(input);
+
+        if (parsed.success && parsed.data.operation === 'stop') {
+          void close();
+        }
+      },
       async handle(input, signal): Promise<ServiceRpcResponse> {
         const parsed = parseOperationRequest(serviceRpcRequestSchema, input);
 
@@ -475,7 +482,7 @@ export async function startLocalService(
             if (!workerHerdr) {
               return rejected(
                 'runtime_unavailable',
-                'Enable the Herdr worker runtime before preparing a worker.',
+                'The Herdr worker runtime is unavailable. Install Herdr and Codex, then restart the service.',
               );
             }
 
@@ -494,7 +501,7 @@ export async function startLocalService(
             if (!workerHerdr) {
               return rejected(
                 'runtime_unavailable',
-                'Enable the Herdr worker runtime before reconciling worker setup.',
+                'The Herdr worker runtime is unavailable. Install Herdr and Codex, then restart the service.',
               );
             }
 
@@ -514,7 +521,7 @@ export async function startLocalService(
             if (!workerHerdr) {
               return rejected(
                 'runtime_unavailable',
-                'Enable the Herdr worker runtime before submitting a task.',
+                'The Herdr worker runtime is unavailable. Install Herdr and Codex, then restart the service.',
               );
             }
 
@@ -762,6 +769,8 @@ export async function startLocalService(
 
           case 'status':
             return coordinator.status();
+          case 'stop':
+            return completed({ stopping: true as const });
           case 'wake':
             coordinator.wake();
             automaticDispatcher?.wake();

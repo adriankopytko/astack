@@ -8,18 +8,18 @@
 
 Starting a generic session does not send the saved task description. The implementation and manual review workflows deliver explicit assignments through durable keyed input. Run operations accept host-supplied reports and expose explicit continuation/cancellation. Explicit structured Codex report collection and host-attested shutdown reconciliation are available through [run operations](runs.md). Pinned skill delivery, provisioning and automatic shutdown/cleanup remain later work.
 
-## Host opt-in and prerequisites
+## Runtime selection and prerequisites
 
-Register the project, fill in its project configuration, prepare an owned worktree and select its registered checkout explicitly when submitting the job. Configure the project's Herdr target first. Run:
+Register the project and fill in its project configuration. Implementation and review submission starts the local service if needed and prepares a worker worktree. Codex and Herdr must be installed and available on the service's PATH. To run the service in the foreground with explicit executable paths instead:
 
 ```sh
 astack --state-directory /private/astack --herdr-executable /trusted/bin/herdr service run \
-  --codex-herdr --codex-executable /trusted/bin/codex
+  --codex-executable /trusted/bin/codex
 ```
 
-Without `--codex-herdr`, the installed service continues with no built-in runtime. Library hosts may explicitly inject `createCodexHerdrRuntime(dependencies)` instead. Enabling it does not authorize all projects: each saved role must select `codex-herdr` and a configured command under its saved project configuration. Provider targets still come from that project's saved settings, never the service cwd or ambient Herdr focus.
+The CLI service makes the Codex runtime available when the executables are found at startup. Library hosts may explicitly inject `createCodexHerdrRuntime(dependencies)` instead. Each accepted job selects its runtime from its saved project configuration. Provider targets still come from that project's saved settings, never the service cwd or ambient Herdr focus. If executables were missing when the service started, install them and restart it.
 
-For the project agent format, configure `agents.<name>` with `provider: "codex"`, a model and a reasoning level. Astack supplies the Codex flags, including update-prompt suppression. Implementers default to `workspace-write`, reviewers to `read-only`, and Codex approval mode defaults to `on-request`. The initial project file leaves model and reasoning null so the user or agent chooses them. Astack does not rewrite global or project Codex settings. The existing service runtime opt-in remains necessary.
+For the project agent format, configure `agents.<name>` with `provider: "codex"`, a model and a reasoning level. Astack supplies the Codex flags, including update-prompt suppression. Implementers default to `workspace-write`, reviewers to `read-only`, and Codex approval mode defaults to `on-request`. The initial project file leaves model and reasoning null so the user or agent chooses them. Astack does not rewrite global or project Codex settings.
 
 Astack saves one launch intent before calling Herdr, checks checkout and pane identity, and does not replay a pending launch. Host and Herdr must resolve the intended Codex installation.
 

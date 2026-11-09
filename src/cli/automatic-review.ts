@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { Command, InvalidArgumentError } from 'commander';
 import { openSqliteState } from '../adapters/state/open-sqlite-state.js';
-import { requestLocalService } from '../adapters/local/service-client.js';
+import { requestStartingService } from './ensure-service.js';
 import {
   inspectReviewAutomation,
   inspectFollowUpReview,
@@ -34,6 +34,12 @@ function render(result: ServiceRpcResponse, json?: boolean) {
 }
 
 export function wireAutomaticReviewCommands(program: Command, review: Command) {
+  const requestLocalService = (stateDirectory: string, request: unknown) =>
+    requestStartingService(
+      stateDirectory,
+      request,
+      program.opts<{ gitExecutable?: string; herdrExecutable?: string }>(),
+    );
   async function execute(
     json: boolean | undefined,
     action: (

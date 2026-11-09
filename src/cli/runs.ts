@@ -7,7 +7,7 @@ import { constants } from 'node:fs';
 import { lstat, open } from 'node:fs/promises';
 import { Command, InvalidArgumentError } from 'commander';
 import { openSqliteState } from '../adapters/state/open-sqlite-state.js';
-import { requestLocalService } from '../adapters/local/service-client.js';
+import { requestStartingService } from './ensure-service.js';
 import { nodeRunEventWaiter } from '../adapters/local/run-waiter.js';
 import { inspectRun, readRunEvents, readRunCursor } from '../application/runs.js';
 import { rejected } from '../contracts/operation-result.js';
@@ -62,6 +62,12 @@ function render(result: ServiceRpcResponse, json?: boolean, submittedReport = fa
 }
 
 export function wireRunCommands(program: Command) {
+  const requestLocalService = (stateDirectory: string, request: unknown) =>
+    requestStartingService(
+      stateDirectory,
+      request,
+      program.opts<{ gitExecutable?: string; herdrExecutable?: string }>(),
+    );
   const run = program
     .command('run')
     .description('Inspect durable results/events and explicitly respond, resume or cancel');

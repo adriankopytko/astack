@@ -47,7 +47,7 @@ Agent entries may specify `hooks.before` and `hooks.after` as package-script-sty
 
 Each agent may declare named ports, for example `"ports": { "APP_PORT": { "range": [20000, 29999] }, "OAUTH_PORT": { "fixed": 3000 } }`. The service reserves ports before the before hook and exports them to hooks and the worker. Ranges coordinate only with other Astack jobs using the same state directory; they do not probe unrelated applications. See [agent ports](agent-ports.md).
 
-Astack maps `permissions.files` to the provider: Codex `readonly` uses `read-only`, and `write` uses `workspace-write`. If omitted, reviewers default to `readonly` and other agents to `write`. Both use Codex's `on-request` approval mode. No executable/version/file digest or approval profile is required. The service still requires `--codex-herdr` to install the built-in runtime.
+Astack maps `permissions.files` to the provider: Codex `readonly` uses `read-only`, and `write` uses `workspace-write`. If omitted, reviewers default to `readonly` and other agents to `write`. Both use Codex's `on-request` approval mode. No executable/version/file digest or approval profile is required. The CLI service makes the Codex runtime available when Codex and Herdr are installed; jobs select it from their saved project configuration.
 
 `astack config-schema` prints the current machine-readable JSON Schema for humans, agents and editors. To use it in VS Code, run `astack config-schema > .astack/schema.json` and add `"$schema": "./schema.json"` to `.astack/config.json`. Regenerate the schema after upgrading Astack. Schema validation describes the file shape; `astack doctor` also checks saved project context and prerequisites, including supported Codex reasoning values.
 

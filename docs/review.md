@@ -8,7 +8,7 @@ If the requested commit is not local, Astack fetches the explicitly selected PR 
 
 ## CLI
 
-Configure the reviewer role and project Herdr target. Configure an approved Codex reviewer command with `--sandbox read-only` and the existing required native arguments. Start `service run --codex-herdr` explicitly. Then, from any directory:
+Configure the reviewer role and project Herdr target. Configure an approved Codex reviewer command with `--sandbox read-only` and the existing required native arguments. Astack starts its service on submission when needed. From any directory:
 
 ```sh
 astack review submit \

@@ -2,7 +2,9 @@
 
 ## Implemented scope
 
-Astack can run one foreground coordinator per private local state directory. It owns a durable queue and dispatches through explicitly injected runtime adapters. The installed CLI supplies no runtime by default; `service run --codex-herdr` explicitly enables interactive Codex execution through Herdr. Configured agent hooks run automatically around worker execution; implementation task delivery is a workflow consumer documented below. A configured executable alone never installs or authorizes a runtime adapter.
+Astack runs one coordinator per private local state directory. Implementation and review submission, service mutations, and service-dependent run, CI and review automation operations start it in the background when needed; `service run` remains available in the foreground. The CLI registers the Codex runtime when Codex and Herdr are available at startup, and dispatch selects the runtime from the accepted job configuration. Library hosts can inject their own adapters. Configured agent hooks run automatically around worker execution.
+
+Use `astack service stop` to stop the coordinator gracefully. It drains its own operations and does not stop Herdr-owned agents or establish that their processes have stopped. A later submission starts the coordinator again. Stop and restart it after installing a previously missing runtime or updating the service.
 
 Initialization uses the running service when it owns the state directory, allowing new projects to be set up while workers continue. A disconnected initialization request can leave partial setup; inspect the result before retrying. Library hosts use `startLocalService(request, { runtimes? })`. The CLI and socket transport share application operations; the dispatcher contains no CLI parsing, socket objects, or ambient project selection. `createServiceCoordinator` is the injected application mechanism; a real host must hold coordinator ownership throughout its lifetime.
 
@@ -104,7 +106,7 @@ Cancellation before a submission transaction rejects without acceptance. A disco
 
 ## Built-in interactive runtime
 
-`service run --codex-herdr [--codex-executable <absolute-path>]` explicitly enables [Herdr-owned interactive Codex](runtime.md). Global `--herdr-executable` selects trusted CLI code. Each saved project/role still requires an enabled unchanged policy, configured Herdr target and owned ready checkout. Launch prepares its grouped layout and starts a session. Generic submissions stop there; explicit implementation jobs additionally deliver their accepted task through the workflow consumer below. Reconnection inspects native identity; UI done/idle and Escape never establish quiescence or release capacity. Without opt-in the built-in runtime list remains empty. Host server trust and unsupported configuration requirements are detailed in the runtime contract.
+`service run [--codex-executable <absolute-path>]` runs the coordinator in the foreground; the CLI automatically registers [Herdr-owned interactive Codex](runtime.md) when both executables are available. Global `--herdr-executable` selects the Herdr CLI. Each job uses its saved project configuration, configured Herdr target and owned checkout. Reconnection inspects native identity; UI done/idle and Escape never establish quiescence or release capacity. If executables were missing at service startup, install them and restart the service. Host server trust and unsupported configuration requirements are detailed in the runtime contract.
 
 ## Implementation workflow consumer
 
@@ -116,11 +118,11 @@ Run RPC operations add host report acceptance, responses, explicit continuation,
 
 ## Optional CI observer
 
-`service run --observe-ci` enables the separate [CI observation scheduler](ci.md). It consumes only explicitly enrolled persisted review sources, shares exact PR/SHA reads and host budgets, and schedules saved refreshes/deadlines. It has no worker runtime and does not create or dispatch review jobs. Default startup leaves it disabled; existing `service wake` and fresh review dispatch gates remain separate. Service shutdown aborts/drains observer reads together with the coordinator before closing state and releasing ownership. Bootstrap prepares the private state directory, then takes coordinator ownership before writable database opening/migration.
+`service run --observe-ci` enables the separate [CI observation scheduler](ci.md). It consumes only explicitly enrolled persisted review sources, shares exact PR/SHA reads and host budgets, and schedules saved refreshes/deadlines. The observer itself does not create or dispatch review jobs. Default startup leaves it disabled; existing `service wake` and fresh review dispatch gates remain separate. Service shutdown aborts/drains observer reads together with the coordinator before closing state and releasing ownership. Bootstrap prepares the private state directory, then takes coordinator ownership before writable database opening/migration.
 
 ## After-handoff executor
 
-`service run --observe-ci --after-handoff-review` enables [explicit follow-up dispatch](automatic-review.md), independent of the worker runtime flag. Project controls default to disabled and checkout binding is explicit. CI progress wakes the dispatcher; queue readiness and capacity remain fresh. Starting without the executor suspends eligible saved plans before coordinator startup. Shutdown drains both schedulers before state/ownership release. Running/claimed jobs use explicit run cancellation, never an implicit automation-stop signal.
+`service run --observe-ci --after-handoff-review` enables [explicit follow-up dispatch](automatic-review.md), independently of runtime availability. Project controls default to disabled and checkout binding is explicit. CI progress wakes the dispatcher; queue readiness and capacity remain fresh. Starting without the executor suspends eligible saved plans before coordinator startup. Shutdown drains both schedulers before state/ownership release. Running/claimed jobs use explicit run cancellation, never an implicit automation-stop signal.
 
 ## Opt-in cleanup executor
 

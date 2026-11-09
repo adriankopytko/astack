@@ -1,0 +1,7 @@
+# ADR 0034: Start the coordinator on demand
+
+Implementation and review submission, service-dependent run, CI and review automation operations, and service mutations start the local coordinator when it is absent. They check availability before sending the operation and send it only once; an uncertain submission is never replayed automatically. Concurrent starters rely on the existing coordinator ownership lock, then discover the winning private endpoint. Unsafe endpoints remain untouched. Read-only inspection and project initialization do not start a coordinator.
+
+The CLI coordinator makes its built-in Codex/Herdr adapter available when both executables are available at startup. Dispatch selects the adapter from each accepted job's saved project configuration. If the executables are installed after startup, the service must be restarted. Library hosts retain explicit adapter injection. Starting the coordinator does not launch an agent without a queued task, enable CI observation, enable automatic review, or enable cleanup. `service run` remains a foreground option for diagnostics and for optional host executors. Automatic startup is local to the current login environment; it is not a login service and does not promise restart after reboot.
+
+`service stop` requests a graceful coordinator shutdown after its response is delivered. It does not stop agents or establish worker quiescence. It does not start an absent coordinator.
