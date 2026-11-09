@@ -194,11 +194,10 @@ export async function selectProjectContext(
       git,
       run,
       readiness: {
-        delegation: 'unavailable',
+        delegation: 'not_checked',
         reasons: [
           ...(registration === 'registered' ? [] : ['registration_required']),
-          'execution_policy_not_checked',
-          'delegation_not_implemented',
+          'configuration_not_checked',
         ],
         providers: {
           git: 'ready',

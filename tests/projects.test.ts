@@ -279,7 +279,8 @@ await test(
         ),
         'project_selector_conflict',
       );
-      assert.equal(targeted.readiness.delegation, 'unavailable');
+      assert.equal(targeted.readiness.delegation, 'not_checked');
+      assert.ok(targeted.readiness.reasons.includes('configuration_not_checked'));
       assert.equal(targeted.readiness.providers.codex, 'not_checked');
       assert.equal(targeted.readiness.configuration.source, 'none');
     });

@@ -108,14 +108,8 @@ export const projectSelectionSchema = z
     git: gitRepositoryInspectionSchema,
     run: runBindingSchema.nullable(),
     readiness: z.strictObject({
-      delegation: z.literal('unavailable'),
-      reasons: z.array(
-        z.enum([
-          'registration_required',
-          'execution_policy_not_checked',
-          'delegation_not_implemented',
-        ]),
-      ),
+      delegation: z.literal('not_checked'),
+      reasons: z.array(z.enum(['registration_required', 'configuration_not_checked'])),
       providers: z.strictObject({
         git: z.literal('ready'),
         codex: z.literal('not_checked'),
@@ -142,8 +136,7 @@ export const projectSelectionSchema = z
     if (
       value.registration !== expected ||
       reasons.includes('registration_required') !== !registered ||
-      !reasons.includes('execution_policy_not_checked') ||
-      !reasons.includes('delegation_not_implemented') ||
+      !reasons.includes('configuration_not_checked') ||
       (checkout &&
         (checkout.checkout.rootPath !== value.git.checkout.rootPath ||
           checkout.checkout.gitCommonDirectory !== value.git.repository.commonDirectory)) ||

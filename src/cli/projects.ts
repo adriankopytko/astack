@@ -64,7 +64,7 @@ function render(
   } else {
     const value = result.value;
     process.stdout.write(
-      `Source: ${value.source}\nRegistration: ${value.registration}\nProject: ${value.project?.project.id ?? 'unregistered'}\nCheckout: ${value.checkout?.checkout.id ?? 'unregistered'}\nRoot: ${value.git.checkout.rootPath}\nBranch: ${value.git.checkout.head.branch ?? 'detached'}\nCommit: ${value.git.checkout.head.commit ?? 'unborn'}\nGit: ready\nCodex / Herdr / GitHub: not checked\nConfiguration: use doctor for checks\nDelegation: unavailable\n`,
+      `Source: ${value.source}\nRegistration: ${value.registration}\nProject: ${value.project?.project.id ?? 'unregistered'}\nCheckout: ${value.checkout?.checkout.id ?? 'unregistered'}\nRoot: ${value.git.checkout.rootPath}\nBranch: ${value.git.checkout.head.branch ?? 'detached'}\nCommit: ${value.git.checkout.head.commit ?? 'unborn'}\nGit: ready\nCodex / Herdr / GitHub: not checked\nConfiguration: use doctor for checks\nDelegation readiness: not checked\n`,
     );
   }
 
