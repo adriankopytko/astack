@@ -21,6 +21,8 @@ astack implement inspect <job-id> --json
 
 Use global `--state-directory` and `--herdr-executable` to select explicit host resources. The submit command requires a live service; it does not launch an alternate worker when that service is unavailable. Inspection opens existing state read-only and contacts no providers. Unknown commands fail before acceptance.
 
+Omit `--project` when submitting from inside a registered project; Astack resolves it from the current repository. Outside a registered repository, select the target explicitly with `--project`.
+
 `--criterion` is repeatable. `--instruction <relative-Markdown-path>` is repeatable and replaces the default instruction path list (`AGENTS.md`, `AGENTS.override.md`). Include the defaults yourself when adding other instruction references. Missing files are explicitly recorded as absent. An empty instruction list is available to library callers; the prompt still requires applicable repository/native instructions. Directory-specific instructions must be read as the worker enters those directories. There is no recursive repository discovery, automatic tracker lookup, or implicit target from ambient cwd/focus.
 
 The role is fixed to `implementer`. Astack creates a dedicated worktree at the primary checkout's current commit, or at an explicitly selected `--base` commit. It persists the checkout identity and Herdr workspace before accepting the job. An uncertain setup remains inspectable and is not automatically repeated.

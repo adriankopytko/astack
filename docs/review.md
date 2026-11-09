@@ -10,6 +10,8 @@ If the requested commit is not local, Astack fetches the explicitly selected PR 
 
 Configure the reviewer role and project Herdr target. Configure an approved Codex reviewer command with `--sandbox read-only` and the existing required native arguments. Astack starts its service on submission when needed. From any directory:
 
+When submitting from inside a registered project, `--project` may be omitted; elsewhere select it explicitly.
+
 ```sh
 astack review submit \
   --project project-a --key review-request-42 --commit <full-pr-head-sha> \

@@ -1,6 +1,7 @@
 import { wireReviewResultCommands } from './review-results.js';
 import { wireAutomaticReviewCommands } from './automatic-review.js';
 import { requestStartingService } from './ensure-service.js';
+import { submissionProject } from './submit-project.js';
 import { resolve } from 'node:path';
 import { Command } from 'commander';
 import { openSqliteState } from '../adapters/state/open-sqlite-state.js';
@@ -71,7 +72,7 @@ export function wireReviewCommands(program: Command) {
 
   review
     .command('submit')
-    .requiredOption('--project <id>', 'Registered project')
+    .option('--project <id>', 'Registered project; inferred from the current repository if omitted')
     .requiredOption('--key <key>', 'Stable request key')
     .requiredOption('--commit <sha>', 'Explicit full PR head SHA already present locally')
     .requiredOption('--repo <owner/repo>', 'Explicit base repository; normalized to lowercase')
@@ -106,7 +107,7 @@ export function wireReviewCommands(program: Command) {
     .option('--json', 'Print durable review identity, policy and saved evidence')
     .action(
       async (options: {
-        project: string;
+        project?: string;
         key: string;
         commit: string;
         repo: string;
@@ -120,15 +121,24 @@ export function wireReviewCommands(program: Command) {
         instruction?: string[];
         json?: boolean;
       }) => {
-        await execute(options.json, (state) => {
+        await execute(options.json, async (state) => {
           const host = program.opts<{ gitExecutable?: string; herdrExecutable?: string }>();
+          const project = await submissionProject(
+            options.project,
+            state.registry,
+            host.gitExecutable,
+          );
+
+          if (project.outcome === 'rejected') {
+            return project;
+          }
 
           return requestStartingService(
             state.stateDirectory,
             {
               schemaVersion: 1,
               operation: 'review_worker_submit',
-              projectId: options.project,
+              projectId: project.value,
               key: options.key,
               target: {
                 host: options.host.toLowerCase(),

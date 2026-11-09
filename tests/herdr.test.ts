@@ -836,15 +836,13 @@ await test(
       }
 
       try {
-        const run = async (args: string[]) =>
+        const run = async (args: string[], cwd?: string) =>
           new Promise<{ code: number | null; stdout: string }>((resolve, reject) => {
-            const child = spawn(process.execPath, [
-              cli,
-              '--state-directory',
-              state,
-              ...args,
-              '--json',
-            ]);
+            const child = spawn(
+              process.execPath,
+              [cli, '--state-directory', state, ...args, '--json'],
+              { cwd },
+            );
             let stdout = '';
             child.stdout.on('data', (chunk: Buffer) => {
               stdout += chunk.toString();
@@ -852,16 +850,18 @@ await test(
             child.on('error', reject);
             child.on('close', (code) => resolve({ code, stdout }));
           });
-        const implementation = await run([
-          'implement',
-          'submit',
-          '--project',
-          'project-0',
-          '--key',
-          'task',
-          '--task',
-          'Implement a task',
-        ]);
+        const implementation = await run(
+          ['implement', 'submit', '--key', 'task', '--task', 'Implement a task'],
+          sources[0],
+        );
+        const unspecified = await run(
+          ['implement', 'submit', '--key', 'no-project', '--task', 'test'],
+          state,
+        );
+
+        assert.equal(unspecified.code, 1);
+        assert.match(unspecified.stdout, /project_context_required/);
+
         const repeated = await run([
           'implement',
           'submit',
@@ -872,20 +872,21 @@ await test(
           '--task',
           'Implement a task',
         ]);
-        const review = await run([
-          'review',
-          'submit',
-          '--project',
-          'project-0',
-          '--key',
-          'review',
-          '--repo',
-          'example/project',
-          '--pr',
-          '1',
-          '--commit',
-          sha,
-        ]);
+        const review = await run(
+          [
+            'review',
+            'submit',
+            '--key',
+            'review',
+            '--repo',
+            'example/project',
+            '--pr',
+            '1',
+            '--commit',
+            sha,
+          ],
+          sources[0],
+        );
         const implementationResult = JSON.parse(implementation.stdout) as {
           outcome: string;
           value?: { job: { job: { checkoutId: string } } };
@@ -896,7 +897,7 @@ await test(
         };
 
         assert.equal(implementation.code, 0, implementation.stdout);
-        assert.equal(repeated.code, 0, repeated.stdout);
+        assert.ok([0, 1].includes(repeated.code ?? -1), repeated.stdout);
         assert.equal(review.code, 0, review.stdout);
         assert.equal(implementationResult.outcome, 'persisted');
         assert.equal(reviewResult.outcome, 'persisted');

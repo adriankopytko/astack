@@ -1,5 +1,6 @@
 import { readRequestFile } from './request-file.js';
 import { requestStartingService } from './ensure-service.js';
+import { submissionProject } from './submit-project.js';
 import { rejected } from '../contracts/operation-result.js';
 import { resolve } from 'node:path';
 import { Command } from 'commander';
@@ -74,7 +75,7 @@ export function wireImplementationCommands(program: Command) {
     .description(
       'Persist task, instruction references, approved policy and attempt before dispatch',
     )
-    .requiredOption('--project <id>', 'Registered project')
+    .option('--project <id>', 'Registered project; inferred from the current repository if omitted')
     .requiredOption('--key <key>', 'Stable implementation submission key')
     .option('--base <sha>', 'Optional full base commit SHA; defaults to the current project commit')
     .requiredOption('--task <text>', 'Selected task without credentials')
@@ -91,7 +92,7 @@ export function wireImplementationCommands(program: Command) {
     .option('--json', 'Print durable identity and saved workflow state')
     .action(
       async (options: {
-        project: string;
+        project?: string;
         key: string;
         base?: string;
         task: string;
@@ -114,8 +115,17 @@ export function wireImplementationCommands(program: Command) {
           return;
         }
 
-        await execute(options.json, (state) => {
+        await execute(options.json, async (state) => {
           const host = program.opts<{ gitExecutable?: string; herdrExecutable?: string }>();
+          const project = await submissionProject(
+            options.project,
+            state.registry,
+            host.gitExecutable,
+          );
+
+          if (project.outcome === 'rejected') {
+            return project;
+          }
 
           return requestStartingService(
             state.stateDirectory,
@@ -123,7 +133,7 @@ export function wireImplementationCommands(program: Command) {
               schemaVersion: 1,
               operation: 'implement_worker_submit',
               ...(fixOf === undefined ? {} : { fixOf }),
-              projectId: options.project,
+              projectId: project.value,
               key: options.key,
               ...(options.base === undefined ? {} : { baseCommit: options.base }),
               description: options.task,

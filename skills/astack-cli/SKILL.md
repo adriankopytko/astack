@@ -141,6 +141,8 @@ Repeated keys return the saved receipt/current observation; changed text/kind co
 
 ## Explicit implementation delegation
 
+For implementation and manual review submission, `--project` is optional inside a registered project; Astack resolves it from the current repository. Select `--project` explicitly outside that context.
+
 Run the Herdr-enabled service and use `implement submit --project <id> --key <stable-key> --task '<selected task>' [--base <full-sha>] [--criterion '<criterion>'] [--json]`. Astack creates the dedicated Git checkout and grouped Herdr workspace before accepting the job. Criteria are repeatable. It does not select issues, publish changes or trigger review automatically. Use the same key after an uncertain response; inspect the worktree before reconciliation.
 
 Acceptance saves task/criteria, instruction references, configuration snapshot, job/attempt and pending effect before launch. Repeating the same normalized submission returns its original identity and saved state, including after worker edits or policy revocation; it grants no new execution authority. Changed intent under that key conflicts. A disconnected client must retry the same key, not create another worker. Scope project/checkout explicitly from any cwd.
