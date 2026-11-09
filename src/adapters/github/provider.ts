@@ -52,7 +52,10 @@ const remoteReview = remoteComment.extend({
 const markerSchema = githubPublicationReceiptSchema.shape.marker;
 const receiptBody = (p: GithubPublication, marker: string) => `${p.body}\n\n${marker}`;
 
-function pull(value: unknown, repository: { host: string; repository: string }): GithubPullRequest {
+export function normalizePullRequest(
+  value: unknown,
+  repository: { host: string; repository: string },
+): GithubPullRequest {
   const pr = rawPr.parse(value);
 
   if (
@@ -102,7 +105,7 @@ export function createGhProvider(options: GhProviderOptions): GithubProvider {
   function context(root: string, signal?: AbortSignal) {
     const session = createGhSession(options, root, signal);
     const inspect = async (target: z.infer<typeof reviewTargetSchema>) => {
-      const value = pull(
+      const value = normalizePullRequest(
         await session.api(target.host, `repos/${target.repository}/pulls/${target.number}`),
         target,
       );
@@ -126,7 +129,7 @@ export function createGhProvider(options: GhProviderOptions): GithubProvider {
         repository.host,
         `repos/${repository.repository}/pulls?state=all&head=${encodeURIComponent(`${owner}:${headBranch}`)}&sort=created&direction=asc`,
       );
-      const prs = items.map((item) => pull(item, repository));
+      const prs = items.map((item) => normalizePullRequest(item, repository));
       const ids = new Set(prs.map((pr) => pr.target.number));
 
       if (

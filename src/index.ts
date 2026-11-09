@@ -390,6 +390,11 @@ export type { RunReportReader, RunShutdownVerifier } from './ports/runs.js';
 
 export { createGhProvider, type GhProviderOptions } from './adapters/github/provider.js';
 export {
+  createGhReadPrimitives,
+  type GithubIssue,
+  type GithubReadSnapshot,
+} from './adapters/github/read.js';
+export {
   publishGithubEffect,
   type GithubPublicationDependencies,
 } from './application/github-publication.js';

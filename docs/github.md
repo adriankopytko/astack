@@ -32,6 +32,8 @@ Publication is a same-host orchestrator capability, not a restricted worker endp
 
 ## Reads and pagination
 
+`createGhReadPrimitives(options)` supplies targeted `issue` and `pullRequest` reads by explicit host, repository and number. Each successful uncached read makes one GitHub request and returns normalized metadata with `observedAt` and `cached`. Pass `maxAgeMs` to permit reuse of a snapshot; zero requires a fresh read. A shared reader instance coalesces concurrent identical requests and keeps at most 256 snapshots in memory. Failed reads are not cached. The cache is local to that instance: it is not yet shared across processes or coordinated with the CI observer's host budget, and it does not automatically attach context to worker prompts.
+
 - `inspectPullRequest({target, root}, signal?)` verifies returned PR number, repository URL, base repository and full head SHA, returning normalized PR metadata rather than provider JSON or raw URLs.
 - `discoverPullRequests({repository, sourceRepository, headBranch, root}, signal?)` enumerates the explicitly selected source branch in the base repository. Both source repository and branch must match every result.
 - `readChecks({target, root}, signal?)` reads all bounded pages of check runs (`filter=latest`) and commit statuses at the full SHA. It verifies check-run head attribution, chooses the newest immutable status ID per context, rejects repeated IDs, and brackets checks with unchanged PR observations. Duplicate check names remain ambiguous and reject the review snapshot. The existing 64-check snapshot bound remains in force.
