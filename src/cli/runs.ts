@@ -11,6 +11,8 @@ import { requestStartingService } from './ensure-service.js';
 import { nodeRunEventWaiter } from '../adapters/local/run-waiter.js';
 import { inspectRun, readRunEvents, readRunCursor } from '../application/runs.js';
 import { rejected } from '../contracts/operation-result.js';
+import { inspectQueuedWorker } from '../application/inspect-worker-queue.js';
+import { renderQueuedWorker } from './render-queued-worker.js';
 import type { ServiceRpcResponse } from '../contracts/service-rpc.js';
 function number(value: string): number {
   if (!/^[0-9]+$/.test(value) || !Number.isSafeInteger(Number(value))) {
@@ -27,6 +29,8 @@ function render(result: ServiceRpcResponse, json?: boolean, submittedReport = fa
     process.stdout.write(`${result.error.code}: ${result.error.message}\n`);
   } else if (result.value === null) {
     process.stdout.write('Run not found.\n');
+  } else if ('request' in result.value && 'state' in result.value) {
+    process.stdout.write(renderQueuedWorker(result.value));
   } else if ('cleanup' in result.value) {
     const value = result.value;
     process.stdout.write(
@@ -52,6 +56,10 @@ function render(result: ServiceRpcResponse, json?: boolean, submittedReport = fa
 
   if (
     'error' in result ||
+    (result.value &&
+      'request' in result.value &&
+      'state' in result.value &&
+      !!result.value.error) ||
     (!submittedReport &&
       result.value &&
       'cleanup' in result.value &&
@@ -104,9 +112,22 @@ export function wireRunCommands(program: Command) {
     .command('inspect <job-id>')
     .option('--json')
     .action(async (jobId: string, options: { json?: boolean }) => {
-      await execute(options.json, async (state) =>
-        inspectRun({ schemaVersion: 1, jobId }, { runs: state.runs }),
-      );
+      await execute(options.json, async (state) => {
+        const queued = inspectQueuedWorker(jobId, state.workerQueue, state.worktrees);
+
+        if (queued.outcome === 'rejected') {
+          return queued;
+        }
+
+        if (queued.value && !queued.value.jobId) {
+          return queued;
+        }
+
+        return inspectRun(
+          { schemaVersion: 1, jobId: queued.value?.jobId ?? jobId },
+          { runs: state.runs },
+        );
+      });
     });
   run
     .command('report <job-id>')

@@ -12,7 +12,7 @@ The default capacity is four workers globally and four per agent type. To change
 { "concurrency": { "global": 6, "perAgent": 3 } }
 ```
 
-Restart the service after editing these host-wide settings. Foreground `--capacity` and `--role-capacity` override them. Worker worktrees are currently prepared at submission, before capacity is claimed.
+Restart the service after editing these host-wide settings. Foreground `--capacity` and `--role-capacity` override them. Implementation and review submissions first enter a durable queue without worktrees; Astack reserves capacity before preparing a workspace or running the before hook.
 
 `astack errors list [--limit <count>] [--json]` shows recent service errors, worker-dispatch blockers, uncertain worker observations and failed worker reports; `astack errors inspect <id> [--json]` reads one record. Records contain the operation, timestamp, project/job IDs when available, and normalized error code/message. They do not include task text, process output, or environment values. A failure that occurs before the service receives a request (such as failure to start the service) is reported directly to the caller but is not recorded here. Read-only error inspection does not start the service.
 

@@ -4,7 +4,7 @@ import {
   reviewWorkerSubmissionSchema,
 } from '../contracts/worker-submission.js';
 import { rejected } from '../contracts/operation-result.js';
-import { sha256 } from '../core/file-paths.js';
+import { workerWorktreeKey } from '../core/worker-key.js';
 import { parseOperationRequest } from '../core/parse-operation-request.js';
 import { selectProjectContext } from './select-project-context.js';
 import { resolveConfiguration } from './configuration.js';
@@ -105,12 +105,8 @@ export async function submitWorkerTask(
       : submitReview(saved, deps.review, signal);
   }
 
-  const identity =
-    'target' in request && !request.repeat
-      ? `${request.target.host}/${request.target.repository}/${request.target.number}/${request.target.sha}`
-      : request.key;
-  const digest = sha256(`${request.projectId}\0${kind}\0${identity}`).slice(0, 32);
-  const worktreeKey = `worker-${kind}-${digest}`;
+  const worktreeKey = workerWorktreeKey(kind, request);
+  const digest = worktreeKey.slice(-32);
   const branch = `refs/heads/astack/${kind === 'reviewer' ? 'code-review' : 'implementation'}-${digest}`;
   const previous = deps.worktrees.store.find(request.projectId, worktreeKey);
 

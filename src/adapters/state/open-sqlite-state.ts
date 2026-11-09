@@ -34,6 +34,8 @@ import { createSqliteRunStore } from './run-store.js';
 import { createSqliteRuntimeStore } from './runtime-store.js';
 import { createSqliteErrorStore } from './error-store.js';
 import type { ErrorStore } from '../../ports/errors.js';
+import { createSqliteWorkerQueueStore } from './worker-queue-store.js';
+import type { WorkerQueueStore } from '../../ports/worker-queue.js';
 
 export interface SqliteStateDependencies {
   /** Trusted wall-clock milliseconds, used only for short claims and release observations. */
@@ -51,6 +53,7 @@ export type StateOpenResult =
       herdr: HerdrStore;
       runtime: RuntimeStore;
       errors: ErrorStore;
+      workerQueue: WorkerQueueStore;
       runs: RunStore;
       reviewResults: ReviewResultStore;
       cleanups: CleanupStore;
@@ -107,6 +110,7 @@ export async function openSqliteState(
         herdr: createSqliteHerdrStore(database, dependencies.now ?? Date.now),
         runtime: createSqliteRuntimeStore(database, dependencies.now ?? Date.now),
         errors: createSqliteErrorStore(database, dependencies.now ?? Date.now),
+        workerQueue: createSqliteWorkerQueueStore(database),
       };
     } catch (error) {
       database.close();

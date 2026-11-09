@@ -112,7 +112,7 @@ The CLI makes the built-in `codex-herdr` runtime available when Codex and Herdr 
 
 Use `astack service stop` to stop the coordinator gracefully. It does not stop Herdr agents or establish worker shutdown. A later submission starts the service again.
 
-Host-wide worker capacity defaults to four globally and four per agent type. Configure it in `~/.astack/service.json`, for example `{ "concurrency": { "global": 6, "perAgent": 3 } }`, and restart the service to apply changes. Worker workspaces are currently prepared before the worker claims capacity.
+Host-wide worker capacity defaults to four globally and four per agent type. Configure it in `~/.astack/service.json`, for example `{ "concurrency": { "global": 6, "perAgent": 3 } }`, and restart the service to apply changes. Implementation and review tasks wait without a worktree until capacity is reserved.
 
 Use `astack errors list --json` for recent service errors, worker-dispatch blockers, uncertain worker observations and failed reports, and `astack errors inspect <id> --json` for a record. Errors before a request reaches the service are reported to the caller and are not included.
 
@@ -150,7 +150,9 @@ For implementation and manual review submission, `--project` is optional inside 
 
 Set `agents.<name>.workspacePrefix` in project configuration to customize the Herdr worker workspace label; implementation and review default to `IMPL` and `CR` respectively.
 
-Use `implement submit --project <id> --key <stable-key> --task '<selected task>' [--base <full-sha>] [--criterion '<criterion>'] [--json]`. Astack creates the dedicated Git checkout and grouped Herdr workspace before accepting the job. Criteria are repeatable. It does not select issues, publish changes or trigger review automatically. Use the same key after an uncertain response; inspect the worktree before reconciliation.
+Use `implement submit --project <id> --key <stable-key> --task '<selected task>' [--base <full-sha>] [--criterion '<criterion>'] [--json]`. Astack accepts the task and returns its stable job ID before creating a checkout; after capacity is reserved it creates the Git checkout and grouped Herdr workspace. Criteria are repeatable. It does not select issues, publish changes or trigger review automatically. Use the same key after an uncertain response; inspect the worktree before reconciliation.
+
+Use `run inspect <job-id> --json` to inspect a waiting or preparing task. `run cancel <job-id> --key <key> --json` cancels a task that has not begun preparation. Run events begin after the worker checkout is accepted. If interrupted preparation needs reconciliation, inspection includes the saved worktree and operation IDs; use the documented writer-excluded worktree reconciliation before retrying.
 
 New implementation tasks fetch `origin/main` for their default base. An explicit `--base` or a review-fix reference uses the selected commit instead. Fetch failures are reported rather than falling back to a stale base.
 

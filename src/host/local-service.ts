@@ -1,6 +1,8 @@
 import { createReviewCommitFetcher } from '../adapters/git/review-commit.js';
 import { createMainBaseResolver } from '../adapters/git/main-base.js';
 import { submitWorkerTask } from '../application/worker-submission.js';
+import { enqueueWorker } from '../application/enqueue-worker.js';
+import { workerQueueReceipt } from '../contracts/worker-queue.js';
 import { prepareWorkerWorktree, reconcileWorkerWorktree } from '../application/worker-worktree.js';
 import { createWorktreeGit } from '../adapters/git/worktree-git.js';
 import type { HerdrDependencies } from '../application/herdr.js';
@@ -174,6 +176,7 @@ export async function startLocalService(
     const dependencies: ServiceDependencies = {
       registry: opened.registry,
       queue: opened.service,
+      workerQueue: opened.workerQueue,
       ...(options.afterHandoffReview ? { automaticReviews: opened.automaticReviews } : {}),
       git: createGitInspector({ executable, runner: nodeProcessRunner }),
       identity: nodeCheckoutIdentityReader,
@@ -378,11 +381,122 @@ export async function startLocalService(
     const closed = new Promise<OperationResult<{ closed: true }>>((resolve) => {
       resolveClosed = resolve;
     });
+    const availableWorkerRuntimes = () => ({
+      implementer: runtimes
+        .filter((runtime) => runtime.workflows?.includes('implementation'))
+        .flatMap((runtime) => [runtime.id, ...(runtime.aliases ?? [])]),
+      reviewer: runtimes
+        .filter((runtime) => runtime.workflows?.includes('review'))
+        .flatMap((runtime) => [runtime.id, ...(runtime.aliases ?? [])]),
+    });
     const coordinator = createServiceCoordinator({
       sessionId,
       limits: request.value.limits,
       runtimes,
       dependencies,
+      async afterCycle(signal) {
+        if (!workerHerdr) {
+          return false;
+        }
+
+        const claimed = opened.workerQueue.claim(request.value.limits, availableWorkerRuntimes());
+
+        if (claimed.outcome !== 'persisted') {
+          throw new Error('Could not claim queued worker capacity.');
+        }
+
+        const item = claimed.value;
+
+        if (!item) {
+          return false;
+        }
+
+        const pinnedConfiguration = {
+          ...dependencies.configuration,
+          readPolicy: async (projectId: string) =>
+            projectId === item.request.submission.projectId ? item.policy : null,
+        };
+        const nextId = (kind: 'job' | 'attempt' | 'effect' | 'claim') =>
+          kind === 'job' ? item.id : `${kind}-${randomUUID()}`;
+        const implementation = {
+          ...implementationDependencies,
+          configuration: pinnedConfiguration,
+          nextId,
+        };
+        const review = { ...reviewDependencies, configuration: pinnedConfiguration, nextId };
+        let result;
+
+        try {
+          result = await submitWorkerTask(
+            item.request.kind,
+            item.request.submission,
+            {
+              implementation,
+              review,
+              worktrees: workerWorktrees,
+              herdr: workerHerdr,
+              reviewCommit: createReviewCommitFetcher({
+                executable,
+                githubExecutable: gh,
+                runner: nodeProcessRunner,
+                environment,
+              }),
+              implementationBase:
+                options.implementationBase ??
+                createMainBaseResolver({
+                  executable,
+                  runner: nodeProcessRunner,
+                  environment: process.env,
+                }),
+            },
+            signal,
+          );
+        } catch {
+          result = rejected(
+            'state_reconciliation_required',
+            'Worker preparation stopped unexpectedly; inspect its saved state.',
+          );
+        }
+
+        if (result.outcome === 'persisted') {
+          if (result.value.job.job.id !== item.id) {
+            const alias = opened.workerQueue.alias(item.id, result.value.job.job.id);
+
+            if (alias.outcome !== 'persisted') {
+              throw new Error('Could not save the existing review assignment.');
+            }
+          }
+
+          return true;
+        }
+
+        const error =
+          'error' in result
+            ? result.error
+            : {
+                code: 'state_reconciliation_required',
+                message: 'Worker preparation could not be confirmed.',
+              };
+        const bounded = { code: error.code, message: error.message.slice(0, 2048) };
+        const uncertain =
+          result.outcome === 'uncertain' || error.code === 'state_reconciliation_required';
+        const saved = uncertain
+          ? opened.workerQueue.uncertain(item.id, bounded)
+          : opened.workerQueue.block(item.id, bounded);
+
+        if (saved.outcome !== 'persisted') {
+          throw new Error('Could not record worker preparation outcome.');
+        }
+
+        opened.errors.append({
+          operation: 'worker_prepare',
+          projectId: item.request.submission.projectId,
+          jobId: item.id,
+          ...bounded,
+        });
+
+        return true;
+      },
       onFailure: () => {
         fatal = true;
         void close();
@@ -529,14 +643,25 @@ export async function startLocalService(
             }
 
             const { operation: _operation, ...value } = request;
+            const result = await reconcileWorkerWorktree(
+              value,
+              { worktrees: workerWorktrees, herdr: workerHerdr },
+              signal,
+            );
 
-            return completed({
-              workerWorktree: await reconcileWorkerWorktree(
-                value,
-                { worktrees: workerWorktrees, herdr: workerHerdr },
-                signal,
-              ),
-            });
+            if (result.outcome === 'reconciled' && result.record.reconciliation) {
+              const resumed = opened.workerQueue.reconciled(result.record);
+
+              if (resumed.outcome !== 'persisted') {
+                return resumed;
+              }
+
+              if (resumed.value?.state === 'queued') {
+                coordinator.wake();
+              }
+            }
+
+            return completed({ workerWorktree: result });
           }
 
           case 'implement_worker_submit':
@@ -549,27 +674,17 @@ export async function startLocalService(
             }
 
             const { operation, ...submission } = request;
-            const result = await submitWorkerTask(
-              operation === 'implement_worker_submit' ? 'implementer' : 'reviewer',
-              submission,
+            const result = await enqueueWorker(
               {
-                implementation: implementationDependencies,
-                review: reviewDependencies,
-                worktrees: workerWorktrees,
-                herdr: workerHerdr,
-                reviewCommit: createReviewCommitFetcher({
-                  executable,
-                  githubExecutable: gh,
-                  runner: nodeProcessRunner,
-                  environment,
-                }),
-                implementationBase:
-                  options.implementationBase ??
-                  createMainBaseResolver({
-                    executable,
-                    runner: nodeProcessRunner,
-                    environment: process.env,
-                  }),
+                kind: operation === 'implement_worker_submit' ? 'implementer' : 'reviewer',
+                submission,
+              },
+              {
+                ...dependencies,
+                workerQueue: opened.workerQueue,
+                available: availableWorkerRuntimes(),
+                nextId: () => `job-${randomUUID()}`,
+                now: Date.now,
               },
               signal,
             );
@@ -788,6 +903,24 @@ export async function startLocalService(
 
           case 'run_cancel': {
             const { operation: _operation, ...value } = request;
+            const queued = opened.workerQueue.read(value.jobId);
+
+            if (queued.outcome === 'rejected') {
+              return queued;
+            }
+
+            if (queued.value && !queued.value.jobId) {
+              const cancelled = opened.workerQueue.cancel(value.jobId);
+
+              return cancelled.outcome === 'persisted'
+                ? { ...cancelled, value: workerQueueReceipt(cancelled.value) }
+                : cancelled;
+            }
+
+            if (queued.value?.jobId) {
+              value.jobId = queued.value.jobId;
+            }
+
             const result = await cancelRun(value, runDependencies, signal);
 
             if (result.outcome === 'persisted') {

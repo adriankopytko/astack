@@ -8,6 +8,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { openSqliteState } from '../src/adapters/state/open-sqlite-state.js';
 import { serviceRunRequestSchema } from '../src/contracts/service.js';
 import { readServiceSettings } from '../src/cli/service-settings.js';
+import { DatabaseSync } from 'node:sqlite';
 
 const entry = fileURLToPath(new URL('../dist/cli/main.js', import.meta.url));
 
@@ -57,6 +58,11 @@ await test(
       }
 
       opened.store.close();
+      const oldState = new DatabaseSync(join(state, 'state.sqlite'));
+      oldState.exec(
+        'DROP TABLE worker_requests; DELETE FROM state_migrations WHERE version=21; PRAGMA user_version=20;',
+      );
+      oldState.close();
       await writeFile(
         join(state, 'service.json'),
         JSON.stringify({ concurrency: { global: 6, perAgent: 3 } }),

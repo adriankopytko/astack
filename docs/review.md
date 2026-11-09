@@ -2,7 +2,7 @@
 
 ## Implemented scope
 
-An orchestrator requests a review for an explicit registered project, base repository host/name, PR number and full head SHA. No implementation job or claim is required. Manual initiation is the default; after-handoff initiation is separately opted in. Astack creates a dedicated reviewer checkout, a local `code-review` branch at the exact requested SHA, and a grouped Herdr workspace. Agent hooks may start project services when configured. Legacy integration resource requests block dispatch; configure agent ports and hooks for new review jobs instead.
+An orchestrator requests a review for a registered project, base repository host/name, PR number and full head SHA. No implementation job or claim is required. Manual initiation is the default; after-handoff initiation is separately opted in. Astack queues the request and, once capacity is available, creates a dedicated reviewer checkout, a local `code-review` branch at the exact requested SHA, and a grouped Herdr workspace. Agent hooks may start project services when configured. Legacy integration resource requests block dispatch; configure agent ports and hooks for new review jobs instead.
 
 If the requested commit is not local, Astack fetches the explicitly selected PR head and verifies the requested commit is available. It does not discover unrelated PRs, edit fixes, publish GitHub reviews/comments, push or merge.
 

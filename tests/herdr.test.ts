@@ -837,6 +837,18 @@ await test(
         {
           workerSetupProvider: provider,
           implementationBase: { resolve: async () => completed(sha) },
+          runtimes: [
+            {
+              id: 'fixture',
+              workflows: ['implementation', 'review'],
+              async start(job) {
+                return { state: 'running', handle: { attempt: job.attempt.id }, evidence: {} };
+              },
+              async inspect(job) {
+                return { state: 'running', handle: { attempt: job.attempt.id }, evidence: {} };
+              },
+            },
+          ],
           reviewTargets: {
             read: async () =>
               completed({
@@ -859,6 +871,14 @@ await test(
       }
 
       try {
+        const waitFor = async (condition: () => boolean) => {
+          for (let i = 0; i < 500 && !condition(); i++) {
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          }
+
+          assert.ok(condition(), 'Timed out waiting for queued worker setup');
+        };
+
         const run = async (args: string[], cwd?: string) =>
           new Promise<{ code: number | null; stdout: string }>((resolve, reject) => {
             const child = spawn(
@@ -912,11 +932,11 @@ await test(
         );
         const implementationResult = JSON.parse(implementation.stdout) as {
           outcome: string;
-          value?: { job: { job: { checkoutId: string } } };
+          value?: { id: string };
         };
         const reviewResult = JSON.parse(review.stdout) as {
           outcome: string;
-          value?: { job: { job: { checkoutId: string }; entry: { branch: string } } };
+          value?: { id: string };
         };
 
         assert.equal(implementation.code, 0, implementation.stdout);
@@ -924,11 +944,26 @@ await test(
         assert.equal(review.code, 0, review.stdout);
         assert.equal(implementationResult.outcome, 'persisted');
         assert.equal(reviewResult.outcome, 'persisted');
-        assert.notEqual(
-          implementationResult.value?.job.job.checkoutId,
-          reviewResult.value?.job.job.checkoutId,
-        );
-        assert.match(reviewResult.value!.job.entry.branch, /^refs\/heads\/astack\/code-review-/);
+        assert.ok(implementationResult.value && reviewResult.value);
+
+        await waitFor(() => {
+          const implementationJob = opened.service.read(implementationResult.value!.id);
+          const reviewJob = opened.service.read(reviewResult.value!.id);
+
+          return (
+            implementationJob.outcome === 'completed' &&
+            !!implementationJob.value &&
+            reviewJob.outcome === 'completed' &&
+            !!reviewJob.value
+          );
+        });
+        const implementationJob = opened.service.read(implementationResult.value.id);
+        const reviewJob = opened.service.read(reviewResult.value.id);
+
+        assert.ok(implementationJob.outcome === 'completed' && implementationJob.value);
+        assert.ok(reviewJob.outcome === 'completed' && reviewJob.value);
+        assert.notEqual(implementationJob.value.job.checkoutId, reviewJob.value.job.checkoutId);
+        assert.match(reviewJob.value.entry.branch, /^refs\/heads\/astack\/code-review-/);
         assert.equal(creates, 2);
         assert.match(labels[0]!, /^DEV-/);
         assert.match(labels[1]!, /^CR-/);
@@ -946,8 +981,17 @@ await test(
         ];
         const lost = await run(lostTask);
 
-        assert.equal(lost.code, 1, lost.stdout);
-        assert.match(lost.stdout, /state_reconciliation_required/);
+        assert.equal(lost.code, 0, lost.stdout);
+
+        const lostId = (JSON.parse(lost.stdout) as { value: { id: string } }).value.id;
+        await waitFor(() => {
+          const pending = opened.workerQueue.read(lostId);
+
+          return (
+            pending.outcome === 'completed' &&
+            pending.value?.error?.code === 'state_reconciliation_required'
+          );
+        });
 
         const digest = sha256('project-0\0implementer\0lost-task').slice(0, 32);
         const saved = opened.worktrees.find('project-0', `worker-implementer-${digest}`);
@@ -969,6 +1013,13 @@ await test(
         const resumed = await run(lostTask);
 
         assert.equal(resumed.code, 0, resumed.stdout);
+
+        await waitFor(() => {
+          const job = opened.service.read(lostId);
+
+          return job.outcome === 'completed' && !!job.value;
+        });
+
         assert.equal(creates, 3);
       } finally {
         await service.close();

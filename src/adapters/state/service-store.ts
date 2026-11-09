@@ -28,6 +28,7 @@ import { stateFailure } from './errors.js';
 import { configurationDigest } from '../../core/configuration.js';
 import { hostConfigurationPolicySchema } from '../../contracts/configuration.js';
 import { appendServiceError } from './error-store.js';
+import { workerQueueItemSchema } from '../../contracts/worker-queue.js';
 
 export function createSqliteServiceStore(
   db: StateDatabase,
@@ -334,6 +335,31 @@ export function createSqliteServiceStore(
         }
 
         const created = required(job.id);
+        const request = db.get(
+          workerQueueItemSchema,
+          'SELECT data FROM worker_requests WHERE id=?',
+          job.id,
+        );
+
+        if (request) {
+          if (
+            request.state !== 'preparing' ||
+            request.request.kind !== entry.role ||
+            request.request.submission.projectId !== job.projectId ||
+            request.request.submission.key !== job.idempotencyKey ||
+            configurationDigest(request.policy) !== job.configuration?.policyDigest
+          ) {
+            stateFailure('state_conflict');
+          }
+
+          const prepared = { ...request, state: 'prepared' as const, jobId: job.id };
+          db.statement('UPDATE worker_requests SET state=?,data=? WHERE id=?').run(
+            prepared.state,
+            canonicalJson(prepared),
+            prepared.id,
+          );
+        }
+
         appendRunEvent(db, created, 'accepted', now(), { role: entry.role });
 
         if (fix) {
@@ -441,6 +467,11 @@ export function createSqliteServiceStore(
             "SELECT role, COUNT(*) AS count FROM service_entries WHERE state IN ('dispatching', 'started', 'unknown') GROUP BY role",
           )
           .all();
+        const reservations = db
+          .statement(
+            "SELECT kind AS role,COUNT(*) AS count FROM worker_requests WHERE state IN ('preparing','prepared') AND id<>? GROUP BY kind",
+          )
+          .all(jobId);
         const competing = db
           .statement(
             "SELECT service_entries.job_id FROM service_entries JOIN jobs ON jobs.id=service_entries.job_id WHERE service_entries.state IN ('dispatching', 'started', 'unknown') AND (jobs.checkout_id=? OR (jobs.repository_id=? AND json_extract(service_entries.data, '$.branch')=?)) LIMIT 1",
@@ -454,7 +485,7 @@ export function createSqliteServiceStore(
         let total = 0;
         let role = 0;
 
-        for (const row of counts) {
+        for (const row of [...counts, ...reservations]) {
           if (typeof row.count !== 'number') {
             stateFailure('state_invalid_data');
           }
@@ -462,7 +493,7 @@ export function createSqliteServiceStore(
           total += row.count;
 
           if (row.role === current.entry.role) {
-            role = row.count;
+            role += row.count;
           }
         }
 
@@ -488,6 +519,21 @@ export function createSqliteServiceStore(
 
         if (changed.changes !== 1) {
           stateFailure('state_reconciliation_required');
+        }
+
+        const reservation = db.get(
+          workerQueueItemSchema,
+          'SELECT data FROM worker_requests WHERE id=?',
+          jobId,
+        );
+
+        if (reservation && ['prepared', 'blocked'].includes(reservation.state)) {
+          const started = { ...reservation, state: 'started' as const };
+          db.statement('UPDATE worker_requests SET state=?,data=? WHERE id=?').run(
+            started.state,
+            canonicalJson(started),
+            started.id,
+          );
         }
 
         markAutomaticDispatch(db, jobId, now);
@@ -529,6 +575,28 @@ export function createSqliteServiceStore(
             },
             now(),
           );
+
+          const reservation = db.get(
+            workerQueueItemSchema,
+            'SELECT data FROM worker_requests WHERE id=?',
+            jobId,
+          );
+
+          if (reservation?.state === 'prepared') {
+            const blocked = {
+              ...reservation,
+              state: 'blocked' as const,
+              error: {
+                code: readiness?.code ?? reason,
+                message: (readiness?.message ?? `Worker blocked: ${reason}.`).slice(0, 2048),
+              },
+            };
+            db.statement('UPDATE worker_requests SET state=?,data=? WHERE id=?').run(
+              blocked.state,
+              canonicalJson(blocked),
+              blocked.id,
+            );
+          }
         }
 
         return {

@@ -1,8 +1,10 @@
 import { readRequestFile } from './request-file.js';
 import { requestStartingService } from './ensure-service.js';
 import { submissionProject } from './submit-project.js';
+import { renderQueuedWorker } from './render-queued-worker.js';
+import { openSubmissionState } from './submission-state.js';
 import { rejected } from '../contracts/operation-result.js';
-import { resolve } from 'node:path';
+import { inspectQueuedWorker } from '../application/inspect-worker-queue.js';
 import { Command } from 'commander';
 import { openSqliteState } from '../adapters/state/open-sqlite-state.js';
 import { inspectImplementation } from '../application/implementation.js';
@@ -15,6 +17,8 @@ function render(result: ServiceRpcResponse, json?: boolean) {
     process.stdout.write(`${result.error.code}: ${result.error.message}\n`);
   } else if (result.value === null) {
     process.stdout.write('Implementation job not found.\n');
+  } else if ('request' in result.value && 'state' in result.value) {
+    process.stdout.write(renderQueuedWorker(result.value));
   } else if ('implementation' in result.value) {
     const { job, implementation } = result.value;
     process.stdout.write(
@@ -24,6 +28,10 @@ function render(result: ServiceRpcResponse, json?: boolean) {
 
   if (
     'error' in result ||
+    (result.value &&
+      'request' in result.value &&
+      'state' in result.value &&
+      !!result.value.error) ||
     (result.value &&
       'implementation' in result.value &&
       ['blocked', 'failed', 'unknown', 'needs_decision'].includes(
@@ -47,15 +55,14 @@ export function wireImplementationCommands(program: Command) {
     action: (
       state: Extract<Awaited<ReturnType<typeof openSqliteState>>, { outcome: 'opened' }>,
     ) => Promise<ServiceRpcResponse>,
+    startService = false,
   ) {
-    const options = program.opts<{ stateDirectory?: string }>();
-    const opened = await openSqliteState({
-      schemaVersion: 1,
-      mode: 'read-only',
-      ...(options.stateDirectory === undefined
-        ? {}
-        : { stateDirectory: resolve(process.cwd(), options.stateDirectory) }),
-    });
+    const options = program.opts<{
+      stateDirectory?: string;
+      gitExecutable?: string;
+      herdrExecutable?: string;
+    }>();
+    const opened = await openSubmissionState(options, startService);
 
     if (opened.outcome !== 'opened') {
       render(opened, json);
@@ -118,37 +125,41 @@ export function wireImplementationCommands(program: Command) {
           return;
         }
 
-        await execute(options.json, async (state) => {
-          const host = program.opts<{ gitExecutable?: string; herdrExecutable?: string }>();
-          const project = await submissionProject(
-            options.project,
-            state.registry,
-            host.gitExecutable,
-          );
+        await execute(
+          options.json,
+          async (state) => {
+            const host = program.opts<{ gitExecutable?: string; herdrExecutable?: string }>();
+            const project = await submissionProject(
+              options.project,
+              state.registry,
+              host.gitExecutable,
+            );
 
-          if (project.outcome === 'rejected') {
-            return project;
-          }
+            if (project.outcome === 'rejected') {
+              return project;
+            }
 
-          return requestStartingService(
-            state.stateDirectory,
-            {
-              schemaVersion: 1,
-              operation: 'implement_worker_submit',
-              ...(fixOf === undefined ? {} : { fixOf }),
-              projectId: project.value,
-              key: options.key,
-              ...(options.base === undefined ? {} : { baseCommit: options.base }),
-              description: options.task,
-              acceptanceCriteria: options.criterion,
-              ...(options.instruction === undefined
-                ? {}
-                : { instructionPaths: options.instruction }),
-              request: {},
-            },
-            host,
-          );
-        });
+            return requestStartingService(
+              state.stateDirectory,
+              {
+                schemaVersion: 1,
+                operation: 'implement_worker_submit',
+                ...(fixOf === undefined ? {} : { fixOf }),
+                projectId: project.value,
+                key: options.key,
+                ...(options.base === undefined ? {} : { baseCommit: options.base }),
+                description: options.task,
+                acceptanceCriteria: options.criterion,
+                ...(options.instruction === undefined
+                  ? {}
+                  : { instructionPaths: options.instruction }),
+                request: {},
+              },
+              host,
+            );
+          },
+          true,
+        );
       },
     );
   implementation
@@ -156,8 +167,21 @@ export function wireImplementationCommands(program: Command) {
     .description('Read saved implementation delivery/blocker evidence without contacting providers')
     .option('--json', 'Print saved workflow evidence; this does not accept worker results')
     .action(async (jobId: string, options: { json?: boolean }) => {
-      await execute(options.json, async (state) =>
-        inspectImplementation({ schemaVersion: 1, jobId }, { queue: state.service }),
-      );
+      await execute(options.json, async (state) => {
+        const queued = inspectQueuedWorker(jobId, state.workerQueue, state.worktrees);
+
+        if (queued.outcome === 'rejected') {
+          return queued;
+        }
+
+        if (queued.value && !queued.value.jobId) {
+          return queued;
+        }
+
+        return inspectImplementation(
+          { schemaVersion: 1, jobId: queued.value?.jobId ?? jobId },
+          { queue: state.service },
+        );
+      });
     });
 }

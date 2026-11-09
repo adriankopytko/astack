@@ -57,7 +57,7 @@ astack context --project <project-id> --json
 
 Inside a registered repository, it can discover that context. From a directory containing several projects, it does not guess which one you mean; the orchestrator selects the target.
 
-For each task, Astack asks Herdr to create a dedicated Git worktree and a grouped child workspace together. Implementations start from freshly fetched `origin/main` unless a specific base or review-fix commit is selected. It records their identities and verifies the checkout before dispatch. The caller does not prepare a checkout.
+Each task enters a durable queue without preparing a workspace. When capacity is reserved, Astack asks Herdr to create a dedicated Git worktree and grouped child workspace together. Implementations start from freshly fetched `origin/main` unless a specific base or review-fix commit is selected. It records their identities and verifies the checkout before dispatch. The caller does not prepare a checkout.
 
 The project has a primary Herdr space, and workers appear in grouped worker workspaces for that project. The current integration uses **Codex through Herdr**. The architecture allows other adapters, but a second coding-agent provider is not implemented yet. See [project selection](projects.md), [worktrees](worktrees.md) and [Herdr integration](herdr.md).
 

@@ -76,6 +76,7 @@ import {
 } from './review.js';
 import { createOperationResultSchema } from './operation-result.js';
 import { createStateWriteResultSchema } from './state.js';
+import { workerQueueReadResultSchema, workerQueueWriteResultSchema } from './worker-queue.js';
 
 export const serviceRpcRequestSchema = z.discriminatedUnion('operation', [
   z.strictObject({
@@ -125,6 +126,8 @@ export const serviceRpcRequestSchema = z.discriminatedUnion('operation', [
   runCursorRequestSchema.extend({ operation: z.literal('run_checkpoint') }),
 ]);
 export const serviceRpcResponseSchema = z.union([
+  workerQueueReadResultSchema,
+  workerQueueWriteResultSchema,
   createOperationResultSchema(z.strictObject({ workerWorktree: worktreeResultSchema })),
   createOperationResultSchema(initializationResultSchema),
   cleanupReadResultSchema,

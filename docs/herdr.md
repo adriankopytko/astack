@@ -38,7 +38,7 @@ The saved target and workspace handle keep later operations directed at the sele
 
 ## Grouped owned workers
 
-Task submission persists an owned worktree intent, then asks Herdr to create the Git worktree and grouped child workspace together with an explicit path, branch and base commit. Astack verifies the checkout, workspace, parent and server, and stores the workspace receipt with the owned worktree. Runtime startup binds to this exact saved workspace; it does not reopen an existing checkout.
+Task submission first enters a durable queue. Once capacity is reserved, Astack persists an owned worktree intent and asks Herdr to create the Git worktree and grouped child workspace together with an explicit path, branch and base commit. Astack verifies the checkout, workspace, parent and server, and stores the workspace receipt with the owned worktree. Runtime startup binds to this exact saved workspace; it does not reopen an existing checkout.
 
 Project agents can set `workspacePrefix` to identify their child spaces. Implementation and review use `IMPL` and `CR` when no prefix is configured; a unique suffix distinguishes workers.
 

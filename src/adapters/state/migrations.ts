@@ -505,4 +505,20 @@ CREATE TABLE service_errors (
 CREATE INDEX service_errors_recent ON service_errors(created_at DESC, id DESC);
 `,
   },
+  {
+    version: 21,
+    sql: `
+CREATE TABLE worker_requests (
+ id TEXT PRIMARY KEY,
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ kind TEXT NOT NULL CHECK(kind IN ('implementer','reviewer')),
+ request_key TEXT NOT NULL,
+ state TEXT NOT NULL CHECK(state IN ('queued','preparing','prepared','started','blocked','cancelled')),
+ created_at INTEGER NOT NULL,
+ data TEXT NOT NULL CHECK(json_valid(data)),
+ UNIQUE(project_id,kind,request_key)
+) STRICT;
+CREATE INDEX worker_requests_queue ON worker_requests(state,created_at,id);
+`,
+  },
 ] as const;

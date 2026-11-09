@@ -2,7 +2,7 @@
 name: astack-orchestrator
 description: Delegate implementation and code review through Astack, inspect accepted results, and choose explicit follow-up or recovery actions across registered projects.
 metadata:
-  asset-version: '1.0.17'
+  asset-version: '1.0.18'
 ---
 
 # Orchestrate with Astack
@@ -16,7 +16,7 @@ Read `astack --skill` for the installed command contracts when you need details;
 - `astack project list --json` finds registered identities. `astack context --project <project-id> --json` observes the selected checkout; explicit checkout/path/attempt selectors must agree. Invoking Astack from a directory containing several projects does not scan or choose one.
 - `astack project register <path> --json` deliberately registers an unregistered canonical checkout. Registration does not install files, approve configuration or authorize workers.
 - `astack doctor --project <project-id> --role implementer --json` checks current project configuration and prerequisites. Accepted jobs keep their own settings; edits apply to new jobs. Keep secrets out of descriptions, overrides, reports and logs.
-- Task submission creates a dedicated owned checkout and grouped Herdr workspace automatically. Use the same task key to inspect or retry an uncertain submission.
+- Task submission queues the task without preparing a checkout. Once capacity is reserved, Astack creates the owned checkout and grouped Herdr workspace automatically. Use the same task key to inspect or retry an uncertain submission.
 
 ## Delegate and inspect
 
@@ -24,7 +24,7 @@ Submitting work starts the local service if needed; the job selects its runtime 
 
 - `astack implement submit --project <project-id> --key <task-key> --task <task-description> --json` delegates implementation with explicit acceptance criteria and instruction paths when needed. Use a fresh key for a genuinely different task, never to bypass an uncertain send.
 - `astack run inspect <job-id> --json` reads accepted outcome, worker observation and retained resources separately. A worker's done/idle UI and a proposed JSON result are not accepted completion.
-- `astack run events --job <job-id> --after <cursor> --wait 20000 --json` waits on local durable events. Save/acknowledge a consumer cursor only after processing its events. This does not poll GitHub or automatically collect worker output.
+- After the worker checkout is accepted, `astack run events --job <job-id> --after <cursor> --wait 20000 --json` waits on local durable events. Before then, inspect the queued task by job ID. Save/acknowledge a consumer cursor only after processing its events. This does not poll GitHub or automatically collect worker output.
 - `astack run collect-report <job-id> --key <report-key> --session-file <explicit-session-file> --json` collects a structured proposal from one host-selected matching session and submits it for ordinary validation. Never search unrelated transcripts or fabricate a completed report from the terminal badge.
 
 When a report needs a decision, inspect the request. Record the chosen answer with `astack run respond <job-id> --key <answer-key> --decision <report-id> --text <answer> --json`, then explicitly authorize `astack run resume <job-id> --key <resume-key> --response <response-id> --json`. Continuation uses the same worker and durable input key. Pending/unknown delivery must be inspected and reconciled under its contract; never resend with a fresh key because the worker looks idle. Native approval/trust dialogs need an authorized host decision.

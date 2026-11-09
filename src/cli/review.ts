@@ -2,10 +2,12 @@ import { wireReviewResultCommands } from './review-results.js';
 import { wireAutomaticReviewCommands } from './automatic-review.js';
 import { requestStartingService } from './ensure-service.js';
 import { submissionProject } from './submit-project.js';
-import { resolve } from 'node:path';
+import { renderQueuedWorker } from './render-queued-worker.js';
+import { openSubmissionState } from './submission-state.js';
 import { Command } from 'commander';
 import { openSqliteState } from '../adapters/state/open-sqlite-state.js';
 import { inspectReview } from '../application/review.js';
+import { inspectQueuedWorker } from '../application/inspect-worker-queue.js';
 import type { ServiceRpcResponse } from '../contracts/service-rpc.js';
 function append(value: string, values: string[] = []): string[] {
   return [...values, value];
@@ -18,6 +20,8 @@ function render(result: ServiceRpcResponse, json?: boolean) {
     process.stdout.write(`${result.error.code}: ${result.error.message}\n`);
   } else if (result.value === null) {
     process.stdout.write('Review job not found.\n');
+  } else if ('request' in result.value && 'state' in result.value) {
+    process.stdout.write(renderQueuedWorker(result.value));
   } else if ('review' in result.value) {
     const { job, review, assignment } = result.value;
     const target = assignment.submission.target;
@@ -28,6 +32,10 @@ function render(result: ServiceRpcResponse, json?: boolean) {
 
   if (
     'error' in result ||
+    (result.value &&
+      'request' in result.value &&
+      'state' in result.value &&
+      !!result.value.error) ||
     (result.value &&
       'review' in result.value &&
       ['blocked', 'failed', 'unknown', 'needs_decision'].includes(result.value.review.state))
@@ -47,15 +55,14 @@ export function wireReviewCommands(program: Command) {
     action: (
       state: Extract<Awaited<ReturnType<typeof openSqliteState>>, { outcome: 'opened' }>,
     ) => Promise<ServiceRpcResponse>,
+    startService = false,
   ) {
-    const options = program.opts<{ stateDirectory?: string }>();
-    const state = await openSqliteState({
-      schemaVersion: 1,
-      mode: 'read-only',
-      ...(options.stateDirectory === undefined
-        ? {}
-        : { stateDirectory: resolve(process.cwd(), options.stateDirectory) }),
-    });
+    const options = program.opts<{
+      stateDirectory?: string;
+      gitExecutable?: string;
+      herdrExecutable?: string;
+    }>();
+    const state = await openSubmissionState(options, startService);
 
     if (state.outcome !== 'opened') {
       render(state, json);
@@ -121,46 +128,50 @@ export function wireReviewCommands(program: Command) {
         instruction?: string[];
         json?: boolean;
       }) => {
-        await execute(options.json, async (state) => {
-          const host = program.opts<{ gitExecutable?: string; herdrExecutable?: string }>();
-          const project = await submissionProject(
-            options.project,
-            state.registry,
-            host.gitExecutable,
-          );
+        await execute(
+          options.json,
+          async (state) => {
+            const host = program.opts<{ gitExecutable?: string; herdrExecutable?: string }>();
+            const project = await submissionProject(
+              options.project,
+              state.registry,
+              host.gitExecutable,
+            );
 
-          if (project.outcome === 'rejected') {
-            return project;
-          }
+            if (project.outcome === 'rejected') {
+              return project;
+            }
 
-          return requestStartingService(
-            state.stateDirectory,
-            {
-              schemaVersion: 1,
-              operation: 'review_worker_submit',
-              projectId: project.value,
-              key: options.key,
-              target: {
-                host: options.host.toLowerCase(),
-                repository: options.repo.toLowerCase(),
-                number: Number(options.pr),
-                sha: options.commit,
+            return requestStartingService(
+              state.stateDirectory,
+              {
+                schemaVersion: 1,
+                operation: 'review_worker_submit',
+                projectId: project.value,
+                key: options.key,
+                target: {
+                  host: options.host.toLowerCase(),
+                  repository: options.repo.toLowerCase(),
+                  number: Number(options.pr),
+                  sha: options.commit,
+                },
+                gate: {
+                  requiredChecks: options.check,
+                  overrideReason: options.overrideGate ?? null,
+                  ...(options.allowNoChecks ? { allowNoChecks: true } : {}),
+                },
+                repeat: options.repeat ?? false,
+                resources: options.resource,
+                ...(options.instruction === undefined
+                  ? {}
+                  : { instructionPaths: options.instruction }),
+                request: {},
               },
-              gate: {
-                requiredChecks: options.check,
-                overrideReason: options.overrideGate ?? null,
-                ...(options.allowNoChecks ? { allowNoChecks: true } : {}),
-              },
-              repeat: options.repeat ?? false,
-              resources: options.resource,
-              ...(options.instruction === undefined
-                ? {}
-                : { instructionPaths: options.instruction }),
-              request: {},
-            },
-            host,
-          );
-        });
+              host,
+            );
+          },
+          true,
+        );
       },
     );
   review
@@ -168,8 +179,21 @@ export function wireReviewCommands(program: Command) {
     .description('Read saved review evidence without contacting GitHub or agents')
     .option('--json')
     .action(async (jobId: string, options: { json?: boolean }) => {
-      await execute(options.json, async (state) =>
-        inspectReview({ schemaVersion: 1, jobId }, { queue: state.service }),
-      );
+      await execute(options.json, async (state) => {
+        const queued = inspectQueuedWorker(jobId, state.workerQueue, state.worktrees);
+
+        if (queued.outcome === 'rejected') {
+          return queued;
+        }
+
+        if (queued.value && !queued.value.jobId) {
+          return queued;
+        }
+
+        return inspectReview(
+          { schemaVersion: 1, jobId: queued.value?.jobId ?? jobId },
+          { queue: state.service },
+        );
+      });
     });
 }

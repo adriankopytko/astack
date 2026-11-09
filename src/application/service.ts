@@ -21,6 +21,7 @@ import {
 import { stateJobRequestSchema, type StateWriteResult } from '../contracts/state.js';
 import { parseOperationRequest } from '../core/parse-operation-request.js';
 import type { ServiceStore, ServiceWorkerRuntime } from '../ports/service.js';
+import type { WorkerQueueStore } from '../ports/worker-queue.js';
 import {
   resolveConfiguration,
   checkConfigurationDispatch,
@@ -31,6 +32,7 @@ import { hostConfigurationPolicySchema } from '../contracts/configuration.js';
 import { configurationDigest } from '../core/configuration.js';
 
 export interface ServiceDependencies extends ConfigurationDependencies {
+  workerQueue?: WorkerQueueStore;
   agentHooks?: {
     run(
       job: ServiceJob,
@@ -209,6 +211,7 @@ export function createServiceCoordinator(input: {
   runtimes: readonly ServiceWorkerRuntime[];
   dependencies: ServiceDependencies;
   onFailure: () => void;
+  afterCycle?: (signal: AbortSignal) => Promise<boolean>;
 }) {
   const limits = serviceLimitsSchema.parse(input.limits);
   const runtimeEntries = input.runtimes.flatMap((runtime) =>
@@ -502,6 +505,14 @@ export function createServiceCoordinator(input: {
         }
       });
       const roleLimit = limits.perRole[job.entry.role] ?? limits.defaultRole;
+      const reserved = dependencies.workerQueue?.reservations(job.job.id);
+
+      if (reserved?.outcome === 'rejected') {
+        throw new Error('Unable to inspect queued worker reservations.');
+      }
+
+      activeCount += reserved?.value.global ?? 0;
+      roleCount += reserved?.value.roles[job.entry.role] ?? 0;
 
       if (checkoutInUse || activeCount >= limits.global || roleCount >= roleLimit) {
         return;
@@ -567,6 +578,10 @@ export function createServiceCoordinator(input: {
         while (pending && !controller.signal.aborted) {
           pending = false;
           await cycle();
+
+          if (!controller.signal.aborted && (await input.afterCycle?.(controller.signal))) {
+            pending = true;
+          }
         }
       } catch {
         failed = true;
@@ -635,6 +650,15 @@ export function createServiceCoordinator(input: {
 
         after = page.value.nextCursor ?? undefined;
       } while (after !== undefined);
+
+      const pending = dependencies.workerQueue?.counts();
+
+      if (pending?.outcome === 'rejected') {
+        return pending;
+      }
+
+      counts.queued += pending?.value.queued ?? 0;
+      counts.dispatching += pending?.value.preparing ?? 0;
 
       return completed({
         sessionId: input.sessionId,
