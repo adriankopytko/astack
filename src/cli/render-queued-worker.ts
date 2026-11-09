@@ -7,6 +7,10 @@ export function renderQueuedWorker(value: WorkerQueueReceipt): string {
     `State: ${value.state}`,
   ];
 
+  if (value.cancelRequested && value.state === 'preparing') {
+    lines.push('Cancellation requested; waiting for preparation to settle.');
+  }
+
   if (value.error) {
     lines.push(`Error: ${value.error.code}: ${value.error.message}`);
   }

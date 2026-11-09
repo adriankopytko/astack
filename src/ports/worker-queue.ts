@@ -27,5 +27,6 @@ export interface WorkerQueueStore {
   ): StateWriteResult<WorkerQueueItem>;
   alias(id: string, jobId: string): StateWriteResult<WorkerQueueItem>;
   reconciled(worktree: WorktreeRecord): StateWriteResult<WorkerQueueItem | null>;
+  reconcileAbsent(id: string): StateWriteResult<WorkerQueueItem>;
   cancel(id: string): StateWriteResult<WorkerQueueItem>;
 }

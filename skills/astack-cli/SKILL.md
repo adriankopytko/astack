@@ -44,6 +44,7 @@ A blocked installation can preserve existing files; pending means publication ma
 | `astack worktree inspect <id> [--json]`                                                           | Observe ownership, phase, and Git evidence                                                  |
 | `astack worktree remove <id> [--json]`                                                            | Remove a verified clean owned checkout; preserve its branch                                 |
 | `astack worktree reconcile <id> --operation <id> --writer-stopped [--json]`                       | Settle interrupted state after trusted host quiescence confirmation                         |
+| `astack run reconcile-queue <job-id> --writers-stopped [--json]`                                  | Recover stopped preparation before any worktree intent was recorded                         |
 | `astack runtime capabilities`                                                                     | Supported interactive controls and explicit provider limits                                 |
 | `astack runtime inspect --attempt <id> [--json]`                                                  | Read saved worker identity and current liveness                                             |
 | `astack runtime reconcile --attempt <id> [--json]`                                                | Bind a matching pending launch without another provider write                               |

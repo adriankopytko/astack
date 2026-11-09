@@ -344,6 +344,7 @@ export function createSqliteServiceStore(
         if (request) {
           if (
             request.state !== 'preparing' ||
+            request.cancelRequested ||
             request.request.kind !== entry.role ||
             request.request.submission.projectId !== job.projectId ||
             request.request.submission.key !== job.idempotencyKey ||

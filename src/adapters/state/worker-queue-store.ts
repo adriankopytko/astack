@@ -157,7 +157,14 @@ export function createSqliteWorkerQueueStore(db: StateDatabase): WorkerQueueStor
           stateFailure('state_conflict');
         }
 
-        return { value: save({ ...item, state: 'blocked', error }), disposition: 'updated' };
+        return {
+          value: save({
+            ...item,
+            state: item.cancelRequested ? 'cancelled' : 'blocked',
+            error: item.cancelRequested ? null : error,
+          }),
+          disposition: 'updated',
+        };
       });
     },
     uncertain(id, error) {
@@ -211,7 +218,11 @@ export function createSqliteWorkerQueueStore(db: StateDatabase): WorkerQueueStor
 
           if (saved.phase === 'ready') {
             return {
-              value: save({ ...item, state: 'queued', error: null }),
+              value: save({
+                ...item,
+                state: item.cancelRequested ? 'cancelled' : 'queued',
+                error: null,
+              }),
               disposition: 'updated',
             };
           }
@@ -220,12 +231,14 @@ export function createSqliteWorkerQueueStore(db: StateDatabase): WorkerQueueStor
             return {
               value: save({
                 ...item,
-                state: 'blocked',
-                error: {
-                  code: 'worktree_conflict',
-                  message:
-                    'The interrupted worktree was absent; submit a new task key after inspection.',
-                },
+                state: item.cancelRequested ? 'cancelled' : 'blocked',
+                error: item.cancelRequested
+                  ? null
+                  : {
+                      code: 'worktree_conflict',
+                      message:
+                        'The interrupted worktree was absent; submit a new task key after inspection.',
+                    },
               }),
               disposition: 'updated',
             };
@@ -235,12 +248,45 @@ export function createSqliteWorkerQueueStore(db: StateDatabase): WorkerQueueStor
         return { value: null, disposition: 'existing' };
       });
     },
+    reconcileAbsent(id) {
+      return db.write(() => {
+        const item = read(id) ?? stateFailure('state_not_found');
+
+        if (item.state !== 'preparing') {
+          stateFailure('state_conflict');
+        }
+
+        const tree = db
+          .statement('SELECT id FROM managed_worktrees WHERE project_id=? AND owner_key=?')
+          .get(
+            item.request.submission.projectId,
+            workerWorktreeKey(item.request.kind, item.request.submission),
+          );
+
+        if (tree) {
+          stateFailure('worktree_conflict');
+        }
+
+        return {
+          value: save({
+            ...item,
+            state: item.cancelRequested ? 'cancelled' : 'queued',
+            error: null,
+          }),
+          disposition: 'updated',
+        };
+      });
+    },
     cancel(id) {
       return db.write(() => {
         const item = read(id) ?? stateFailure('state_not_found');
 
         if (item.state === 'cancelled') {
           return { value: item, disposition: 'existing' };
+        }
+
+        if (item.state === 'preparing') {
+          return { value: save({ ...item, cancelRequested: true }), disposition: 'updated' };
         }
 
         if (item.state !== 'queued' && item.state !== 'blocked') {

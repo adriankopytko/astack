@@ -9,6 +9,159 @@ import { requestLocalService } from '../src/adapters/local/service-client.js';
 import { completed } from '../src/contracts/operation-result.js';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { reconcileLocalQueuedWorker } from '../src/host/reconcile-run.js';
+
+await test(
+  'cancelling during preparation prevents the worker job from starting',
+  { timeout: 60000 },
+  async () => {
+    await herdrFixture(async ({ configure, opened, fake, state, sources }) => {
+      await configure();
+      await writeProjectConfiguration({ state, sources }, 0);
+      let release!: () => void;
+      let entered!: () => void;
+      const blocked = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const preparing = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      let starts = 0;
+      const provider = {
+        ...fake.provider,
+        async createWorker(
+          input: NonNullable<Parameters<NonNullable<typeof fake.provider.createWorker>>[0]>,
+        ) {
+          entered();
+          await blocked;
+
+          return fake.provider.createWorker!(input);
+        },
+      };
+      const sha = git(sources[0]!, 'rev-parse', 'HEAD');
+      const service = await startLocalService(
+        {
+          schemaVersion: 1,
+          stateDirectory: state,
+          limits: { global: 1, defaultRole: 1, perRole: {} },
+        },
+        {
+          workerSetupProvider: provider,
+          implementationBase: { resolve: async () => completed(sha) },
+          runtimes: [
+            {
+              id: 'fixture',
+              workflows: ['implementation'],
+              async start() {
+                starts++;
+
+                return { state: 'running' as const, handle: {}, evidence: {} };
+              },
+              async inspect() {
+                return { state: 'running' as const, handle: {}, evidence: {} };
+              },
+            },
+          ],
+        },
+      );
+
+      assert.ok(service.outcome === 'listening');
+
+      try {
+        const submitted = await requestLocalService(state, {
+          schemaVersion: 1,
+          operation: 'implement_worker_submit',
+          projectId: 'project-0',
+          key: 'cancel-preparing',
+          description: 'Task',
+        });
+
+        assert.ok(submitted.outcome === 'persisted' && 'request' in submitted.value);
+
+        await preparing;
+        const cancelled = await requestLocalService(state, {
+          schemaVersion: 1,
+          operation: 'run_cancel',
+          jobId: submitted.value.id,
+          key: 'cancel',
+          interrupt: false,
+        });
+
+        assert.ok(
+          cancelled.outcome === 'persisted' &&
+            'cancelRequested' in cancelled.value &&
+            cancelled.value.cancelRequested,
+        );
+
+        release();
+
+        for (let i = 0; i < 300; i++) {
+          const saved = opened.workerQueue.read(submitted.value.id);
+
+          if (saved.outcome === 'completed' && saved.value?.state === 'cancelled') {
+            break;
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+
+        const saved = opened.workerQueue.read(submitted.value.id);
+        const job = opened.service.read(submitted.value.id);
+
+        assert.ok(saved.outcome === 'completed' && saved.value?.state === 'cancelled');
+        assert.ok(job.outcome === 'completed' && job.value === null);
+        assert.equal(starts, 0);
+      } finally {
+        release();
+        await service.close();
+      }
+    });
+  },
+);
+
+await test('interrupted preparation without a worktree can be explicitly recovered or cancelled', async () => {
+  await fixture(async ({ deps, opened, state }) => {
+    let sequence = 0;
+    const dependencies = {
+      ...deps,
+      workerQueue: opened.workerQueue,
+      nextId: () => `job-recover-${++sequence}`,
+    };
+    const request = (key: string) => ({
+      kind: 'implementer',
+      submission: { schemaVersion: 1, projectId: 'project-0', key, description: 'Task' },
+    });
+    const first = await enqueueWorker(request('recover'), dependencies);
+
+    assert.ok(first.outcome === 'persisted');
+
+    const limits = { global: 1, defaultRole: 1, perRole: {} };
+    const claimed = opened.workerQueue.claim(limits, { implementer: ['fixture'] });
+
+    assert.ok(claimed.outcome === 'persisted' && claimed.value?.id === first.value.id);
+    assert.equal(
+      (await reconcileLocalQueuedWorker(first.value.id, false, state)).outcome,
+      'rejected',
+    );
+
+    const recovered = await reconcileLocalQueuedWorker(first.value.id, true, state);
+
+    assert.ok(recovered.outcome === 'persisted' && recovered.value.state === 'queued');
+    assert.equal(
+      opened.workerQueue.claim(limits, { implementer: ['fixture'] }).outcome,
+      'persisted',
+    );
+
+    const cancelled = opened.workerQueue.cancel(first.value.id);
+
+    assert.ok(cancelled.outcome === 'persisted' && cancelled.value.cancelRequested);
+    assert.equal(cancelled.value.state, 'preparing');
+
+    const settled = await reconcileLocalQueuedWorker(first.value.id, true, state);
+
+    assert.ok(settled.outcome === 'persisted' && settled.value.state === 'cancelled');
+  });
+});
 
 await test(
   'queued submissions persist without worktrees, share stable keys and reserve capacity before setup',

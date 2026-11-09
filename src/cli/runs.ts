@@ -1,6 +1,6 @@
 import { collectRunReport } from '../application/report-collection.js';
 import { createCodexReportReader } from '../adapters/codex/report-reader.js';
-import { reconcileLocalRun } from '../host/reconcile-run.js';
+import { reconcileLocalQueuedWorker, reconcileLocalRun } from '../host/reconcile-run.js';
 import { resolve, join } from 'node:path';
 import { homedir } from 'node:os';
 import { constants } from 'node:fs';
@@ -306,6 +306,26 @@ export function wireRunCommands(program: Command) {
         });
       },
     );
+  run
+    .command('reconcile-queue <job-id>')
+    .description('Recover a stopped preparation before worktree intent was saved')
+    .requiredOption(
+      '--writers-stopped',
+      'Attest the original preparation writer and its children stopped',
+    )
+    .option('--json')
+    .action(async (jobId: string, options: { writersStopped: boolean; json?: boolean }) => {
+      const host = program.opts<{ stateDirectory?: string }>();
+      const directory =
+        host.stateDirectory === undefined
+          ? join(homedir(), '.astack')
+          : resolve(process.cwd(), host.stateDirectory);
+
+      render(
+        await reconcileLocalQueuedWorker(jobId, options.writersStopped, directory),
+        options.json,
+      );
+    });
   run
     .command('reconcile <job-id>')
     .description(

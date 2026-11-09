@@ -22,6 +22,7 @@ export const workerQueueItemSchema = z.strictObject({
   runtime: z.string().min(1).max(64),
   state: z.enum(['queued', 'preparing', 'prepared', 'started', 'blocked', 'cancelled']),
   jobId: stateIdSchema.nullable(),
+  cancelRequested: z.boolean().optional(),
   error: z
     .strictObject({ code: z.string().min(1).max(128), message: z.string().min(1).max(2048) })
     .nullable(),
