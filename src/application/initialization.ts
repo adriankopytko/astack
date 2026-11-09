@@ -313,6 +313,12 @@ async function provider(
       : result.outcome === 'pending' || result.outcome === 'uncertain'
         ? 'pending'
         : 'blocked';
+
+  if ('error' in result) {
+    diagnostic(view, result.error.code, result.error.message);
+  } else if (result.reason) {
+    diagnostic(view, `herdr_${result.reason}`, `Herdr workspace: ${result.reason}.`);
+  }
 }
 
 /** Host holds coordinator ownership throughout apply. Preview performs no registry/file/provider mutation. */
