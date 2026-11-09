@@ -14,6 +14,8 @@ The default capacity is four workers globally and four per agent type. To change
 
 Restart the service after editing these host-wide settings. Foreground `--capacity` and `--role-capacity` override them. Worker worktrees are currently prepared at submission, before capacity is claimed.
 
+`astack errors list [--limit <count>] [--json]` shows recent service errors, worker-dispatch blockers, uncertain worker observations and failed worker reports; `astack errors inspect <id> [--json]` reads one record. Records contain the operation, timestamp, project/job IDs when available, and normalized error code/message. They do not include task text, process output, or environment values. A failure that occurs before the service receives a request (such as failure to start the service) is reported directly to the caller but is not recorded here. Read-only error inspection does not start the service.
+
 Initialization uses the running service when it owns the state directory, allowing new projects to be set up while workers continue. A disconnected initialization request can leave partial setup; inspect the result before retrying. Library hosts use `startLocalService(request, { runtimes? })`. The CLI and socket transport share application operations; the dispatcher contains no CLI parsing, socket objects, or ambient project selection. `createServiceCoordinator` is the injected application mechanism; a real host must hold coordinator ownership throughout its lifetime.
 
 ## Commands

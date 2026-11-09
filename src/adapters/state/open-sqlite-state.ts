@@ -32,6 +32,8 @@ import type { HandoffStore } from '../../ports/handoff.js';
 import type { RunStore } from '../../ports/runs.js';
 import { createSqliteRunStore } from './run-store.js';
 import { createSqliteRuntimeStore } from './runtime-store.js';
+import { createSqliteErrorStore } from './error-store.js';
+import type { ErrorStore } from '../../ports/errors.js';
 
 export interface SqliteStateDependencies {
   /** Trusted wall-clock milliseconds, used only for short claims and release observations. */
@@ -48,6 +50,7 @@ export type StateOpenResult =
       service: ServiceStore;
       herdr: HerdrStore;
       runtime: RuntimeStore;
+      errors: ErrorStore;
       runs: RunStore;
       reviewResults: ReviewResultStore;
       cleanups: CleanupStore;
@@ -103,6 +106,7 @@ export async function openSqliteState(
         runs: createSqliteRunStore(database, dependencies.now ?? Date.now),
         herdr: createSqliteHerdrStore(database, dependencies.now ?? Date.now),
         runtime: createSqliteRuntimeStore(database, dependencies.now ?? Date.now),
+        errors: createSqliteErrorStore(database, dependencies.now ?? Date.now),
       };
     } catch (error) {
       database.close();

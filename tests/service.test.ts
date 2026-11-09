@@ -751,6 +751,15 @@ await test(
         assert.equal(saved(opened.service.read(second.job.id)).entry.reason, 'runtime_unavailable');
         assert.equal(saved(opened.service.read(third.job.id)).entry.reason, 'runtime_unavailable');
         assert.equal(worker.started.length, 0);
+
+        const errors = opened.errors.list(20);
+
+        assert.ok(errors.outcome === 'completed');
+        assert.ok(
+          errors.value.some(
+            (error) => error.jobId === third.job.id && error.code === 'runtime_unavailable',
+          ),
+        );
       } finally {
         await coordinator.stop();
       }

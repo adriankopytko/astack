@@ -115,6 +115,25 @@ await test(
       assert.equal(JSON.parse(status.stdout).value.limits.global, 6);
       assert.equal(JSON.parse(status.stdout).value.limits.defaultRole, 3);
 
+      const errors = spawnSync(
+        process.execPath,
+        [entry, '--state-directory', state, 'errors', 'list', '--json'],
+        { encoding: 'utf8' },
+      );
+      const records = JSON.parse(errors.stdout).value as { id: string; code: string }[];
+
+      assert.equal(errors.status, 0, errors.stderr);
+      assert.ok(records.some((record) => record.code === 'project_not_found'));
+
+      const inspected = spawnSync(
+        process.execPath,
+        [entry, '--state-directory', state, 'errors', 'inspect', records[0]!.id, '--json'],
+        { encoding: 'utf8' },
+      );
+
+      assert.equal(inspected.status, 0, inspected.stderr);
+      assert.equal(JSON.parse(inspected.stdout).value.id, records[0]!.id);
+
       const subsequent = await call('three');
 
       assert.match(subsequent.output, /project_not_found/);

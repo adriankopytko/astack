@@ -191,6 +191,7 @@ export async function startLocalService(
     dependencies.agentHooks = createAgentHooks({
       ...dependencies,
       state: opened.store,
+      errors: opened.errors,
       ports: agentPorts,
     });
     const cleanupDependencies = composeCleanupDependencies(
@@ -458,6 +459,24 @@ export async function startLocalService(
     const transport = await listenLocalService({
       stateDirectory: opened.stateDirectory,
       sessionId,
+      afterHandle(input, result) {
+        if (result.outcome !== 'rejected' && result.outcome !== 'uncertain') {
+          return;
+        }
+
+        const parsed = serviceRpcRequestSchema.safeParse(input);
+        const request = parsed.success ? parsed.data : null;
+        const operation = request?.operation ?? 'invalid_request';
+        const projectId = request && 'projectId' in request ? (request.projectId ?? null) : null;
+        const jobId = request && 'jobId' in request ? (request.jobId ?? null) : null;
+        opened.errors.append({
+          operation,
+          projectId,
+          jobId,
+          code: result.error.code,
+          message: result.error.message.slice(0, 2048),
+        });
+      },
       afterResponse(input) {
         const parsed = serviceRpcRequestSchema.safeParse(input);
 

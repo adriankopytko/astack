@@ -35,6 +35,7 @@ A blocked installation can preserve existing files; pending means publication ma
 | `astack service status / wake [--json]`                                                           | Live coordinator evidence / request a reconciliation pass                                   |
 | `astack service submit <required options> [--json]`                                               | Persist configured intent, attempt and pending effect atomically                            |
 | `astack service inspect <job-id> [--json]`                                                        | Read saved job evidence, also when service is offline                                       |
+| `astack errors list [--limit <count>] [--json]` / `errors inspect <id> [--json]`                  | Read recorded service errors and worker failures                                            |
 | `astack herdr configure / ensure / inspect --project <id> [--json]`                               | Explicit host target and persistent primary project space                                   |
 | `astack herdr worker prepare / inspect --attempt <id> [--json]`                                   | Grouped owned checkout layout and current attribution                                       |
 | `astack herdr worker bind-agent --attempt <id> --kind <kind> [--json]`                            | Record an already detected matching agent; never launch it                                  |
@@ -112,6 +113,8 @@ The CLI makes the built-in `codex-herdr` runtime available when Codex and Herdr 
 Use `astack service stop` to stop the coordinator gracefully. It does not stop Herdr agents or establish worker shutdown. A later submission starts the service again.
 
 Host-wide worker capacity defaults to four globally and four per agent type. Configure it in `~/.astack/service.json`, for example `{ "concurrency": { "global": 6, "perAgent": 3 } }`, and restart the service to apply changes. Worker workspaces are currently prepared before the worker claims capacity.
+
+Use `astack errors list --json` for recent service errors, worker-dispatch blockers, uncertain worker observations and failed reports, and `astack errors inspect <id> --json` for a record. Errors before a request reaches the service are reported to the caller and are not included.
 
 One coordinator owns each private state directory through a kernel-backed lock. Other instances reject. SIGINT/SIGTERM drain foreground work and release the coordinator; they do not prove existing workers stopped. On restart, claimed launches are inspected without replaying them. Unknown launches retain capacity despite claim expiry. Only trusted runtime evidence can establish launch absence or quiescence. `awaiting_result` means a known worker stopped, not that the task succeeded.
 

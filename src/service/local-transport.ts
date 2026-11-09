@@ -17,6 +17,7 @@ export async function listenLocalService(input: {
   stateDirectory: string;
   sessionId: string;
   handle: (request: unknown, signal: AbortSignal) => Promise<ServiceRpcResponse>;
+  afterHandle?: (request: unknown, result: ServiceRpcResponse) => void;
   afterResponse?: (request: unknown) => void;
 }) {
   const root = await serviceRoot(input.stateDirectory);
@@ -105,6 +106,8 @@ export async function listenLocalService(input: {
             'Request could not be processed; inspect saved intent before retrying.',
           );
         }
+
+        input.afterHandle?.(request, result);
 
         if (!socket.destroyed) {
           socket.end(`${JSON.stringify(result)}\n`, () => input.afterResponse?.(request));

@@ -30,6 +30,8 @@ Managed-file operations can create or upgrade owned generated assets, preserve d
 
 `service run`, `status`, `wake`, `submit`, and offline `inspect` provide a durable local queue over a private Unix socket. The coordinator owns a kernel-backed lock, enforces global/role/checkout capacity, and reconciles uncertain launches before new dispatch. Implementation and review submissions start the service automatically when needed. The CLI makes the Codex runtime available when Codex and Herdr are installed; each job selects its provider from project configuration. Generic jobs start an interactive session; the implementation workflow additionally delivers the accepted task through a durable input key. See [local service](docs/service.md).
 
+`astack errors list` and `astack errors inspect <id>` show recorded service failures and later worker blockers without requiring a running service.
+
 `herdr configure`, `ensure`, `inspect`, and worker layout/attribution commands now bind each enabled project to an explicit shared or named Herdr session. Primary spaces persist, worker workspaces open existing owned checkouts in their project group, and pending/changed layouts remain inspectable. No agent launches or resource closes are performed. See [Herdr integration](docs/herdr.md) for protocol 22 support and identity/recovery limits.
 
 `runtime capabilities`, `inspect`, `reconcile`, `input` and `interrupt` expose interactive Codex control. Herdr owns execution; Astack persists intent before launch/input and verifies saved pane/native-session identity. Unknown writes never replay automatically, and UI idle/done never counts as task completion. See [the runtime contract](docs/runtime.md) for arguments, server trust and recovery limits.

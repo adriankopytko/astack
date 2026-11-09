@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import type { ErrorStore } from '../ports/errors.js';
 import { delimiter, join } from 'node:path';
 import { hostConfigurationPolicySchema } from '../contracts/configuration.js';
 import { completed, rejected, type OperationResult } from '../contracts/operation-result.js';
@@ -92,6 +93,7 @@ export function createAgentHooks(
   deps: ProjectDependencies & {
     state: StateStore;
     configuration: ConfigurationReader;
+    errors?: ErrorStore;
     ports?: ReturnType<typeof createAgentPorts>;
   },
 ) {
@@ -217,6 +219,16 @@ export function createAgentHooks(
         );
 
         if (outcome === 'unknown') {
+          if (phase === 'after') {
+            deps.errors?.append({
+              operation: 'agent_hook_after',
+              projectId: job.job.projectId,
+              jobId: job.job.id,
+              code: 'hook_blocked',
+              message: 'The after hook outcome is unknown; inspect the run.',
+            });
+          }
+
           return rejected(
             'hook_blocked',
             `The ${phase} hook outcome is unknown; inspect before retrying.`,
@@ -231,6 +243,16 @@ export function createAgentHooks(
         });
 
         if (saved.outcome !== 'persisted' || outcome !== 'succeeded') {
+          if (phase === 'after') {
+            deps.errors?.append({
+              operation: 'agent_hook_after',
+              projectId: job.job.projectId,
+              jobId: job.job.id,
+              code: 'hook_blocked',
+              message: 'The after hook failed or could not be recorded; inspect the run.',
+            });
+          }
+
           return rejected('hook_blocked', `The ${phase} hook failed or could not be recorded.`);
         }
 

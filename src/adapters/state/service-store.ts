@@ -27,6 +27,7 @@ import { runControl, saveRunControl, appendRunEvent } from './run-events.js';
 import { stateFailure } from './errors.js';
 import { configurationDigest } from '../../core/configuration.js';
 import { hostConfigurationPolicySchema } from '../../contracts/configuration.js';
+import { appendServiceError } from './error-store.js';
 
 export function createSqliteServiceStore(
   db: StateDatabase,
@@ -517,6 +518,17 @@ export function createSqliteServiceStore(
           canonicalJson(current.entry.readiness ?? null) !== canonicalJson(readiness ?? null)
         ) {
           appendRunEvent(db, current, 'blocked', now(), { reason, readiness: readiness ?? null });
+          appendServiceError(
+            db,
+            {
+              operation: 'worker_dispatch',
+              projectId: current.job.projectId,
+              jobId,
+              code: readiness?.code ?? reason,
+              message: (readiness?.message ?? `Worker blocked: ${reason}.`).slice(0, 2048),
+            },
+            now(),
+          );
         }
 
         return {
@@ -603,6 +615,20 @@ export function createSqliteServiceStore(
 
         if (canonicalJson(current.entry.observation) !== canonicalJson(observation)) {
           appendRunEvent(db, current, 'observed', now, { state: observation.state });
+
+          if (observation.state === 'unknown') {
+            appendServiceError(
+              db,
+              {
+                operation: 'worker_observation',
+                projectId: current.job.projectId,
+                jobId,
+                code: 'provider_uncertain',
+                message: 'Worker state is uncertain; inspect the run for details.',
+              },
+              now,
+            );
+          }
         }
 
         const control = runControl(db, jobId);

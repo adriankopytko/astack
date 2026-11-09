@@ -494,4 +494,15 @@ CREATE TABLE job_configurations (
 ) STRICT;
 `,
   },
+  {
+    version: 20,
+    sql: `
+CREATE TABLE service_errors (
+ id TEXT PRIMARY KEY,
+ created_at INTEGER NOT NULL,
+ data TEXT NOT NULL CHECK(json_valid(data))
+) STRICT;
+CREATE INDEX service_errors_recent ON service_errors(created_at DESC, id DESC);
+`,
+  },
 ] as const;

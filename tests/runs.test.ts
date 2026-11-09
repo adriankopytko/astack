@@ -207,6 +207,7 @@ await test(
           agentHooks: createAgentHooks({
             ...deps,
             state: context.context.opened.store,
+            errors: context.context.opened.errors,
             ports: createAgentPorts({
               configuration: deps.configuration,
               allocations: context.context.opened.allocations,
@@ -236,6 +237,15 @@ await test(
         assert.equal(
           run.cleanup.resources.find((item) => item.kind === 'agent-hook-after')?.hookOutcome,
           'failed',
+        );
+
+        const errors = context.context.opened.errors.list(20);
+
+        assert.ok(errors.outcome === 'completed');
+        assert.ok(
+          errors.value.some(
+            (error) => error.jobId === job.job.id && error.operation === 'agent_hook_after',
+          ),
         );
 
         const allocations = context.context.opened.allocations.list({

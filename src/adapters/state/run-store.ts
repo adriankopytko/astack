@@ -1,4 +1,5 @@
 import { settleUnclaimedCancellation } from './unclaimed-cancellation.js';
+import { appendServiceError } from './error-store.js';
 import { readAcceptedRunReport } from './run-report-codec.js';
 import { persistedRunReconciliationSchema } from './run-reconciliation-codec.js';
 import { runReconciliationSchema } from '../../contracts/run-reconciliation.js';
@@ -446,6 +447,20 @@ export function createSqliteRunStore(db: StateDatabase, now: () => number): RunS
           key: report.key,
           outcome: phase,
         });
+
+        if (phase === 'failed') {
+          appendServiceError(
+            db,
+            {
+              operation: 'worker_report',
+              projectId: selected.job.projectId,
+              jobId: report.jobId,
+              code: 'worker_failed',
+              message: 'Worker reported failure; inspect the accepted run report for details.',
+            },
+            now(),
+          );
+        }
 
         return { value: view(report.jobId), disposition: 'created' };
       });
