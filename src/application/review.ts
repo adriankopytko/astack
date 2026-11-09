@@ -53,7 +53,7 @@ export function reviewTask(job: ServiceJob): ReviewTask | null {
 
   const request = parsed.data.submission;
 
-  return job.entry.role === 'reviewer' &&
+  return job.entry.role === (request.agent ?? 'reviewer') &&
     job.job.operation === 'delegate:reviewer' &&
     request.projectId === job.job.projectId &&
     request.checkoutId === job.job.checkoutId &&
@@ -125,9 +125,9 @@ async function policy(
   }
 
   const role =
-    job?.job.configuration?.effective.roles.reviewer ??
-    value.data.local.roles?.reviewer ??
-    value.data.project.roles?.reviewer;
+    job?.job.configuration?.effective.roles[task.submission.agent ?? 'reviewer'] ??
+    value.data.local.roles?.[task.submission.agent ?? 'reviewer'] ??
+    value.data.project.roles?.[task.submission.agent ?? 'reviewer'];
 
   if (role?.runtime === 'codex-herdr') {
     const args = role.command ? value.data.execution.commands[role.command]?.args : undefined;
@@ -248,7 +248,8 @@ async function submitReviewAuthorized(
         schemaVersion: 1,
         projectId: value.projectId,
         checkoutId: value.checkoutId,
-        role: 'reviewer',
+        role: value.agent ?? 'reviewer',
+        workflow: 'review',
         key: value.key,
         branch: value.branch,
         commit: value.commit,

@@ -33,7 +33,7 @@ export async function enqueueWorker(
     return rejected('invalid_request', 'Invalid worker submission.');
   }
 
-  const request = parsed.data;
+  let request = parsed.data;
 
   if (request.kind === 'implementer' && request.submission.issueSnapshot) {
     return rejected(
@@ -53,7 +53,13 @@ export async function enqueueWorker(
   }
 
   if (prior.value) {
-    return isDeepStrictEqual(prior.value.request, request)
+    const previousAgent = prior.value.request.submission.agent;
+    const comparable =
+      previousAgent && !request.submission.agent
+        ? { ...request, submission: { ...request.submission, agent: previousAgent } }
+        : request;
+
+    return isDeepStrictEqual(prior.value.request, comparable)
       ? {
           schemaVersion: 1 as const,
           outcome: 'persisted' as const,
@@ -63,11 +69,41 @@ export async function enqueueWorker(
       : rejected('state_conflict', 'This task key already identifies a different submission.');
   }
 
+  let policy: ReturnType<typeof hostConfigurationPolicySchema.safeParse>;
+
+  try {
+    policy = hostConfigurationPolicySchema.safeParse(
+      await deps.configuration.readPolicy(request.submission.projectId, signal),
+    );
+  } catch {
+    return rejected('configuration_unavailable', 'Project configuration could not be read.');
+  }
+
+  if (!policy.success) {
+    return rejected('configuration_blocked', 'Project configuration could not be resolved.');
+  }
+
+  const agent =
+    request.submission.agent ??
+    policy.data.defaultAgents?.[request.kind === 'implementer' ? 'implementation' : 'review'];
+
+  if (!agent) {
+    return rejected(
+      'configuration_blocked',
+      'Select --agent or configure a default agent for this task in .astack/config.json.',
+    );
+  }
+
+  request = workerQueueRequestSchema.parse({
+    ...request,
+    submission: { ...request.submission, agent },
+  });
+
   const config = await resolveConfiguration(
     {
       schemaVersion: 1,
       projectId: request.submission.projectId,
-      role: request.kind,
+      role: agent,
       request: request.submission.request,
     },
     deps,
@@ -81,18 +117,8 @@ export async function enqueueWorker(
   if (config.value.status !== 'ready' || !config.value.snapshot) {
     return rejected(
       'configuration_blocked',
-      `Configure the ${request.kind} agent before submitting this task.`,
+      `Configure the ${agent} agent before submitting this task.`,
     );
-  }
-
-  let policy: ReturnType<typeof hostConfigurationPolicySchema.safeParse>;
-
-  try {
-    policy = hostConfigurationPolicySchema.safeParse(
-      await deps.configuration.readPolicy(request.submission.projectId, signal),
-    );
-  } catch {
-    return rejected('configuration_unavailable', 'Project configuration could not be read.');
   }
 
   if (signal?.aborted) {
@@ -106,7 +132,7 @@ export async function enqueueWorker(
     );
   }
 
-  const runtime = config.value.snapshot.effective.roles[request.kind]?.runtime;
+  const runtime = config.value.snapshot.effective.roles[agent]?.runtime;
 
   if (!runtime) {
     return rejected('configuration_blocked', 'The selected agent has no runtime configured.');

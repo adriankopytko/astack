@@ -196,6 +196,9 @@ export function createNodeConfigurationReader(
               schemaVersion: 1,
               projectId,
               repositoryId: project.value.repository.id,
+              ...(projectConfig.data.defaultAgents
+                ? { defaultAgents: projectConfig.data.defaultAgents }
+                : {}),
               project: {
                 roles,
               },

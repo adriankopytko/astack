@@ -52,7 +52,7 @@ export function implementationTask(job: ServiceJob): ImplementationTask | null {
   const task = parsed.data;
   const request = task.submission;
 
-  return job.entry.role === 'implementer' &&
+  return job.entry.role === (request.agent ?? 'implementer') &&
     job.job.operation === 'delegate:implementer' &&
     request.projectId === job.job.projectId &&
     request.checkoutId === job.job.checkoutId &&
@@ -85,7 +85,12 @@ export async function submitImplementation(
   try {
     const value = request.value;
     const previous = read(
-      deps.queue.find({ projectId: value.projectId, role: 'implementer', key: value.key }),
+      deps.queue.find({
+        projectId: value.projectId,
+        role: value.agent ?? 'implementer',
+        key: value.key,
+        workflow: 'implementation',
+      }),
     );
 
     if (previous) {
@@ -152,7 +157,8 @@ export async function submitImplementation(
         schemaVersion: 1,
         projectId: value.projectId,
         checkoutId: value.checkoutId,
-        role: 'implementer',
+        role: value.agent ?? 'implementer',
+        workflow: 'implementation',
         key: value.key,
         branch: value.branch,
         commit: value.commit,

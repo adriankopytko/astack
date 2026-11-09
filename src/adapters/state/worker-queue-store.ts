@@ -91,7 +91,7 @@ export function createSqliteWorkerQueueStore(db: StateDatabase): WorkerQueueStor
       db.read(() => {
         const rows = db
           .statement(
-            "SELECT kind,COUNT(*) AS count FROM worker_requests WHERE state IN ('preparing','prepared') AND id<>? GROUP BY kind",
+            "SELECT COALESCE(json_extract(data, '$.request.submission.agent'),kind) AS role,COUNT(*) AS count FROM worker_requests WHERE state IN ('preparing','prepared') AND id<>? GROUP BY role",
           )
           .all(excludeId);
         const roles: Record<string, number> = {};
@@ -99,7 +99,7 @@ export function createSqliteWorkerQueueStore(db: StateDatabase): WorkerQueueStor
 
         for (const row of rows) {
           const count = Number(row.count);
-          roles[String(row.kind)] = count;
+          roles[String(row.role)] = count;
           global += count;
         }
 
@@ -114,7 +114,7 @@ export function createSqliteWorkerQueueStore(db: StateDatabase): WorkerQueueStor
           .all();
         const reservations = db
           .statement(
-            "SELECT kind AS role,COUNT(*) AS count FROM worker_requests WHERE state IN ('preparing','prepared') GROUP BY kind",
+            "SELECT COALESCE(json_extract(data, '$.request.submission.agent'),kind) AS role,COUNT(*) AS count FROM worker_requests WHERE state IN ('preparing','prepared') GROUP BY role",
           )
           .all();
         const counts = new Map<string, number>();
@@ -136,10 +136,11 @@ export function createSqliteWorkerQueueStore(db: StateDatabase): WorkerQueueStor
 
         for (const row of rows) {
           const item = db.data(workerQueueItemSchema, row)!;
-          const limit = limits.perRole[item.request.kind] ?? limits.defaultRole;
+          const agent = item.request.submission.agent ?? item.request.kind;
+          const limit = limits.perRole[agent] ?? limits.defaultRole;
 
           if (
-            (counts.get(item.request.kind) ?? 0) < limit &&
+            (counts.get(agent) ?? 0) < limit &&
             available[item.request.kind]?.includes(item.runtime)
           ) {
             return { value: save({ ...item, state: 'preparing' }), disposition: 'updated' };

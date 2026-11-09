@@ -119,7 +119,7 @@ export function createSqliteServiceStore(
 
         if (
           review.success &&
-          (entry.role !== 'reviewer' ||
+          (entry.role !== (review.data.submission.agent ?? 'reviewer') ||
             job.operation !== 'delegate:reviewer' ||
             review.data.submission.projectId !== job.projectId ||
             review.data.submission.checkoutId !== job.checkoutId ||
@@ -181,6 +181,8 @@ export function createSqliteServiceStore(
               const task = reviewTaskSchema.parse(saved.job.intent.task);
 
               if (
+                (task.submission.agent ?? 'reviewer') !== (submission.agent ?? 'reviewer') ||
+                task.submission.comparisonBase !== submission.comparisonBase ||
                 canonicalJson(task.submission.gate) !== canonicalJson(submission.gate) ||
                 canonicalJson(task.submission.resources) !== canonicalJson(submission.resources) ||
                 canonicalJson(task.submission.request) !== canonicalJson(submission.request) ||
@@ -345,7 +347,7 @@ export function createSqliteServiceStore(
           if (
             request.state !== 'preparing' ||
             request.cancelRequested ||
-            request.request.kind !== entry.role ||
+            (request.request.submission.agent ?? request.request.kind) !== entry.role ||
             request.request.submission.projectId !== job.projectId ||
             request.request.submission.key !== job.idempotencyKey ||
             configurationDigest(request.policy) !== job.configuration?.policyDigest
@@ -377,13 +379,18 @@ export function createSqliteServiceStore(
         return { value: created, disposition: 'created' };
       });
     },
-    find: ({ projectId, role, key }) =>
+    find: ({ projectId, role, key, workflow }) =>
       db.read(() => {
         const row = db
           .statement(
             'SELECT id FROM jobs WHERE requester=? AND project_id=? AND operation=? AND idempotency_key=?',
           )
-          .get('local-host', projectId, `delegate:${role}`, key);
+          .get(
+            'local-host',
+            projectId,
+            `delegate:${workflow === 'implementation' ? 'implementer' : workflow === 'review' ? 'reviewer' : role}`,
+            key,
+          );
 
         return row ? required(String(row.id)) : null;
       }),
@@ -470,7 +477,7 @@ export function createSqliteServiceStore(
           .all();
         const reservations = db
           .statement(
-            "SELECT kind AS role,COUNT(*) AS count FROM worker_requests WHERE state IN ('preparing','prepared') AND id<>? GROUP BY kind",
+            "SELECT COALESCE(json_extract(data, '$.request.submission.agent'),kind) AS role,COUNT(*) AS count FROM worker_requests WHERE state IN ('preparing','prepared') AND id<>? GROUP BY role",
           )
           .all(jobId);
         const competing = db

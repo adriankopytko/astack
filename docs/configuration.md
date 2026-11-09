@@ -24,6 +24,7 @@ A fresh `.astack/config.json` contains agent entries without a model or reasonin
 ```json
 {
   "schemaVersion": 1,
+  "defaultAgents": { "implementation": "implementer", "review": "reviewer" },
   "agents": {
     "implementer": {
       "provider": "codex",
@@ -42,6 +43,8 @@ A fresh `.astack/config.json` contains agent entries without a model or reasonin
 ```
 
 Each agent selects a `provider`, `model` and `reasoning`. Model and reasoning are required to accept that agent's job. An optional `instructions` string is included in that worker's assignment. Other named agents can be configured; a matching runtime adapter must be available. The built-in provider is `codex` through Herdr. Supported Codex reasoning values are `minimal`, `low`, `medium`, `high`, `xhigh` and `max`.
+
+Agent names are project-defined. `defaultAgents` selects which named agent to use for implementation and review when `--agent` is omitted; either command can select a different configured agent with `--agent <name>`. An existing configuration without a default must select an agent explicitly or add `defaultAgents`. A queued task retains the selected agent and settings even if the file changes later.
 
 Agent entries may specify `hooks.before` and `hooks.after` as package-script-style shell command strings. The local service runs `before` before starting the worker and `after` after a completed, failed or cancelled task; it keeps the environment for `needs_decision`. Defaults are 10 minutes for `before` and 60 seconds for `after`; optional `hookTimeouts.before` and `hookTimeouts.after` set millisecond overrides. Scripts run in the task checkout with the service environment and the checkout’s `node_modules/.bin` on `PATH`, like package scripts. The command exit is recorded; output is not captured. A failed `before` blocks launch; a failed `after` remains visible in `run inspect` while preserving the task result. Hook start and completion generate `hook_changed` events. Unknown executions are not automatically repeated.
 

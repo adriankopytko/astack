@@ -12,7 +12,7 @@ For GitHub-backed reviews, the acceptance snapshot also includes the PR title an
 
 ## CLI
 
-Configure the reviewer role and project Herdr target. Configure an approved Codex reviewer command with `--sandbox read-only` and the existing required native arguments. Astack starts its service on submission when needed. From any directory:
+Configure a project agent and the Herdr target. `defaultAgents.review` selects the default; `--agent <name>` selects another configured agent. Set its file permissions to `readonly` for a read-only review. Astack starts its service on submission when needed. From any directory:
 
 When submitting from inside a registered project, `--project` may be omitted; elsewhere select it explicitly.
 

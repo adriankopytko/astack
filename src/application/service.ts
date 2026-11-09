@@ -66,6 +66,7 @@ export async function submitServiceJob(
     projectId: request.projectId,
     role: request.role,
     key: request.key,
+    ...(request.workflow ? { workflow: request.workflow } : {}),
   });
 
   if (existing.outcome === 'rejected') {
@@ -77,6 +78,7 @@ export async function submitServiceJob(
 
     if (
       (request.checkoutId !== undefined && request.checkoutId !== job.job.checkoutId) ||
+      job.entry.role !== request.role ||
       request.branch !== job.entry.branch ||
       request.commit !== job.entry.commit ||
       !isDeepStrictEqual(request.task, job.job.intent.task) ||
@@ -141,7 +143,7 @@ export async function submitServiceJob(
       repositoryId: snapshot.repositoryId,
       checkoutId: snapshot.checkoutId,
       requester: 'local-host',
-      operation: `delegate:${request.role}`,
+      operation: `delegate:${request.workflow === 'implementation' ? 'implementer' : request.workflow === 'review' ? 'reviewer' : request.role}`,
       idempotencyKey: request.key,
       createdAt: dependencies.now(),
       configuration: snapshot,

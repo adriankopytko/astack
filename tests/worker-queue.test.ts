@@ -290,10 +290,15 @@ await test(
       await writeProjectConfiguration({ state, sources }, 0);
       const path = join(sources[0]!, '.astack', 'config.json');
       const config = JSON.parse(await readFile(path, 'utf8')) as {
-        agents: { implementer: { workspacePrefix?: string; hooks?: { before: string } } };
+        defaultAgents: { implementation: string; review: string };
+        agents: Record<string, { workspacePrefix?: string; hooks?: { before: string } }>;
       };
-      config.agents.implementer.workspacePrefix = 'OLD';
-      config.agents.implementer.hooks = { before: `printf x >> "${state}/hook-starts"` };
+      config.defaultAgents.implementation = 'backend';
+      config.agents.backend = {
+        ...config.agents.implementer!,
+        workspacePrefix: 'OLD',
+        hooks: { before: `printf x >> "${state}/hook-starts"` },
+      };
       await writeFile(path, JSON.stringify(config));
       const labels: string[] = [];
       let release = false;
@@ -384,6 +389,11 @@ await test(
 
           return item.outcome === 'completed' && item.value?.state === 'started';
         });
+        const repeated = await submit('one');
+
+        assert.ok(repeated.outcome === 'persisted' && 'request' in repeated.value);
+        assert.equal(repeated.value.id, firstId);
+
         const second = await submit('two');
 
         assert.ok(second.outcome === 'persisted' && 'request' in second.value);
@@ -419,7 +429,8 @@ await test(
         );
         assert.equal(labels.length, 1);
 
-        config.agents.implementer.workspacePrefix = 'NEW';
+        config.agents.backend!.workspacePrefix = 'NEW';
+        config.defaultAgents.implementation = 'implementer';
         await writeFile(path, JSON.stringify(config));
         release = true;
         await requestLocalService(state, { schemaVersion: 1, operation: 'wake' });

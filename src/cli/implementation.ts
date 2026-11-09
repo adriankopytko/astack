@@ -83,6 +83,7 @@ export function wireImplementationCommands(program: Command) {
       'Persist task, instruction references, approved policy and attempt before dispatch',
     )
     .option('--project <id>', 'Registered project; inferred from the current repository if omitted')
+    .option('--agent <name>', 'Project-defined agent to run this task')
     .requiredOption('--key <key>', 'Stable implementation submission key')
     .option(
       '--base <sha>',
@@ -106,6 +107,7 @@ export function wireImplementationCommands(program: Command) {
     .action(
       async (options: {
         project?: string;
+        agent?: string;
         key: string;
         base?: string;
         task?: string;
@@ -162,6 +164,7 @@ export function wireImplementationCommands(program: Command) {
                 ...(fixOf === undefined ? {} : { fixOf }),
                 projectId: project.value,
                 key: options.key,
+                ...(options.agent === undefined ? {} : { agent: options.agent }),
                 ...(options.base === undefined ? {} : { baseCommit: options.base }),
                 description: options.task ?? 'Implement the referenced GitHub issue.',
                 ...(options.issue && options.repo

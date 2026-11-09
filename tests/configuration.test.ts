@@ -246,10 +246,7 @@ await test('merge precedence preserves object fields, replaces arrays, and recor
     merged.provenance.find((entry) => entry.path === 'roles.implementer.timeoutMs')?.source,
     'request',
   );
-  assert.equal(
-    merged.provenance.find((entry) => entry.path === 'roles.reviewer.timeoutMs')?.source,
-    'defaults',
-  );
+  assert.equal(merged.effective.roles.reviewer, undefined);
   assert.equal(configurationDigest({ a: 1, b: [2, 3] }), configurationDigest({ b: [2, 3], a: 1 }));
   assert.notEqual(configurationDigest([2, 3]), configurationDigest([3, 2]));
 });

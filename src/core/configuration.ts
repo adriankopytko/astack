@@ -44,7 +44,7 @@ export function mergeConfiguration(layers: {
     environment: [],
   };
   const effective: EffectiveConfiguration = {
-    roles: { implementer: { ...emptyRole }, reviewer: { ...emptyRole } },
+    roles: {},
   };
   const sources = new Map<string, ConfigurationSnapshot['provenance'][number]['source']>();
 

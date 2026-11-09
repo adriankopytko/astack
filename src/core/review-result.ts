@@ -13,7 +13,7 @@ export function acceptedReviewResult(job: ServiceJob, report: AcceptedRunReport)
     !task.success ||
     !proposal.success ||
     proposal.data.outcome !== 'reviewed' ||
-    job.entry.role !== 'reviewer' ||
+    job.entry.role !== (task.data.submission.agent ?? 'reviewer') ||
     job.job.operation !== 'delegate:reviewer' ||
     report.jobId !== job.job.id ||
     report.request.jobId !== job.job.id ||

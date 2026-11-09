@@ -1,8 +1,9 @@
-export const initializationAssetVersion = '1';
+export const initializationAssetVersion = '2';
 
 /** One project-owned starter; the registry supplies local identities when it is resolved. */
 export const initializationProjectConfig = {
   schemaVersion: 1,
+  defaultAgents: { implementation: 'implementer', review: 'reviewer' },
   agents: {
     implementer: {
       provider: 'codex',

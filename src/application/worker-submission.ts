@@ -59,13 +59,15 @@ export async function submitWorkerTask(
   }
 
   const request = parsed.value;
+  const agent = request.agent ?? kind;
   const prior =
     kind === 'reviewer'
       ? deps.review.queue.reviewRequest({ projectId: request.projectId, key: request.key })
       : deps.implementation.queue.find({
           projectId: request.projectId,
-          role: kind,
+          role: agent,
           key: request.key,
+          workflow: 'implementation',
         });
 
   if (prior.outcome === 'rejected') {
@@ -158,7 +160,7 @@ export async function submitWorkerTask(
   }
 
   const config = await resolveConfiguration(
-    { schemaVersion: 1, projectId: request.projectId, role: kind, request: request.request },
+    { schemaVersion: 1, projectId: request.projectId, role: agent, request: request.request },
     deps.implementation,
     signal,
   );
@@ -170,7 +172,7 @@ export async function submitWorkerTask(
   if (config.value.status !== 'ready') {
     return rejected(
       'configuration_blocked',
-      `Configure the ${kind} agent before starting this task.`,
+      `Configure the ${agent} agent before starting this task.`,
     );
   }
 
@@ -208,7 +210,7 @@ export async function submitWorkerTask(
       worktrees: deps.worktrees,
       herdr: deps.herdr,
       workspacePrefix:
-        config.value.snapshot?.effective.roles[kind]?.workspacePrefix ??
+        config.value.snapshot?.effective.roles[agent]?.workspacePrefix ??
         (kind === 'reviewer' ? 'CR' : 'IMPL'),
     },
     signal,

@@ -51,6 +51,7 @@ export const implementationSubmitRequestSchema = z
     projectId: configurationRequestSchema.shape.projectId,
     checkoutId: configurationRequestSchema.shape.checkoutId.unwrap(),
     key: stateIdSchema,
+    agent: configurationRequestSchema.shape.role.optional(),
     branch: worktreePrepareRequestSchema.shape.branch,
     commit: worktreePrepareRequestSchema.shape.baseCommit,
     fixOf: reviewFixReferenceSchema.optional(),

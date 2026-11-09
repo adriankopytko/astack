@@ -29,6 +29,30 @@ import { gitPath, writeProjectConfiguration } from './support/service.js';
 
 const options = { timeout: 90000 };
 
+await test('a project-defined reviewer receives a review assignment', options, async () => {
+  await fixture(async (context) => {
+    const path = join(context.context.state, 'config', 'project-0.json');
+    const config = JSON.parse(await readFile(path, 'utf8')) as {
+      project: { roles: Record<string, unknown> };
+    };
+    config.project.roles.auditor = config.project.roles.reviewer;
+    await writeFile(path, JSON.stringify(config));
+    const request = await requestFor(context);
+    const { deps, coordinator } = dependencies(context, request);
+    const review = accepted(await submitReview({ ...request, agent: 'auditor' }, deps));
+
+    assert.equal(review.job.entry.role, 'auditor');
+    assert.equal(review.job.job.operation, 'delegate:reviewer');
+    assert.equal(review.assignment.submission.agent, 'auditor');
+
+    coordinator.start();
+    await coordinator.idle();
+    await coordinator.stop();
+
+    assert.equal(context.prompts.length, 1);
+  });
+});
+
 await test(
   'review saves an explicit comparison base without replacing the PR freshness base',
   options,
@@ -240,6 +264,13 @@ await test(
       );
 
       assert.equal(conflict.outcome, 'rejected');
+
+      const differentBase = await submitReview(
+        { ...(await another(context, request, 'different-base')), comparisonBase: 'a'.repeat(40) },
+        state.deps,
+      );
+
+      assert.equal(differentBase.outcome, 'rejected');
 
       const repeated = accepted(
         await submitReview(

@@ -15,7 +15,12 @@ export interface ServiceStore extends ReviewRequestLookup {
     entry: ServiceEntry;
     policy: HostConfigurationPolicy;
   }): StateWriteResult<ServiceJob>;
-  find(input: { projectId: string; role: string; key: string }): OperationResult<ServiceJob | null>;
+  find(input: {
+    projectId: string;
+    role: string;
+    key: string;
+    workflow?: 'implementation' | 'review';
+  }): OperationResult<ServiceJob | null>;
   read(jobId: string): OperationResult<ServiceJob | null>;
   list(after?: string): OperationResult<{ items: ServiceJob[]; nextCursor: string | null }>;
   claim(input: {

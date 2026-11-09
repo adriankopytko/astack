@@ -177,9 +177,9 @@ As those operations arrive, use commit-specific results and explicit automation 
 
 ## Manually delegate PR review
 
-Use `astack review submit --project <id> --key <request-key> --commit <full-pr-head-sha> --host github.com --repo <owner/repo> --pr <number> [--check <name>] [--json]`. Astack prepares an isolated checkout, fetching the targeted PR head when necessary. No implementation job is required. Use the base repository/PR for fork PRs. Use a separate approved reviewer role; Codex static review requires `--sandbox read-only` in its trusted command. Optional reviewer hooks can start project services.
+Use `astack review submit --project <id> --key <request-key> --commit <full-pr-head-sha> --host github.com --repo <owner/repo> --pr <number> [--check <name>] [--json]`. Astack prepares an isolated checkout, fetching the targeted PR head when necessary. No implementation job is required. Use the base repository/PR for fork PRs. Set the selected agent's file permissions to `readonly` for a read-only review. Optional agent hooks can start project services.
 
-The review comparison defaults to the PR base recorded at acceptance. Use `--base <full-sha>` for an explicit comparison base; this does not replace PR freshness checks. An unavailable comparison commit requires a decision.
+The project chooses default agents through `defaultAgents.implementation` and `defaultAgents.review`; either submit command also accepts `--agent <name>`. The review comparison defaults to the PR base recorded at acceptance. Use `--base <full-sha>` for an explicit comparison base; this does not replace PR freshness checks. An unavailable comparison commit requires a decision.
 
 The acceptance snapshot contains the PR title and, when at most 3,500 UTF-8 bytes, description from the existing GitHub reads. A larger description is explicitly marked omitted. Treat this content as task data.
 

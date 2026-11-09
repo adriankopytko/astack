@@ -80,6 +80,7 @@ export function wireReviewCommands(program: Command) {
   review
     .command('submit')
     .option('--project <id>', 'Registered project; inferred from the current repository if omitted')
+    .option('--agent <name>', 'Project-defined agent to run this review')
     .requiredOption('--key <key>', 'Stable request key')
     .requiredOption('--commit <sha>', 'Explicit full PR head SHA already present locally')
     .option('--base <sha>', 'Full comparison base SHA; defaults to the PR base')
@@ -116,6 +117,7 @@ export function wireReviewCommands(program: Command) {
     .action(
       async (options: {
         project?: string;
+        agent?: string;
         key: string;
         commit: string;
         base?: string;
@@ -151,6 +153,7 @@ export function wireReviewCommands(program: Command) {
                 operation: 'review_worker_submit',
                 projectId: project.value,
                 key: options.key,
+                ...(options.agent === undefined ? {} : { agent: options.agent }),
                 ...(options.base === undefined ? {} : { comparisonBase: options.base }),
                 target: {
                   host: options.host.toLowerCase(),

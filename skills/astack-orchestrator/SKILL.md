@@ -2,7 +2,7 @@
 name: astack-orchestrator
 description: Delegate implementation and code review through Astack, inspect accepted results, and choose explicit follow-up or recovery actions across registered projects.
 metadata:
-  asset-version: '1.0.18'
+  asset-version: '1.0.19'
 ---
 
 # Orchestrate with Astack
@@ -12,6 +12,8 @@ Use this skill for the orchestrator controlling an Astack workflow. An assigned 
 ## Select the project and assignment
 
 Read `astack --skill` for the installed command contracts when you need details; use command-specific help for arguments. Keep stable request keys and full commit SHAs in your handoff notes. A request returning a saved job is acceptance, not proof that an agent started or finished.
+
+Use the project's `defaultAgents` for implementation and review, or select any configured agent with `--agent <name>`. For an issue, `implement submit --issue <number> --repo <owner/repo>` includes a saved GitHub issue snapshot. For review, the PR base is the default comparison; `--base <full-sha>` selects an explicit comparison base.
 
 - `astack project list --json` finds registered identities. `astack context --project <project-id> --json` observes the selected checkout; explicit checkout/path/attempt selectors must agree. Invoking Astack from a directory containing several projects does not scan or choose one.
 - `astack project register <path> --json` deliberately registers an unregistered canonical checkout. Registration does not install files, approve configuration or authorize workers.

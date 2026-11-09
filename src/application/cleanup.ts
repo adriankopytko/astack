@@ -1,5 +1,6 @@
 import type { RunView } from '../contracts/runs.js';
 import type { WorktreeRecord } from '../contracts/worktrees.js';
+import { reviewTaskSchema } from '../contracts/review-task.js';
 import { gitSucceeded } from './worktree-evidence.js';
 import { isDeepStrictEqual } from 'node:util';
 import { isAbsolute, relative } from 'node:path';
@@ -34,10 +35,12 @@ export interface CleanupDependencies {
 function isManagedReviewBranch(run: RunView, tree: WorktreeRecord): boolean {
   const match = /^worker-reviewer-([a-f0-9]{32})$/.exec(tree.intent.key);
   const digest = match?.[1];
+  const task = reviewTaskSchema.safeParse(run.job.job.intent.task);
 
   return (
     digest !== undefined &&
-    run.job.entry.role === 'reviewer' &&
+    task.success &&
+    run.job.entry.role === (task.data.submission.agent ?? 'reviewer') &&
     run.job.job.operation === 'delegate:reviewer' &&
     tree.intent.key === `worker-reviewer-${digest}` &&
     tree.intent.branch === `refs/heads/astack/code-review-${digest}` &&
