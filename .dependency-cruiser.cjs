@@ -39,20 +39,8 @@ module.exports = {
       from: { path: '^src/cli/' },
       to: {
         path: '^src/host/',
-        pathNot: '^src/host/(local-service|reconcile-run|handoff|review-results|cleanup)\\.ts$',
+        pathNot: '^src/host/(local-service|reconcile-run|cleanup)\\.ts$',
       },
-    },
-    {
-      name: 'handoff-cli-host-entry-only',
-      severity: 'error',
-      from: { path: '^src/cli/handoff\\.ts$' },
-      to: { path: '^src/host/', pathNot: '^src/host/handoff\\.ts$' },
-    },
-    {
-      name: 'review-results-cli-host-entry-only',
-      severity: 'error',
-      from: { path: '^src/cli/review-results\\.ts$' },
-      to: { path: '^src/host/', pathNot: '^src/host/review-results\\.ts$' },
     },
     {
       name: 'run-cli-host-entry-only',
