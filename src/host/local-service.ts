@@ -6,6 +6,7 @@ import { createPrivateArtifactDirectory, openPrivateArtifact } from '../core/pri
 import { createMainBaseResolver } from '../adapters/git/main-base.js';
 import { submitWorkerTask } from '../application/worker-submission.js';
 import { enqueueWorker } from '../application/enqueue-worker.js';
+import { enqueueHandoff, type HandoffContextReader } from '../application/enqueue-handoff.js';
 import { workerQueueReceipt } from '../contracts/worker-queue.js';
 import { prepareWorkerWorktree, reconcileWorkerWorktree } from '../application/worker-worktree.js';
 import { createWorktreeGit } from '../adapters/git/worktree-git.js';
@@ -121,7 +122,7 @@ export async function startLocalService(
     cleanupShutdown?: RunShutdownVerifier;
     reviewTargets?: ReviewTargetReader;
     githubExecutable?: string;
-    githubContext?: NonNullable<Parameters<typeof enqueueWorker>[1]['githubContext']>;
+    githubContext?: HandoffContextReader;
     runWorkerInput?: ImplementationWorkerInput;
     runWorkerControl?: RunWorkerControl;
     codexHerdr?: { herdrExecutable?: string; codexExecutable?: string };
@@ -752,103 +753,108 @@ export async function startLocalService(
             }
 
             const { operation, ...submission } = request;
-            const result = await enqueueWorker(
-              {
-                kind:
-                  operation === 'handoff_submit'
-                    ? 'handoff'
-                    : operation === 'implement_worker_submit'
-                      ? 'implementer'
-                      : 'reviewer',
-                submission,
-              },
-              {
-                ...dependencies,
-                workerQueue: opened.workerQueue,
-                available: availableWorkerRuntimes(),
-                ...(githubReads
-                  ? {
-                      githubContext: {
-                        async read({ reference, root }, contextSignal) {
-                          const query = {
-                            repository: { host: reference.host, repository: reference.repository },
-                            number: reference.number,
-                            root,
-                            maxAgeMs: 60000,
-                          };
-                          const label = `${reference.host}/${reference.repository}#${reference.number}`;
+            const queueDependencies: Parameters<typeof enqueueWorker>[1] & {
+              githubContext?: HandoffContextReader;
+            } = {
+              ...dependencies,
+              workerQueue: opened.workerQueue,
+              available: availableWorkerRuntimes(),
+              ...(githubReads
+                ? {
+                    githubContext: {
+                      async read({ reference, root }, contextSignal) {
+                        const query = {
+                          repository: { host: reference.host, repository: reference.repository },
+                          number: reference.number,
+                          root,
+                          maxAgeMs: 60000,
+                        };
+                        const label = `${reference.host}/${reference.repository}#${reference.number}`;
 
-                          if (reference.kind === 'issue') {
-                            const result = await githubReads.issue(query, contextSignal);
-
-                            return result.outcome === 'rejected'
-                              ? result
-                              : completed({
-                                  kind: 'issue' as const,
-                                  title: result.value.value.title,
-                                  body: result.value.value.body,
-                                  reference: label,
-                                  author: result.value.value.author,
-                                  state: result.value.value.state,
-                                  updatedAt: result.value.value.updatedAt,
-                                  observedAt: result.value.observedAt,
-                                });
-                          }
-
-                          const result = await githubReads.pullRequest(query, contextSignal);
+                        if (reference.kind === 'issue') {
+                          const result = await githubReads.issue(query, contextSignal);
 
                           return result.outcome === 'rejected'
                             ? result
                             : completed({
-                                kind: 'pr' as const,
+                                kind: 'issue' as const,
                                 title: result.value.value.title,
                                 body: result.value.value.body,
                                 reference: label,
                                 author: result.value.value.author,
                                 state: result.value.value.state,
+                                updatedAt: result.value.value.updatedAt,
                                 observedAt: result.value.observedAt,
-                                headSha: result.value.value.target.sha,
-                                baseSha: result.value.value.baseSha,
                               });
-                        },
+                        }
+
+                        const result = await githubReads.pullRequest(query, contextSignal);
+
+                        return result.outcome === 'rejected'
+                          ? result
+                          : completed({
+                              kind: 'pr' as const,
+                              title: result.value.value.title,
+                              body: result.value.value.body,
+                              reference: label,
+                              author: result.value.value.author,
+                              state: result.value.value.state,
+                              observedAt: result.value.observedAt,
+                              headSha: result.value.value.target.sha,
+                              baseSha: result.value.value.baseSha,
+                            });
                       },
-                      githubIssues: {
-                        async read({ reference, root }, issueSignal) {
-                          const result = await githubReads.issue(
-                            {
-                              repository: {
-                                host: reference.host,
-                                repository: reference.repository,
-                              },
-                              number: reference.number,
-                              root,
-                              maxAgeMs: 60000,
+                    },
+                    githubIssues: {
+                      async read({ reference, root }, issueSignal) {
+                        const result = await githubReads.issue(
+                          {
+                            repository: {
+                              host: reference.host,
+                              repository: reference.repository,
                             },
-                            issueSignal,
-                          );
+                            number: reference.number,
+                            root,
+                            maxAgeMs: 60000,
+                          },
+                          issueSignal,
+                        );
 
-                          if (result.outcome === 'rejected') {
-                            return result;
-                          }
+                        if (result.outcome === 'rejected') {
+                          return result;
+                        }
 
-                          return completed({
-                            reference,
-                            title: result.value.value.title,
-                            body: result.value.value.body,
-                            state: result.value.value.state,
-                            observedAt: result.value.observedAt,
-                          });
-                        },
+                        return completed({
+                          reference,
+                          title: result.value.value.title,
+                          body: result.value.value.body,
+                          state: result.value.value.state,
+                          observedAt: result.value.observedAt,
+                        });
                       },
-                    }
-                  : {}),
-                ...(options.githubContext ? { githubContext: options.githubContext } : {}),
-                nextId: () =>
-                  operation === 'handoff_submit' ? submission.key : `job-${randomUUID()}`,
-                now: Date.now,
-              },
-              signal,
-            );
+                    },
+                  }
+                : {}),
+              ...(options.githubContext ? { githubContext: options.githubContext } : {}),
+              nextId: () =>
+                operation === 'handoff_submit' ? submission.key : `job-${randomUUID()}`,
+              now: Date.now,
+            };
+            const result =
+              operation === 'handoff_submit'
+                ? await enqueueHandoff(
+                    submission,
+                    { ...queueDependencies, available: queueDependencies.available?.handoff ?? [] },
+                    signal,
+                  )
+                : await enqueueWorker(
+                    {
+                      kind: operation === 'implement_worker_submit' ? 'implementer' : 'reviewer',
+                      submission,
+                    },
+                    queueDependencies,
+                    signal,
+                  );
 
             if (result.outcome === 'persisted') {
               coordinator.wake();
