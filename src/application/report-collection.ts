@@ -8,6 +8,7 @@ import { stateIdSchema } from '../contracts/state.js';
 import type { RunStore, RunReportReader } from '../ports/runs.js';
 import { implementationTask } from './implementation.js';
 import { reviewTask } from './review.js';
+import { genericHandoffTask, renderGenericHandoff } from './generic-handoff.js';
 import { renderImplementationPrompt } from '../core/implementation-prompt.js';
 import { renderReviewPrompt } from '../core/review-prompt.js';
 import { parseOperationRequest } from '../core/parse-operation-request.js';
@@ -42,11 +43,14 @@ export async function collectRunReport(
     const run = saved.value;
     const review = reviewTask(run.job);
     const implementation = implementationTask(run.job);
-    const prompt = review
-      ? renderReviewPrompt(run.job, review)
-      : implementation
-        ? renderImplementationPrompt(run.job, implementation)
-        : null;
+    const generic = genericHandoffTask(run.job);
+    const prompt = generic
+      ? renderGenericHandoff(run.job, generic)
+      : review
+        ? renderReviewPrompt(run.job, review)
+        : implementation
+          ? renderImplementationPrompt(run.job, implementation)
+          : null;
 
     if (!prompt) {
       return rejected('run_report_invalid', 'No supported saved assignment exists.');

@@ -7,6 +7,7 @@ import { git, writeProjectConfiguration } from './support/service.js';
 import { startLocalService } from '../src/host/local-service.js';
 import { requestLocalService } from '../src/adapters/local/service-client.js';
 import { completed } from '../src/contracts/operation-result.js';
+import { collectRunReport } from '../src/application/report-collection.js';
 import { workerInputDigest } from '../src/core/worker-input.js';
 import type { ImplementationInputReceipt } from '../src/contracts/implementation-task.js';
 import { readGithubOrigin } from '../src/adapters/git/github-origin.js';
@@ -178,6 +179,32 @@ await test(
         assert.ok(job.outcome === 'completed' && job.value);
         assert.equal(job.value.entry.role, 'researcher');
         assert.equal(job.value.job.operation, 'handoff');
+
+        const collected = await collectRunReport(
+          { schemaVersion: 1, jobId: job.value.job.id, key: 'collect-test' },
+          {
+            runs: opened.runs,
+            reports: {
+              async read({ prompt }) {
+                assert.match(prompt, /Investigate the task carefully/);
+
+                return completed({
+                  schemaVersion: 1,
+                  jobId: job.value!.job.id,
+                  attemptId: job.value!.attempt.id,
+                  projectId: job.value!.job.projectId,
+                  checkoutId: job.value!.job.checkoutId,
+                  outcome: 'completed' as const,
+                  summary: 'Collected result.',
+                  blockers: [],
+                });
+              },
+            },
+          },
+        );
+
+        assert.ok(collected.outcome === 'completed');
+        assert.equal(collected.value.proposal.summary, 'Collected result.');
 
         const task = job.value.job.intent.task as { contextPath?: string; root: string };
 
