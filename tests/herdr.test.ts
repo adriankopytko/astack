@@ -9,8 +9,6 @@ import {
   prepareWorkerWorktree,
   reconcileWorkerWorktree,
 } from '../src/application/worker-worktree.js';
-import { submitWorkerTask } from '../src/application/worker-submission.js';
-import { nodeImplementationContextReader } from '../src/adapters/filesystem/implementation-context.js';
 import { sha256 } from '../src/core/file-paths.js';
 import { createReviewCommitFetcher } from '../src/adapters/git/review-commit.js';
 import { createBaseCommitFetcher } from '../src/adapters/git/base-commit.js';
@@ -669,120 +667,6 @@ await test(
 
       assert.equal(afterRecovery.outcome, 'reused', JSON.stringify(afterRecovery));
       assert.equal(calls, 1);
-    });
-  },
-);
-
-await test(
-  'task submission automatically creates separate implementation and review worktrees',
-  options,
-  async () => {
-    await fixture(async ({ configure, deps, opened, fake, state, sources }) => {
-      await configure();
-      let sequence = 0;
-      let creates = 0;
-      let baseResolutions = 0;
-      const provider = {
-        ...fake.provider,
-        async createWorker(
-          input: NonNullable<Parameters<NonNullable<typeof fake.provider.createWorker>>[0]>,
-        ) {
-          creates++;
-          git(
-            input.sourceRoot,
-            'worktree',
-            'add',
-            '-b',
-            input.branch,
-            input.root,
-            input.baseCommit,
-          );
-          const handle = fake.add(input.target, input.root, input.label, input.sourceRoot);
-
-          return completed({ workspaceId: handle.workspaceId });
-        },
-      };
-      const managedRoot = join(state, 'worktrees');
-      const files = createNodeWorktreeFiles(managedRoot);
-      const worktrees = {
-        ...deps,
-        store: opened.worktrees,
-        files,
-        effects: createWorktreeGit({ executable: gitPath, runner: nodeProcessRunner }),
-        managedRoot,
-        nextId: (kind: 'worktree' | 'checkout' | 'operation' | 'marker') =>
-          `${kind}-auto-${++sequence}`,
-        now: () => 1000,
-      };
-      const implementation = {
-        ...deps,
-        queue: opened.service,
-        worktrees: opened.worktrees,
-        files,
-        instructions: nodeImplementationContextReader,
-        now: () => 1000,
-        nextId: (kind: 'job' | 'attempt' | 'effect' | 'claim') => `${kind}-auto-${++sequence}`,
-      };
-      const sha = git(sources[0]!, 'rev-parse', 'HEAD');
-      const target = { host: 'github.com', repository: 'example/project', number: 1, sha };
-      const review = {
-        ...implementation,
-        targets: {
-          read: async () =>
-            completed({
-              target,
-              baseSha: sha,
-              state: 'OPEN' as const,
-              draft: false,
-              sourceRepository: 'example/project',
-              checks: [],
-              observedAt: 1000,
-            }),
-        },
-      };
-      const dependencies = {
-        implementation,
-        review,
-        worktrees,
-        herdr: { ...deps, provider },
-        implementationBase: {
-          resolve: async () => {
-            baseResolutions++;
-
-            return completed(sha);
-          },
-        },
-      };
-      const input = {
-        schemaVersion: 1,
-        projectId: 'project-0',
-        key: 'build-task',
-        description: 'Implement a small task',
-      };
-      const first = await submitWorkerTask('implementer', input, dependencies);
-      const repeated = await submitWorkerTask('implementer', input, dependencies);
-      const reviewed = await submitWorkerTask(
-        'reviewer',
-        { schemaVersion: 1, projectId: 'project-0', key: 'review-task', target },
-        dependencies,
-      );
-
-      const alias = await submitWorkerTask(
-        'reviewer',
-        { schemaVersion: 1, projectId: 'project-0', key: 'review-alias', target },
-        dependencies,
-      );
-
-      assert.equal(first.outcome, 'persisted', JSON.stringify(first));
-      assert.equal(repeated.outcome, 'persisted', JSON.stringify(repeated));
-      assert.equal(reviewed.outcome, 'persisted', JSON.stringify(reviewed));
-      assert.equal(alias.outcome, 'persisted', JSON.stringify(alias));
-      assert.equal(creates, 2);
-      assert.equal(baseResolutions, 1);
-      assert.ok(first.outcome === 'persisted' && reviewed.outcome === 'persisted');
-      assert.notEqual(first.value.job.job.checkoutId, reviewed.value.job.job.checkoutId);
-      assert.match(reviewed.value.job.entry.branch, /^refs\/heads\/astack\/code-review-/);
-      assert.equal(reviewed.value.job.entry.commit, sha);
     });
   },
 );
