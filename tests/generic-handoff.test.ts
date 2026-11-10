@@ -206,6 +206,39 @@ await test(
         assert.ok(collected.outcome === 'completed');
         assert.equal(collected.value.proposal.summary, 'Collected result.');
 
+        const beforeReport = opened.runs.inspect(job.value.job.id);
+
+        assert.ok(beforeReport.outcome === 'completed' && beforeReport.value);
+        assert.equal(beforeReport.value.report, null);
+
+        const malformed = await collectRunReport(
+          { schemaVersion: 1, jobId: job.value.job.id, key: 'malformed' },
+          {
+            runs: opened.runs,
+            reports: { read: async () => completed({ summary: 'Not a report' }) },
+          },
+        );
+
+        assert.equal(malformed.outcome, 'rejected');
+
+        const cancellation = new AbortController();
+        const interrupted = await collectRunReport(
+          { schemaVersion: 1, jobId: job.value.job.id, key: 'cancelled' },
+          {
+            runs: opened.runs,
+            reports: {
+              read: async () => {
+                cancellation.abort();
+
+                return completed(collected.value.proposal);
+              },
+            },
+          },
+          cancellation.signal,
+        );
+
+        assert.ok(interrupted.outcome === 'rejected' && interrupted.error.code === 'cancelled');
+
         const task = job.value.job.intent.task as { contextPath?: string; root: string };
 
         assert.ok(typeof task?.contextPath === 'string');

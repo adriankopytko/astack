@@ -8,7 +8,6 @@ import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
-  collectRunReport,
   submitReview,
   createReviewRuntime,
   submitImplementation,
@@ -1439,73 +1438,6 @@ await test(
         assert.equal(context.launches.length, 0);
       } finally {
         reopened.store.close();
-      }
-    });
-  },
-);
-
-await test(
-  'report collection returns a validated proposal envelope and still requires normal coordinator acceptance',
-  options,
-  async () => {
-    await fixture(async (context) => {
-      const { deps, coordinator, job, proposal } = await prepare(context);
-      coordinator.start();
-      await coordinator.idle();
-
-      try {
-        const result = await collectRunReport(
-          { schemaVersion: 1, jobId: job.job.id, key: 'collected' },
-          {
-            runs: deps.runs,
-            reports: {
-              async read({ run, prompt }) {
-                assert.equal(run.job.attempt.id, job.attempt.id);
-                assert.equal(prompt, context.prompts[0]?.text);
-
-                return completed(proposal);
-              },
-            },
-          },
-        );
-
-        assert.ok(result.outcome === 'completed', JSON.stringify(result));
-        assert.equal(saved(job.job.id, deps).report, null);
-
-        const acceptedReport = accepted(await acceptRunReport(result.value, deps));
-
-        assert.equal(acceptedReport.status, 'completed');
-        assert.equal(acceptedReport.cleanup.state, 'retained');
-
-        const malformed = await collectRunReport(
-          { schemaVersion: 1, jobId: job.job.id, key: 'malformed' },
-          {
-            runs: deps.runs,
-            reports: { read: async () => completed({ summary: 'Not a report' }) },
-          },
-        );
-
-        assert.equal(malformed.outcome, 'rejected');
-
-        const cancelled = new AbortController();
-        const interrupted = await collectRunReport(
-          { schemaVersion: 1, jobId: job.job.id, key: 'cancelled' },
-          {
-            runs: deps.runs,
-            reports: {
-              read: async () => {
-                cancelled.abort();
-
-                return completed(proposal);
-              },
-            },
-          },
-          cancelled.signal,
-        );
-
-        assert.ok(interrupted.outcome === 'rejected' && interrupted.error.code === 'cancelled');
-      } finally {
-        await coordinator.stop();
       }
     });
   },
