@@ -66,7 +66,7 @@ import {
   inspectServiceJob,
   type ServiceDependencies,
 } from '../application/service.js';
-import type { ImplementationDependencies } from '../application/implementation.js';
+import type { TaskDeliveryDependencies } from '../application/task-delivery.js';
 import { createNodeWorktreeFiles } from '../adapters/filesystem/worktree-files.js';
 import { nodeImplementationContextReader } from '../adapters/filesystem/implementation-context.js';
 import { createGhReadPrimitives } from '../adapters/github/read.js';
@@ -185,9 +185,8 @@ export async function startLocalService(
       }
     }
 
-    const implementationDependencies: ImplementationDependencies = {
+    const assignmentDependencies: TaskDeliveryDependencies = {
       ...dependencies,
-      runs: opened.runs,
       worktrees: opened.worktrees,
       files: createNodeWorktreeFiles(join(opened.stateDirectory, 'worktrees')),
       instructions: nodeImplementationContextReader,
@@ -286,7 +285,7 @@ export async function startLocalService(
     for (let index = 0; index < runtimes.length; index++) {
       runtimes[index] = createGenericHandoffRuntime({
         runtime: runtimes[index]!,
-        dependencies: implementationDependencies,
+        dependencies: assignmentDependencies,
         workerInput,
       });
     }
@@ -297,7 +296,7 @@ export async function startLocalService(
           state: opened.store,
           herdr: opened.herdr,
           provider: workerProvider,
-          files: implementationDependencies.files,
+          files: assignmentDependencies.files,
           newId: randomUUID,
           agentPorts,
         }
@@ -306,7 +305,7 @@ export async function startLocalService(
     const workerWorktrees = {
       ...dependencies,
       store: opened.worktrees,
-      files: implementationDependencies.files,
+      files: assignmentDependencies.files,
       effects: createWorktreeGit({ executable, runner: nodeProcessRunner }),
       managedRoot,
       now: Date.now,
@@ -314,7 +313,7 @@ export async function startLocalService(
     };
 
     const runDependencies: RunDependencies = {
-      ...implementationDependencies,
+      ...assignmentDependencies,
       runs: opened.runs,
       artifacts: nodeRunArtifactReader,
       workerInput,
@@ -362,8 +361,8 @@ export async function startLocalService(
         };
         const nextId = (kind: 'job' | 'attempt' | 'effect' | 'claim') =>
           kind === 'job' ? item.id : `${kind}-${randomUUID()}`;
-        const implementation = {
-          ...implementationDependencies,
+        const assignment = {
+          ...assignmentDependencies,
           configuration: pinnedConfiguration,
           nextId,
         };
@@ -388,7 +387,7 @@ export async function startLocalService(
           result = await submitGenericWorker(
             item.request.submission,
             {
-              assignment: implementation,
+              assignment,
               worktrees: workerWorktrees,
               herdr: workerHerdr,
               stateDirectory: opened.stateDirectory,
