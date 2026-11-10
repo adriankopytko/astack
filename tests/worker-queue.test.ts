@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { enqueueWorker } from '../src/application/enqueue-worker.js';
+import { enqueueHandoff } from '../src/application/enqueue-handoff.js';
 import { fixture } from './support/service.js';
 import { fixture as herdrFixture } from './support/herdr.js';
 import { git, writeProjectConfiguration } from './support/service.js';
@@ -14,15 +14,13 @@ import { reconcileLocalQueuedWorker } from '../src/host/reconcile-run.js';
 await test('cancellation during preparation does not alias or cancel an existing job', async () => {
   await fixture(async ({ deps, opened }) => {
     const request = {
-      kind: 'implementer',
-      submission: {
-        schemaVersion: 1,
-        projectId: 'project-0',
-        key: 'cancel-alias',
-        description: 'Task',
-      },
+      schemaVersion: 1,
+      projectId: 'project-0',
+      agent: 'implementer',
+      key: 'cancel-alias',
+      task: 'Task',
     };
-    const queued = await enqueueWorker(request, {
+    const queued = await enqueueHandoff(request, {
       ...deps,
       workerQueue: opened.workerQueue,
       nextId: () => 'job-alias',
@@ -32,7 +30,7 @@ await test('cancellation during preparation does not alias or cancel an existing
 
     const claimed = opened.workerQueue.claim(
       { global: 1, defaultRole: 1, perRole: {} },
-      { implementer: ['fixture'] },
+      { handoff: ['fixture'] },
     );
 
     assert.ok(claimed.outcome === 'persisted' && claimed.value);
@@ -54,12 +52,13 @@ await test('issue assignments save one immutable issue snapshot and retries do n
       ...deps,
       workerQueue: opened.workerQueue,
       nextId: () => 'job-issue',
-      githubIssues: {
+      githubContext: {
         async read() {
           calls++;
 
           return completed({
-            reference,
+            kind: 'issue' as const,
+            reference: 'github.com/example/project#42',
             title: 'Fix it',
             body: 'Issue details',
             state: 'open' as const,
@@ -69,17 +68,15 @@ await test('issue assignments save one immutable issue snapshot and retries do n
       },
     };
     const request = {
-      kind: 'implementer',
-      submission: {
-        schemaVersion: 1,
-        projectId: 'project-0',
-        key: 'issue',
-        description: 'Implement the issue',
-        issue: reference,
-      },
+      schemaVersion: 1,
+      projectId: 'project-0',
+      agent: 'implementer',
+      key: 'issue',
+      task: 'Implement the issue',
+      context: { kind: 'issue' as const, ...reference },
     };
-    const first = await enqueueWorker(request, dependencies);
-    const again = await enqueueWorker(request, dependencies);
+    const first = await enqueueHandoff(request, dependencies);
+    const again = await enqueueHandoff(request, dependencies);
 
     assert.ok(first.outcome === 'persisted' && again.outcome === 'persisted');
     assert.equal(calls, 1);
@@ -87,8 +84,8 @@ await test('issue assignments save one immutable issue snapshot and retries do n
     const saved = opened.workerQueue.read(first.value.id);
 
     assert.ok(saved.outcome === 'completed' && saved.value);
-    assert.equal(saved.value.issueSnapshot?.body, 'Issue details');
-    assert.equal(saved.value.issueSnapshot?.observedAt, 123);
+    assert.equal(saved.value.contextSnapshot?.body, 'Issue details');
+    assert.equal(saved.value.contextSnapshot?.observedAt, 123);
   });
 });
 
@@ -151,10 +148,13 @@ await test(
       try {
         const submitted = await requestLocalService(state, {
           schemaVersion: 1,
-          operation: 'implement_worker_submit',
+          operation: 'handoff_submit',
           projectId: 'project-0',
           key: 'cancel-preparing',
-          description: 'Task',
+          agent: 'implementer',
+          task: 'Task',
+          instructionPaths: ['AGENTS.md', 'AGENTS.override.md'],
+          request: {},
         });
 
         assert.ok(submitted.outcome === 'persisted' && 'request' in submitted.value);
@@ -209,15 +209,18 @@ await test('interrupted preparation without a worktree can be explicitly recover
       nextId: () => `job-recover-${++sequence}`,
     };
     const request = (key: string) => ({
-      kind: 'implementer',
-      submission: { schemaVersion: 1, projectId: 'project-0', key, description: 'Task' },
+      schemaVersion: 1,
+      projectId: 'project-0',
+      agent: 'implementer',
+      key,
+      task: 'Task',
     });
-    const first = await enqueueWorker(request('recover'), dependencies);
+    const first = await enqueueHandoff(request('recover'), dependencies);
 
     assert.ok(first.outcome === 'persisted');
 
     const limits = { global: 1, defaultRole: 1, perRole: {} };
-    const claimed = opened.workerQueue.claim(limits, { implementer: ['fixture'] });
+    const claimed = opened.workerQueue.claim(limits, { handoff: ['fixture'] });
 
     assert.ok(claimed.outcome === 'persisted' && claimed.value?.id === first.value.id);
     assert.equal(
@@ -228,10 +231,7 @@ await test('interrupted preparation without a worktree can be explicitly recover
     const recovered = await reconcileLocalQueuedWorker(first.value.id, true, state);
 
     assert.ok(recovered.outcome === 'persisted' && recovered.value.state === 'queued');
-    assert.equal(
-      opened.workerQueue.claim(limits, { implementer: ['fixture'] }).outcome,
-      'persisted',
-    );
+    assert.equal(opened.workerQueue.claim(limits, { handoff: ['fixture'] }).outcome, 'persisted');
 
     const cancelled = opened.workerQueue.cancel(first.value.id);
 
@@ -256,26 +256,16 @@ await test(
         nextId: () => `job-queue-${++id}`,
       };
       const firstRequest = {
-        kind: 'implementer',
-        submission: {
-          schemaVersion: 1,
-          projectId: 'project-0',
-          key: 'one',
-          description: 'First task',
-        },
+        schemaVersion: 1,
+        projectId: 'project-0',
+        agent: 'implementer',
+        key: 'one',
+        task: 'First task',
       };
-      const secondRequest = {
-        kind: 'implementer',
-        submission: {
-          schemaVersion: 1,
-          projectId: 'project-0',
-          key: 'two',
-          description: 'Second task',
-        },
-      };
-      const first = await enqueueWorker(firstRequest, dependencies);
-      const again = await enqueueWorker(firstRequest, dependencies);
-      const second = await enqueueWorker(secondRequest, dependencies);
+      const secondRequest = { ...firstRequest, key: 'two', task: 'Second task' };
+      const first = await enqueueHandoff(firstRequest, dependencies);
+      const again = await enqueueHandoff(firstRequest, dependencies);
+      const second = await enqueueHandoff(secondRequest, dependencies);
 
       assert.ok(
         first.outcome === 'persisted' &&
@@ -292,8 +282,8 @@ await test(
       assert.equal(jobs.value.items.length, 0);
 
       const limits = { global: 1, defaultRole: 1, perRole: {} };
-      const claimed = opened.workerQueue.claim(limits, { implementer: ['fixture'] });
-      const waiting = opened.workerQueue.claim(limits, { implementer: ['fixture'] });
+      const claimed = opened.workerQueue.claim(limits, { handoff: ['fixture'] });
+      const waiting = opened.workerQueue.claim(limits, { handoff: ['fixture'] });
 
       assert.ok(claimed.outcome === 'persisted' && claimed.value?.id === first.value.id);
       assert.ok(waiting.outcome === 'persisted' && waiting.value === null);
@@ -303,10 +293,10 @@ await test(
 
       assert.ok(cancelled.outcome === 'persisted' && cancelled.value.state === 'cancelled');
 
-      const mismatch = await enqueueWorker(
+      const mismatch = await enqueueHandoff(
         {
           ...firstRequest,
-          submission: { ...firstRequest.submission, description: 'Different task' },
+          task: 'Different task',
         },
         dependencies,
       );
@@ -404,11 +394,13 @@ await test(
       const submit = (key: string) =>
         requestLocalService(state, {
           schemaVersion: 1,
-          operation: 'implement_worker_submit',
+          operation: 'handoff_submit',
           projectId: 'project-0',
           key,
           agent: 'backend',
-          description: `Task ${key}`,
+          task: `Task ${key}`,
+          instructionPaths: ['AGENTS.md', 'AGENTS.override.md'],
+          request: {},
         });
 
       try {

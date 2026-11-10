@@ -3,10 +3,6 @@ import {
   worktreeReconcileRequestSchema,
   worktreeResultSchema,
 } from './worktrees.js';
-import {
-  implementationWorkerSubmissionSchema,
-  reviewWorkerSubmissionSchema,
-} from './worker-submission.js';
 import { initializationRequestSchema, initializationResultSchema } from './initialization.js';
 import { absoluteFilePathSchema } from './managed-files.js';
 import {
@@ -63,17 +59,10 @@ import {
   serviceJobSchema,
 } from './service.js';
 import {
-  implementationSubmitRequestSchema,
-  implementationReadRequestSchema,
   implementationReadResultSchema,
   implementationSubmitResultSchema,
 } from './implementation.js';
-import {
-  reviewSubmitRequestSchema,
-  reviewReadRequestSchema,
-  reviewReadResultSchema,
-  reviewSubmitResultSchema,
-} from './review.js';
+import { reviewReadResultSchema, reviewSubmitResultSchema } from './review.js';
 import { createOperationResultSchema } from './operation-result.js';
 import { createStateWriteResultSchema } from './state.js';
 import { workerQueueReadResultSchema, workerQueueWriteResultSchema } from './worker-queue.js';
@@ -90,10 +79,6 @@ export const serviceRpcRequestSchema = z.discriminatedUnion('operation', [
   }),
   worktreePrepareRequestSchema.extend({ operation: z.literal('worker_worktree_prepare') }),
   worktreeReconcileRequestSchema.extend({ operation: z.literal('worker_worktree_reconcile') }),
-  implementationWorkerSubmissionSchema.safeExtend({
-    operation: z.literal('implement_worker_submit'),
-  }),
-  reviewWorkerSubmissionSchema.safeExtend({ operation: z.literal('review_worker_submit') }),
   genericHandoffSubmissionSchema.extend({ operation: z.literal('handoff_submit') }),
   cleanupRequestSchema.extend({ operation: z.literal('cleanup_request') }),
   cleanupControlSchema.extend({ operation: z.literal('cleanup_control') }),
@@ -114,10 +99,6 @@ export const serviceRpcRequestSchema = z.discriminatedUnion('operation', [
   z.strictObject({ schemaVersion: z.literal(1), operation: z.literal('wake') }),
   serviceSubmitRequestSchema.extend({ operation: z.literal('submit') }),
   serviceReadRequestSchema.extend({ operation: z.literal('inspect') }),
-  implementationSubmitRequestSchema.extend({ operation: z.literal('implement_submit') }),
-  implementationReadRequestSchema.extend({ operation: z.literal('implement_inspect') }),
-  reviewSubmitRequestSchema.extend({ operation: z.literal('review_submit') }),
-  reviewReadRequestSchema.extend({ operation: z.literal('review_inspect') }),
   runReadRequestSchema.extend({ operation: z.literal('run_inspect') }),
   runReportRequestSchema.extend({ operation: z.literal('run_report') }),
   runResponseRequestSchema.extend({ operation: z.literal('run_respond') }),

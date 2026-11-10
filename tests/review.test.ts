@@ -16,8 +16,6 @@ import {
   createWorktreeGit,
   nodeProcessRunner,
   submitImplementation,
-  startLocalService,
-  requestLocalService,
   type ReviewDependencies,
   type ReviewSnapshot,
   type ReviewJob,
@@ -25,7 +23,7 @@ import {
 } from '../src/index.js';
 import { completed } from '../src/contracts/operation-result.js';
 import { fixture } from './support/implementation.js';
-import { gitPath, writeProjectConfiguration } from './support/service.js';
+import { gitPath } from './support/service.js';
 
 const options = { timeout: 90000 };
 
@@ -526,54 +524,6 @@ await test(
         false,
       );
       assert.equal(saved(job.job.job.id, state.deps).review.acceptedOutcome, null);
-    });
-  },
-);
-
-await test(
-  'local RPC accepts an explicit review and offline inspection preserves its durable receipt',
-  options,
-  async () => {
-    await fixture(async (context) => {
-      const request = await requestFor(context);
-      const state = dependencies(context, request);
-      await writeProjectConfiguration(context.context, 0);
-      const service = await startLocalService(
-        { schemaVersion: 1, stateDirectory: context.context.state, gitExecutable: gitPath },
-        { reviewTargets: state.deps.targets },
-      );
-
-      assert.equal(service.outcome, 'listening', JSON.stringify(service));
-
-      if (service.outcome !== 'listening') {
-        return;
-      }
-
-      try {
-        const result = await requestLocalService(context.context.state, {
-          ...request,
-          operation: 'review_submit',
-        });
-
-        assert.ok(
-          result.outcome === 'persisted' && 'review' in result.value,
-          JSON.stringify(result),
-        );
-
-        const jobId = result.value.job.job.id;
-        const repeated = await requestLocalService(context.context.state, {
-          ...request,
-          operation: 'review_submit',
-        });
-
-        assert.ok(repeated.outcome === 'persisted' && repeated.disposition === 'existing');
-
-        await service.close();
-
-        assert.equal(saved(jobId, state.deps).assignment.submission.target.sha, request.commit);
-      } finally {
-        await service.close();
-      }
     });
   },
 );

@@ -4,8 +4,6 @@ import { submitGenericWorker } from '../application/generic-worker-submission.js
 import { createGenericHandoffRuntime } from '../application/generic-handoff.js';
 import { createPrivateArtifactDirectory, openPrivateArtifact } from '../core/private-artifacts.js';
 import { createMainBaseResolver } from '../adapters/git/main-base.js';
-import { submitWorkerTask } from '../application/worker-submission.js';
-import { enqueueWorker } from '../application/enqueue-worker.js';
 import { enqueueHandoff, type HandoffContextReader } from '../application/enqueue-handoff.js';
 import { workerQueueReceipt } from '../contracts/worker-queue.js';
 import { prepareWorkerWorktree, reconcileWorkerWorktree } from '../application/worker-worktree.js';
@@ -90,14 +88,10 @@ import {
   inspectServiceJob,
   type ServiceDependencies,
 } from '../application/service.js';
-import {
-  submitImplementation,
-  inspectImplementation,
-  type ImplementationDependencies,
-} from '../application/implementation.js';
+import type { ImplementationDependencies } from '../application/implementation.js';
 import { createNodeWorktreeFiles } from '../adapters/filesystem/worktree-files.js';
 import { nodeImplementationContextReader } from '../adapters/filesystem/implementation-context.js';
-import { submitReview, inspectReview, type ReviewDependencies } from '../application/review.js';
+import type { ReviewDependencies } from '../application/review.js';
 import { createGhReviewTargetReader } from '../adapters/github/review-target.js';
 import { createGhReadPrimitives } from '../adapters/github/read.js';
 import type { ReviewTargetReader } from '../ports/review.js';
@@ -408,12 +402,6 @@ export async function startLocalService(
       handoff: runtimes
         .filter((runtime) => runtime.workflows?.includes('handoff'))
         .flatMap((runtime) => [runtime.id, ...(runtime.aliases ?? [])]),
-      implementer: runtimes
-        .filter((runtime) => runtime.workflows?.includes('implementation'))
-        .flatMap((runtime) => [runtime.id, ...(runtime.aliases ?? [])]),
-      reviewer: runtimes
-        .filter((runtime) => runtime.workflows?.includes('review'))
-        .flatMap((runtime) => [runtime.id, ...(runtime.aliases ?? [])]),
     });
     const coordinator = createServiceCoordinator({
       sessionId,
@@ -449,7 +437,6 @@ export async function startLocalService(
           configuration: pinnedConfiguration,
           nextId,
         };
-        const review = { ...reviewDependencies, configuration: pinnedConfiguration, nextId };
         let result;
 
         try {
@@ -500,32 +487,7 @@ export async function startLocalService(
                   },
                   signal,
                 )
-              : await submitWorkerTask(
-                  item.request.kind,
-                  item.request.kind === 'implementer' && item.issueSnapshot
-                    ? { ...item.request.submission, issueSnapshot: item.issueSnapshot }
-                    : item.request.submission,
-                  {
-                    implementation,
-                    review,
-                    worktrees: workerWorktrees,
-                    herdr: workerHerdr,
-                    reviewCommit: createReviewCommitFetcher({
-                      executable,
-                      githubExecutable: gh,
-                      runner: nodeProcessRunner,
-                      environment,
-                    }),
-                    implementationBase:
-                      options.implementationBase ??
-                      createMainBaseResolver({
-                        executable,
-                        runner: nodeProcessRunner,
-                        environment: process.env,
-                      }),
-                  },
-                  signal,
-                );
+              : rejected('invalid_request', 'Legacy role-specific queue items are unsupported.');
         } catch {
           result = rejected(
             'state_reconciliation_required',
@@ -534,14 +496,13 @@ export async function startLocalService(
         }
 
         if (result.outcome === 'persisted') {
-          const acceptedId =
-            'entry' in result.value ? result.value.job.id : result.value.job.job.id;
+          const acceptedId = result.value.job.id;
 
           if (acceptedId !== item.id) {
             const alias = opened.workerQueue.alias(item.id, acceptedId);
 
             if (alias.outcome !== 'persisted') {
-              throw new Error('Could not save the existing review assignment.');
+              throw new Error('Could not save the existing handoff assignment.');
             }
           }
 
@@ -742,8 +703,6 @@ export async function startLocalService(
             return completed({ workerWorktree: result });
           }
 
-          case 'implement_worker_submit':
-          case 'review_worker_submit':
           case 'handoff_submit': {
             if (!workerHerdr) {
               return rejected(
@@ -752,13 +711,11 @@ export async function startLocalService(
               );
             }
 
-            const { operation, ...submission } = request;
-            const queueDependencies: Parameters<typeof enqueueWorker>[1] & {
-              githubContext?: HandoffContextReader;
-            } = {
+            const { operation: _operation, ...submission } = request;
+            const queueDependencies: Parameters<typeof enqueueHandoff>[1] = {
               ...dependencies,
               workerQueue: opened.workerQueue,
-              available: availableWorkerRuntimes(),
+              available: availableWorkerRuntimes().handoff ?? [],
               ...(githubReads
                 ? {
                     githubContext: {
@@ -805,56 +762,13 @@ export async function startLocalService(
                             });
                       },
                     },
-                    githubIssues: {
-                      async read({ reference, root }, issueSignal) {
-                        const result = await githubReads.issue(
-                          {
-                            repository: {
-                              host: reference.host,
-                              repository: reference.repository,
-                            },
-                            number: reference.number,
-                            root,
-                            maxAgeMs: 60000,
-                          },
-                          issueSignal,
-                        );
-
-                        if (result.outcome === 'rejected') {
-                          return result;
-                        }
-
-                        return completed({
-                          reference,
-                          title: result.value.value.title,
-                          body: result.value.value.body,
-                          state: result.value.value.state,
-                          observedAt: result.value.observedAt,
-                        });
-                      },
-                    },
                   }
                 : {}),
               ...(options.githubContext ? { githubContext: options.githubContext } : {}),
-              nextId: () =>
-                operation === 'handoff_submit' ? submission.key : `job-${randomUUID()}`,
+              nextId: () => submission.key,
               now: Date.now,
             };
-            const result =
-              operation === 'handoff_submit'
-                ? await enqueueHandoff(
-                    submission,
-                    { ...queueDependencies, available: queueDependencies.available?.handoff ?? [] },
-                    signal,
-                  )
-                : await enqueueWorker(
-                    {
-                      kind: operation === 'implement_worker_submit' ? 'implementer' : 'reviewer',
-                      submission,
-                    },
-                    queueDependencies,
-                    signal,
-                  );
+            const result = await enqueueHandoff(submission, queueDependencies, signal);
 
             if (result.outcome === 'persisted') {
               coordinator.wake();
@@ -1109,35 +1023,6 @@ export async function startLocalService(
             return coordinator.status();
           case 'inspect':
             return inspectServiceJob({ schemaVersion: 1, jobId: request.jobId }, opened.service);
-          case 'review_inspect':
-            return inspectReview({ schemaVersion: 1, jobId: request.jobId }, reviewDependencies);
-          case 'review_submit': {
-            const { operation: _operation, ...submission } = request;
-            const result = await submitReview(submission, reviewDependencies);
-
-            if (result.outcome === 'persisted') {
-              coordinator.wake();
-            }
-
-            return result;
-          }
-
-          case 'implement_inspect':
-            return inspectImplementation(
-              { schemaVersion: 1, jobId: request.jobId },
-              implementationDependencies,
-            );
-          case 'implement_submit': {
-            const { operation: _operation, ...submission } = request;
-            const result = await submitImplementation(submission, implementationDependencies);
-
-            if (result.outcome === 'persisted') {
-              coordinator.wake();
-            }
-
-            return result;
-          }
-
           case 'cleanup_inspect': {
             const { operation: _operation, ...input } = request;
 
