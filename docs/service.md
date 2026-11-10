@@ -1,5 +1,7 @@
 # Durable local service
 
+> Current delegation uses generic `handoff submit` and project-defined agents. References below to implementation/review submission and the CI or automatic-review service executors describe removed legacy paths; see [ADR 0037](adr/0037-generic-agent-handoffs.md).
+
 ## Implemented scope
 
 Astack runs one coordinator per private local state directory. Implementation and review submission, service mutations, and service-dependent run, CI and review automation operations start it in the background when needed; `service run` remains available in the foreground. The CLI registers the Codex runtime when Codex and Herdr are available at startup, and dispatch selects the runtime from the accepted job configuration. Library hosts can inject their own adapters. Configured agent hooks run automatically around worker execution.

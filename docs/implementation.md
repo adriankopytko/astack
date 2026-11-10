@@ -1,5 +1,7 @@
 # Explicit implementation delegation
 
+> Historical design: the role-specific CLI commands and automatic review executor described here have been removed. For current generic delegation, see [ADR 0037](adr/0037-generic-agent-handoffs.md) and the [README](../README.md). Some underlying legacy library code remains pending cleanup.
+
 ## Implemented scope
 
 An orchestrator selects a task and project; `implement submit` durably queues it without preparing a checkout. When capacity is reserved, Astack creates the task checkout, branch and grouped Herdr workspace. The coordinator launches the configured worker and hands it a deterministic initial prompt through the runtime's durable input primitive. `implement inspect` reads queue, delivery and blocker evidence, including after the service stops.

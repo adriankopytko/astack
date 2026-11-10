@@ -1,5 +1,7 @@
 # Explicit after-handoff review dispatch
 
+> Historical design: the role-specific CLI commands and automatic review executor described here have been removed. For current generic delegation, see [ADR 0037](adr/0037-generic-agent-handoffs.md) and the [README](../README.md). Some underlying legacy library code remains pending cleanup.
+
 ## Scope
 
 Issue #26 connects an accepted implementation handoff's authorized review request to CI observation and the existing worker queue. Manual review remains the default. A handoff with `review: null` creates no automatic plan or watcher, and ordinary `review submit` creates no automatic plan. There is no PR scanner, automatic fix loop, findings publication or merge.

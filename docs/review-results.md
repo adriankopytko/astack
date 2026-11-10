@@ -1,5 +1,7 @@
 # Accepted review findings and explicit follow-up
 
+> Historical design: the role-specific CLI commands and automatic review executor described here have been removed. For current generic delegation, see [ADR 0037](adr/0037-generic-agent-handoffs.md) and the [README](../README.md). Some underlying legacy library code remains pending cleanup.
+
 Issue #27 adds operations over the existing durable accepted run reports. Findings and artifact references are saved by ordinary `run report` acceptance before acknowledgment (requests up to 48,000 UTF-8 bytes, accepted envelopes including verified evidence up to 96 KiB); there is no second report store or transcript scanner. Only an accepted `reviewed` report with matching job, attempt, project, dedicated checkout, gate, acceptance snapshot and full reviewed SHA qualifies. Duplicate report keys retain their existing immutable semantics.
 
 ## Historical results and observations

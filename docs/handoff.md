@@ -1,5 +1,7 @@
 # Validated implementation publication
 
+> Historical design: the role-specific CLI commands and automatic review executor described here have been removed. For current generic delegation, see [ADR 0037](adr/0037-generic-agent-handoffs.md) and the [README](../README.md). Some underlying legacy library code remains pending cleanup.
+
 ## Implemented scope
 
 `finishImplementation`, `reconcileImplementationHandoff` and `inspectImplementationHandoff` consume completed implementation runs and the Git/GitHub publication primitives. The CLI exposes these through `handoff finish`, `reconcile`, `inspect` and `follow-ups`. Migration 11 adds a durable handoff record; acceptance and any explicitly authorized follow-up review request are committed together.

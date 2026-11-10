@@ -1,5 +1,7 @@
 # Explicit manual review delegation
 
+> Historical design: the role-specific CLI commands and automatic review executor described here have been removed. For current generic delegation, see [ADR 0037](adr/0037-generic-agent-handoffs.md) and the [README](../README.md). Some underlying legacy library code remains pending cleanup.
+
 ## Implemented scope
 
 An orchestrator requests a review for a registered project, base repository host/name, PR number and full head SHA. No implementation job or claim is required. Manual initiation is the default; after-handoff initiation is separately opted in. Astack queues the request and, once capacity is available, creates a dedicated reviewer checkout, a local `code-review` branch at the exact requested SHA, and a grouped Herdr workspace. Agent hooks may start project services when configured. Legacy integration resource requests block dispatch; configure agent ports and hooks for new review jobs instead.

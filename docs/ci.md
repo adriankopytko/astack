@@ -1,5 +1,7 @@
 # Targeted CI observation
 
+> Historical design: the role-specific CLI commands and automatic review executor described here have been removed. For current generic delegation, see [ADR 0037](adr/0037-generic-agent-handoffs.md) and the [README](../README.md). Some underlying legacy library code remains pending cleanup.
+
 ## Scope and authority
 
 Issue #25 adds persistent, shared CI observations for already accepted review work. The CI observer never discovers unrelated PRs, creates a review job, starts an agent, publishes findings or merges. Its progress can wake the separately opted-in [follow-up dispatcher](automatic-review.md). The default service has no CI observer. `service run --observe-ci` explicitly enables the scheduler; `ci watch` separately authorizes waiting for one persisted source.
