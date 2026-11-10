@@ -67,7 +67,7 @@ await test(
         join(state, 'service.json'),
         JSON.stringify({ concurrency: { global: 6, perAgent: 3 } }),
       );
-      const call = (key: string) =>
+      const call = () =>
         new Promise<{ code: number | null; output: string }>((resolve, reject) => {
           const child = spawn(
             process.execPath,
@@ -77,12 +77,12 @@ await test(
               state,
               '--herdr-executable',
               '/usr/bin/false',
-              'implement',
+              'handoff',
               'submit',
+              '--agent',
+              'implementer',
               '--project',
               'missing-project',
-              '--key',
-              key,
               '--task',
               'test',
               '--json',
@@ -99,7 +99,7 @@ await test(
           child.on('error', reject);
           child.on('close', (code) => resolve({ code, output }));
         });
-      const results = await Promise.all([call('one'), call('two')]);
+      const results = await Promise.all([call(), call()]);
 
       for (const result of results) {
         assert.equal(result.code, 1, result.output);
@@ -140,7 +140,7 @@ await test(
       assert.equal(inspected.status, 0, inspected.stderr);
       assert.equal(JSON.parse(inspected.stdout).value.id, records[0]!.id);
 
-      const subsequent = await call('three');
+      const subsequent = await call();
 
       assert.match(subsequent.output, /project_not_found/);
       assert.deepEqual(processes(), running);

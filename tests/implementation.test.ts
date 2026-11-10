@@ -1,7 +1,5 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { mkdtemp, readFile, writeFile, symlink, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -16,13 +14,11 @@ import {
   implementationWorkerReportSchema,
   implementationSubmitRequestSchema,
   nodeImplementationContextReader,
-  requestLocalService,
-  startLocalService,
   type ImplementationJob,
   type StateWriteResult,
 } from '../src/index.js';
 import { fixture } from './support/implementation.js';
-import { gitPath, writeProjectConfiguration } from './support/service.js';
+import { writeProjectConfiguration } from './support/service.js';
 import { implementationTask } from '../src/application/implementation.js';
 import { renderImplementationPrompt } from '../src/core/implementation-prompt.js';
 
@@ -543,70 +539,3 @@ await test('repository context reader preserves absent files and rejects links, 
     await rm(root, { recursive: true, force: true });
   }
 });
-
-await test(
-  'live local transport accepts implementation intent and compiled CLI inspects it from neutral cwd',
-  options,
-  async () => {
-    await fixture(async (context) => {
-      const request = await context.prepare();
-      await writeProjectConfiguration(context.context, 0);
-      const service = await startLocalService({
-        schemaVersion: 1,
-        stateDirectory: context.context.state,
-        gitExecutable: gitPath,
-      });
-
-      assert.equal(service.outcome, 'listening', JSON.stringify(service));
-
-      if (service.outcome !== 'listening') {
-        assert.fail('Missing fixture service');
-      }
-
-      try {
-        const receipt = await requestLocalService(context.context.state, {
-          ...request,
-          operation: 'implement_submit',
-        });
-
-        assert.ok(
-          receipt.outcome === 'persisted' && 'implementation' in receipt.value,
-          JSON.stringify(receipt),
-        );
-
-        const job = receipt.value as ImplementationJob;
-        const cli = fileURLToPath(new URL('../dist/cli/main.js', import.meta.url));
-        const inspected = spawnSync(
-          process.execPath,
-          [
-            cli,
-            '--state-directory',
-            context.context.state,
-            'implement',
-            'inspect',
-            job.job.job.id,
-            '--json',
-          ],
-          { cwd: context.context.root, encoding: 'utf8', timeout: 15_000 },
-        );
-
-        assert.ok(inspected.status === 0 || inspected.status === 1, inspected.stderr);
-
-        const result = implementationReadResultSchema.parse(JSON.parse(inspected.stdout));
-
-        assert.ok(result.outcome === 'completed' && result.value?.job.job.id === job.job.job.id);
-        assert.equal(context.launches.length, 0);
-
-        const unknown = spawnSync(process.execPath, [cli, 'implement', 'invented'], {
-          cwd: context.context.root,
-          encoding: 'utf8',
-        });
-
-        assert.equal(unknown.status, 1);
-        assert.match(unknown.stderr, /unknown command/);
-      } finally {
-        await service.close();
-      }
-    });
-  },
-);

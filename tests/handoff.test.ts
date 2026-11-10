@@ -11,7 +11,6 @@ import {
   openSqliteState,
   readRunEvents,
   handoffRequestSchema,
-  handoffReadResultSchema,
   executeLocalHandoff,
   acquireCoordinatorOwnership,
   type HandoffDependencies,
@@ -62,32 +61,6 @@ await test(
       assert.deepEqual(after.value.control, before.value.control);
       assert.equal(after.value.job.attempt.id, before.value.job.attempt.id);
       assert.notEqual(value.record.publicationAttemptId, f.job.attempt.id);
-
-      const cli = spawnSync(
-        process.execPath,
-        [
-          fileURLToPath(new URL('../dist/cli/main.js', import.meta.url)),
-          '--state-directory',
-          f.context.context.state,
-          'handoff',
-          'inspect',
-          f.job.job.id,
-          '--json',
-        ],
-        {
-          cwd: f.context.context.root,
-          encoding: 'utf8',
-          timeout: 10000,
-          env: { HOME: f.context.context.root, PATH: '/usr/bin:/bin' },
-        },
-      );
-
-      assert.equal(cli.status, 0, cli.stderr);
-
-      const envelope = handoffReadResultSchema.parse(JSON.parse(cli.stdout) as unknown);
-
-      assert.ok(envelope.outcome === 'completed' && envelope.value);
-      assert.equal(envelope.value.record.id, value.record.id);
 
       const follows = f.deps.handoffs.followUps({
         projectId: f.job.job.projectId,

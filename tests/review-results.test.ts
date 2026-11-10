@@ -1,7 +1,3 @@
-import { spawnSync } from 'node:child_process';
-import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
-import { acquireCoordinatorOwnership } from '../src/adapters/state/coordinator-ownership.js';
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -229,50 +225,6 @@ await test(
       const duplicate = await c.acceptReport();
 
       assert.equal(duplicate.outcome, 'persisted');
-
-      const cli = fileURLToPath(new URL('../dist/cli/main.js', import.meta.url));
-      const command = (...args: string[]) =>
-        spawnSync(
-          process.execPath,
-          [cli, '--state-directory', c.f.f.context.context.state, ...args],
-          { cwd: tmpdir(), encoding: 'utf8', timeout: 10000, env: { PATH: '/usr/bin:/bin' } },
-        );
-      const inspected = command(
-        'review',
-        'result',
-        'inspect',
-        c.job.job.id,
-        '--report-key',
-        c.source.reportKey,
-        '--json',
-      );
-
-      assert.equal(inspected.status, 0, inspected.stderr || inspected.stdout);
-      assert.equal(JSON.parse(inspected.stdout).value.report.id, accepted.report.id);
-
-      const ownership = await acquireCoordinatorOwnership(c.f.f.context.context.state);
-
-      try {
-        const excluded = command(
-          'review',
-          'result',
-          'observe',
-          '--job',
-          c.job.job.id,
-          '--report-key',
-          c.source.reportKey,
-          '--git-executable',
-          '/nonexistent/astack-test-git',
-          '--github-executable',
-          '/nonexistent/astack-test-gh',
-          '--json',
-        );
-
-        assert.equal(excluded.status, 1);
-        assert.equal(JSON.parse(excluded.stdout).error.code, 'service_already_running');
-      } finally {
-        ownership.release();
-      }
 
       const request = c.publishRequest(accepted.report.id);
       const published = persisted(await publishReviewResult(request, c.deps));

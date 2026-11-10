@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -26,7 +26,7 @@ import {
   nodeProcessRunner,
   submitServiceJob,
 } from '../src/index.js';
-import { git, gitPath, writeProjectConfiguration } from './support/service.js';
+import { git, gitPath } from './support/service.js';
 import { completed } from '../src/contracts/operation-result.js';
 import {
   ensureHerdrProject,
@@ -43,7 +43,6 @@ import {
   type HerdrResult,
   type ProcessRequest,
   type ProcessResult,
-  startLocalService,
 } from '../src/index.js';
 import { fixture, space } from './support/herdr.js';
 
@@ -784,247 +783,6 @@ await test(
       assert.notEqual(first.value.job.job.checkoutId, reviewed.value.job.job.checkoutId);
       assert.match(reviewed.value.job.entry.branch, /^refs\/heads\/astack\/code-review-/);
       assert.equal(reviewed.value.job.entry.commit, sha);
-    });
-  },
-);
-
-await test(
-  'CLI delegates implementation and review without a prepared checkout',
-  options,
-  async () => {
-    await fixture(async ({ configure, opened, fake, state, sources }) => {
-      await configure();
-      await writeProjectConfiguration({ state, sources }, 0);
-      const configPath = join(sources[0]!, '.astack', 'config.json');
-      const projectConfig = JSON.parse(await readFile(configPath, 'utf8')) as {
-        agents: { implementer: { workspacePrefix?: string } };
-      };
-      projectConfig.agents.implementer.workspacePrefix = 'DEV';
-      await writeFile(configPath, JSON.stringify(projectConfig));
-      let creates = 0;
-      const labels: string[] = [];
-      let loseResponse = false;
-      const provider = {
-        ...fake.provider,
-        async createWorker(
-          input: NonNullable<Parameters<NonNullable<typeof fake.provider.createWorker>>[0]>,
-        ) {
-          creates++;
-          labels.push(input.label);
-          git(
-            input.sourceRoot,
-            'worktree',
-            'add',
-            '-b',
-            input.branch,
-            input.root,
-            input.baseCommit,
-          );
-          const handle = fake.add(input.target, input.root, input.label, input.sourceRoot);
-
-          if (loseResponse) {
-            loseResponse = false;
-
-            throw new Error('lost creation response');
-          }
-
-          return completed({ workspaceId: handle.workspaceId });
-        },
-      };
-      const sha = git(sources[0]!, 'rev-parse', 'HEAD');
-      const target = { host: 'github.com', repository: 'example/project', number: 1, sha };
-      const service = await startLocalService(
-        { schemaVersion: 1, stateDirectory: state, gitExecutable: gitPath },
-        {
-          workerSetupProvider: provider,
-          implementationBase: { resolve: async () => completed(sha) },
-          runtimes: [
-            {
-              id: 'fixture',
-              workflows: ['implementation', 'review'],
-              async start(job) {
-                return { state: 'running', handle: { attempt: job.attempt.id }, evidence: {} };
-              },
-              async inspect(job) {
-                return { state: 'running', handle: { attempt: job.attempt.id }, evidence: {} };
-              },
-            },
-          ],
-          reviewTargets: {
-            read: async () =>
-              completed({
-                target,
-                baseSha: sha,
-                state: 'OPEN',
-                draft: false,
-                sourceRepository: 'example/project',
-                checks: [],
-                observedAt: 1000,
-              }),
-          },
-        },
-      );
-
-      assert.equal(service.outcome, 'listening', JSON.stringify(service));
-
-      if (service.outcome !== 'listening') {
-        return;
-      }
-
-      try {
-        const waitFor = async (condition: () => boolean) => {
-          for (let i = 0; i < 500 && !condition(); i++) {
-            await new Promise((resolve) => setTimeout(resolve, 100));
-          }
-
-          assert.ok(condition(), 'Timed out waiting for queued worker setup');
-        };
-
-        const run = async (args: string[], cwd?: string) =>
-          new Promise<{ code: number | null; stdout: string }>((resolve, reject) => {
-            const child = spawn(
-              process.execPath,
-              [cli, '--state-directory', state, ...args, '--json'],
-              { cwd },
-            );
-            let stdout = '';
-            child.stdout.on('data', (chunk: Buffer) => {
-              stdout += chunk.toString();
-            });
-            child.on('error', reject);
-            child.on('close', (code) => resolve({ code, stdout }));
-          });
-        const implementation = await run(
-          ['implement', 'submit', '--key', 'task', '--task', 'Implement a task'],
-          sources[0],
-        );
-        const unspecified = await run(
-          ['implement', 'submit', '--key', 'no-project', '--task', 'test'],
-          state,
-        );
-
-        assert.equal(unspecified.code, 1);
-        assert.match(unspecified.stdout, /project_context_required/);
-
-        const repeated = await run([
-          'implement',
-          'submit',
-          '--project',
-          'project-0',
-          '--key',
-          'task',
-          '--task',
-          'Implement a task',
-        ]);
-        const review = await run(
-          [
-            'review',
-            'submit',
-            '--key',
-            'review',
-            '--repo',
-            'example/project',
-            '--pr',
-            '1',
-            '--commit',
-            sha,
-          ],
-          sources[0],
-        );
-        const implementationResult = JSON.parse(implementation.stdout) as {
-          outcome: string;
-          value?: { id: string };
-        };
-        const reviewResult = JSON.parse(review.stdout) as {
-          outcome: string;
-          value?: { id: string };
-        };
-
-        assert.equal(implementation.code, 0, implementation.stdout);
-        assert.ok([0, 1].includes(repeated.code ?? -1), repeated.stdout);
-        assert.equal(review.code, 0, review.stdout);
-        assert.equal(implementationResult.outcome, 'persisted');
-        assert.equal(reviewResult.outcome, 'persisted');
-        assert.ok(implementationResult.value && reviewResult.value);
-
-        await waitFor(() => {
-          const implementationJob = opened.service.read(implementationResult.value!.id);
-          const reviewJob = opened.service.read(reviewResult.value!.id);
-
-          return (
-            implementationJob.outcome === 'completed' &&
-            !!implementationJob.value &&
-            reviewJob.outcome === 'completed' &&
-            !!reviewJob.value
-          );
-        });
-        const implementationJob = opened.service.read(implementationResult.value.id);
-        const reviewJob = opened.service.read(reviewResult.value.id);
-
-        assert.ok(implementationJob.outcome === 'completed' && implementationJob.value);
-        assert.ok(reviewJob.outcome === 'completed' && reviewJob.value);
-        assert.notEqual(implementationJob.value.job.checkoutId, reviewJob.value.job.checkoutId);
-        assert.match(reviewJob.value.entry.branch, /^refs\/heads\/astack\/code-review-/);
-        assert.equal(creates, 2);
-        assert.match(labels[0]!, /^DEV-/);
-        assert.match(labels[1]!, /^CR-/);
-
-        loseResponse = true;
-        const lostTask = [
-          'implement',
-          'submit',
-          '--project',
-          'project-0',
-          '--key',
-          'lost-task',
-          '--task',
-          'Implement another task',
-        ];
-        const lost = await run(lostTask);
-
-        assert.equal(lost.code, 0, lost.stdout);
-
-        const lostId = (JSON.parse(lost.stdout) as { value: { id: string } }).value.id;
-        await waitFor(() => {
-          const pending = opened.workerQueue.read(lostId);
-
-          return (
-            pending.outcome === 'completed' &&
-            pending.value?.error?.code === 'state_reconciliation_required'
-          );
-        });
-
-        const digest = sha256('project-0\0implementer\0lost-task').slice(0, 32);
-        const saved = opened.worktrees.find('project-0', `worker-implementer-${digest}`);
-
-        assert.ok(saved.outcome === 'completed' && saved.value);
-
-        const recovery = await run([
-          'worktree',
-          'reconcile',
-          saved.value.intent.id,
-          '--operation',
-          saved.value.operationId,
-          '--writer-stopped',
-        ]);
-
-        assert.equal(recovery.code, 0, recovery.stdout);
-        assert.match(recovery.stdout, /reconciled/);
-
-        const resumed = await run(lostTask);
-
-        assert.equal(resumed.code, 0, resumed.stdout);
-
-        await waitFor(() => {
-          const job = opened.service.read(lostId);
-
-          return job.outcome === 'completed' && !!job.value;
-        });
-
-        assert.equal(creates, 3);
-      } finally {
-        await service.close();
-      }
     });
   },
 );

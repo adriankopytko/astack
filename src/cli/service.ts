@@ -67,11 +67,6 @@ export function wireServiceCommands(program: Command): void {
     .description('Run the coordinator in the foreground')
     .option('--cleanup', 'Execute explicitly opted-in cleanup after verified shutdown')
     .option(
-      '--after-handoff-review',
-      'Enable the project-controlled follow-up executor; requires --observe-ci',
-    )
-    .option('--observe-ci', 'Enable bounded targeted CI observations for persisted requests')
-    .option(
       '--codex-executable <absolute-path>',
       'Host Codex path; Herdr resolves its own Codex for project agents',
     )
@@ -82,8 +77,6 @@ export function wireServiceCommands(program: Command): void {
       async (options: {
         capacity?: number;
         roleCapacity?: number;
-        observeCi?: boolean;
-        afterHandoffReview?: boolean;
         cleanup?: boolean;
         codexExecutable?: string;
         json?: boolean;
@@ -122,8 +115,6 @@ export function wireServiceCommands(program: Command): void {
             },
           },
           {
-            ...(options.observeCi ? { ci: {} } : {}),
-            afterHandoffReview: options.afterHandoffReview ?? false,
             cleanup: options.cleanup ?? false,
             ...(host.herdrExecutable ? { cleanupHerdrExecutable: host.herdrExecutable } : {}),
             ...(codexAvailable
@@ -152,7 +143,7 @@ export function wireServiceCommands(program: Command): void {
         process.stdout.write(
           options.json
             ? `${JSON.stringify({ schemaVersion: 1, outcome: 'listening', sessionId: started.sessionId, socketPath: started.socketPath })}\n`
-            : `Service listening at ${started.socketPath}\nRuntimes: ${codexAvailable ? 'codex-herdr' : 'Codex unavailable (install Codex and Herdr, then restart the service)'}.\nCI observations: ${options.observeCi ? 'enabled' : 'disabled'}.\nAfter-handoff executor: ${options.afterHandoffReview ? 'enabled' : 'disabled'}.\nCleanup executor: ${options.cleanup ? 'enabled' : 'disabled'}.\n`,
+            : `Service listening at ${started.socketPath}\nRuntimes: ${codexAvailable ? 'codex-herdr' : 'Codex unavailable (install Codex and Herdr, then restart the service)'}.\nCleanup executor: ${options.cleanup ? 'enabled' : 'disabled'}.\n`,
         );
 
         try {

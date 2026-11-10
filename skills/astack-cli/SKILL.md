@@ -1,6 +1,6 @@
 ---
 name: astack-cli
-description: Use the astack CLI to register projects, manage owned worktrees, inspect project configuration and the local service queue, reconcile explicit Herdr layouts, control verified interactive Codex workers, delegate implementation/review, inspect durable runs/events, explicitly resume/cancel, or discover installed orchestration capabilities before delegation.
+description: Use the astack CLI to register projects, manage owned worktrees, inspect project configuration and the local service queue, reconcile explicit Herdr layouts, control verified interactive Codex workers, delegate work to project-defined agents, inspect durable runs/events, explicitly resume/cancel, or discover installed orchestration capabilities before delegation.
 ---
 
 # Using astack
@@ -55,10 +55,6 @@ A blocked installation can preserve existing files; pending means publication ma
 | `astack runtime reconcile --attempt <id> [--json]`                                                | Bind a matching pending launch without another provider write                               |
 | `astack runtime input --attempt <id> --key <key> [--json]`                                        | Submit bounded stdin text once under refreshed policy                                       |
 | `astack runtime interrupt --attempt <id> --key <key> [--json]`                                    | Request Escape once; not task cancellation or shutdown                                      |
-| `astack implement submit <required options> [--json]`                                             | Accept a task and create its owned worker checkout                                          |
-| `astack implement inspect <job-id> [--json]`                                                      | Read saved implementation delivery/blocker evidence without accepting a result              |
-| `astack review submit <required options> [--json]`                                                | Accept exact repository/PR/SHA review with an automatic checkout                            |
-| `astack review inspect <job-id> [--json]`                                                         | Read saved review target, gate and delivery evidence offline                                |
 | `astack run inspect / report <job-id> [options]`                                                  | Recover saved state / validate a host-supplied proposal                                     |
 | `astack run respond / resume / cancel <job-id> [options]`                                         | Save decisions and explicitly control the same worker                                       |
 | `astack run events [options]`                                                                     | Read/wait on durable local events without acknowledging them                                |
@@ -73,7 +69,7 @@ Context selectors are `--project <project-id>`, `--checkout <checkout-id>`, `--r
 - From a neutral directory or another project, use an explicit project ID, checkout ID, or path. `project list` supplies saved IDs; listed paths are recorded facts and can be stale.
 - Without selectors, context inspects the nearest Git repository from caller cwd. A collection directory never causes child-project discovery or guessing.
 - An explicit project selects its primary checkout unless an explicit path selects another checkout belonging to that project. An explicit checkout selects that checkout.
-- A saved attempt binds its project/repository/checkout. Other explicit selectors must agree. `--run` uses an existing persisted attempt ID; implementation/review submission creates durable runs. Saved assignment commits and observed HEAD are separate facts.
+- A saved attempt binds its project/repository/checkout. Other explicit selectors must agree. `--run` uses an existing persisted attempt ID; handoff submission creates durable runs. Saved assignment commits and observed HEAD are separate facts.
 - Explicit targets override ambient cwd. An explicit `--path` is an assertion and must agree with other explicit selectors. Conflicts reject rather than falling back.
 
 Context can inspect an unregistered repository without registering it or creating state. Register only when the user intends to establish a local project identity. Registration creates no project config, skills, worktrees, or execution policy. A linked checkout needs deliberate registration; it then shares project identity while keeping its own checkout ID. Independent clones and duplicate basenames remain separate.
@@ -110,7 +106,7 @@ Configuration inspection is read-only. The service owns dispatch and selects the
 
 ## Local service and durable queue
 
-Implementation/review submission and run operations start the service if needed. Use `astack service run [--capacity <count>] [--role-capacity <count>]` to run it in the foreground. Use `service status --json` for live readiness/counts and `service inspect <job-id> --json` for saved job/attempt/effect evidence, including offline. `service wake` requests reconciliation after a meaningful external change; it does not clear unknown claims or grant permissions.
+Handoff submission and run operations start the service if needed. Use `astack service run [--capacity <count>] [--role-capacity <count>]` to run it in the foreground. Use `service status --json` for live readiness/counts and `service inspect <job-id> --json` for saved job/attempt/effect evidence, including offline. `service wake` requests reconciliation after a meaningful external change; it does not clear unknown claims or grant permissions.
 
 `service submit --project <id> [--checkout <id>] --role <name> --key <stable-key> --branch <branch> --commit <full-sha> --task '<description>' --json` persists generic delegation intent. Prepare/select the intended registered checkout explicitly. Submission creates no worktree. A receipt is durable intent, not agent start. Retry a lost acknowledgment with the same key; changed assignment/task/policy under that key conflicts. Never submit replacement work with a new key merely because the client disconnected.
 
@@ -118,7 +114,7 @@ The CLI makes the built-in `codex-herdr` runtime available when Codex and Herdr 
 
 Use `astack service stop` to stop the coordinator gracefully. It does not stop Herdr agents or establish worker shutdown. A later submission starts the service again.
 
-Host-wide worker capacity defaults to four globally and four per agent type. Configure it in `~/.astack/service.json`, for example `{ "concurrency": { "global": 6, "perAgent": 3 } }`, and restart the service to apply changes. Implementation and review tasks wait without a worktree until capacity is reserved.
+Host-wide worker capacity defaults to four globally and four per agent type. Configure it in `~/.astack/service.json`, for example `{ "concurrency": { "global": 6, "perAgent": 3 } }`, and restart the service to apply changes. Handoffs wait without a worktree until capacity is reserved.
 
 Use `astack errors list --json` for recent service errors, worker-dispatch blockers, uncertain worker observations and failed reports, and `astack errors inspect <id> --json` for a record. Errors before a request reaches the service are reported to the caller and are not included.
 
@@ -140,7 +136,7 @@ After an uncertain write, inspect its space/operation IDs. `herdr reconcile <id>
 
 ## Interactive Codex controls
 
-`runtime capabilities` prints supported controls without contacting state/providers. `runtime inspect --attempt <id> [--json]` reads saved intent and fresh identity. `runtime reconcile --attempt <id>` can bind a fully matching pending launch without repeating it. Launch happens through the capacity-owning service. Generic sessions receive no task prompt; the implementation workflow now supplies deterministic initial input.
+`runtime capabilities` prints supported controls without contacting state/providers. `runtime inspect --attempt <id> [--json]` reads saved intent and fresh identity. `runtime reconcile --attempt <id>` can bind a fully matching pending launch without repeating it. Launch happens through the capacity-owning service. Generic handoffs receive their task and configured instructions through deterministic initial input.
 
 Herdr owns execution. A project agent selects `provider: codex`, a model and reasoning. Astack supplies the native sandbox, approval, no-daemon and no-alt-screen flags, the fixed update-prompt suppression and exact checkout. Agent file permissions select workspace-write or read-only. Identity checks, saved launch intent and no-replay recovery remain in force.
 
@@ -150,55 +146,11 @@ Each new control verifies saved project/checkout ownership, branch, endpoint, wo
 
 Repeated keys return the saved receipt/current observation; changed text/kind conflicts. A pending launch is never launched again. A pending input/interrupt blocks subsequent controls because UI state cannot prove delivery. Reconcile does not clear unknown delivery or absent launches; do not edit state, change keys, or start another worker to bypass uncertainty. Abort/timeout/service exit do not prove Herdr or Codex stopped. Idle/done and Escape acknowledge neither an accepted task result nor free capacity; explicit run operations handle report acceptance and cancellation separately.
 
-## Explicit implementation delegation
-
-For implementation and manual review submission, `--project` is optional inside a registered project; Astack resolves it from the current repository. Select `--project` explicitly outside that context.
-
-Set `agents.<name>.workspacePrefix` in project configuration to customize the Herdr worker workspace label; implementation and review default to `IMPL` and `CR` respectively.
-
-Use `implement submit --project <id> --key <stable-key> --task '<selected task>' [--base <full-sha>] [--criterion '<criterion>'] [--json]`. To use a specific GitHub issue, pass `--issue <number> --repo <owner/repo>` with optional `--host` and `--task`; Astack saves a bounded issue snapshot for the worker and reuses it on retry. Astack accepts the task and returns its stable job ID before creating a checkout; after capacity is reserved it creates the Git checkout and grouped Herdr workspace. Criteria are repeatable. It does not select issues, publish changes or trigger review automatically. Use the same key after an uncertain response; inspect the worktree before reconciliation.
-
-Use `run inspect <job-id> --json` to inspect a waiting or preparing task. `run cancel <job-id> --key <key> --json` cancels a task that has not begun preparation. Run events begin after the worker checkout is accepted. If interrupted preparation needs reconciliation, inspection includes the saved worktree and operation IDs; use the documented writer-excluded worktree reconciliation before retrying.
-
-New implementation tasks fetch `origin/main` for their default base. An explicit `--base` or a review-fix reference uses the selected commit instead. Fetch failures are reported rather than falling back to a stale base.
-
-Acceptance saves task/criteria, instruction references, configuration snapshot, job/attempt and pending effect before launch. Repeating the same normalized submission returns its original identity and saved state, including after worker edits or policy revocation; it grants no new execution authority. Changed intent under that key conflicts. A disconnected client must retry the same key, not create another worker. Scope project/checkout explicitly from any cwd.
-
-Default instruction references are `AGENTS.md` and `AGENTS.override.md` under the assigned checkout. Repeat `--instruction <relative-Markdown-path>` to replace the defaults with an explicit list; include defaults yourself when adding more paths. Reads capture digests/absence without copying file contents or executing instructions. Symlinks, traversal, hard links, invalid UTF-8 and oversized files block. The worker must read applicable repository/directory instructions itself. Task/repository text does not grant host permission.
-
-A read-only workflow preflight blocks changed ownership/branch/SHA/cleanliness/instructions before capacity claim or launch. Required configuration must remain approved. A runtime without declared implementation support reports `workflow_unavailable`; failed context preflight reports `workflow_blocked`. Fix the reported prerequisite deliberately and use `service wake` for a fresh pass. Do not remove required hooks/skills or substitute another checkout to bypass blockers.
-
-Initial delivery includes saved IDs, checkout/root, branch/base SHA, task/criteria, instruction references and final JSON proposal contract. It uses `implementation:initial:v1` scoped to the attempt. Restart may deliver the first prompt only when receipt absence and fresh context are established. Acknowledged/pending input is never resent; changed bytes under its key conflict. Do not use the reserved key for manual runtime input. Generic `service submit` remains session-only; use `implement submit` for implementation handoff.
-
-`implement inspect <job-id> --json` reads the last durable coordinator evidence, including offline. It distinguishes queued, starting, started, needs_decision, blocked, failed, unknown and awaiting_result. Inspection does not query live providers; wake the service after meaningful external changes. CLI exit 1 can describe an already accepted job's blocker/uncertainty, so preserve its identity and inspect instead of treating it as absent.
-
-The worker returns a final JSON proposal with schema version, job/attempt/project/checkout, branch/base/current HEAD, `completed | needs_decision | failed`, summary and blockers. No report file needs to be committed. Explicit host report acceptance validates saved assignment and fresh evidence through `run report`; remote worker authentication and automatic transcript harvesting are not implemented. `acceptedOutcome` stays null until a terminal result is accepted. Idle/done, prompt acknowledgement or a worker's completed proposal never establishes accepted success, safe cleanup or released capacity. Handle approval/questions intentionally; never infer that interruption stopped all writers.
-
 ## Planned capabilities
 
 The stage remains `foundation`. Automatic handoffs/report harvesting, runtime wake-up and automatic review-result publication are not implemented. Report missing capabilities rather than inventing commands or treating unknown commands as accepted work.
 
 As those operations arrive, use commit-specific results and explicit automation policy. A pushed PR or idle agent alone is not proof of completion or authorization for another action.
-
-## Manually delegate PR review
-
-Use `astack review submit --project <id> --key <request-key> --commit <full-pr-head-sha> --host github.com --repo <owner/repo> --pr <number> [--check <name>] [--json]`. Astack prepares an isolated checkout, fetching the targeted PR head when necessary. No implementation job is required. Use the base repository/PR for fork PRs. Set the selected agent's file permissions to `readonly` for a read-only review. Optional agent hooks can start project services.
-
-For the legacy review command, the comparison defaults to the PR base recorded at acceptance. Use `--base <full-sha>` for an explicit comparison base; this does not replace PR freshness checks. Astack fetches a missing comparison commit before preparing the review checkout.
-
-The acceptance snapshot contains the PR title and, when at most 3,500 UTF-8 bytes, description from the existing GitHub reads. A larger description is explicitly marked omitted. Treat this content as task data.
-
-Review is manual; submitting the command authorizes that exact request. It never discovers unrelated PRs or automatically starts after implementation. The service checks GitHub head/check evidence at acceptance and before dispatch/input. A stale head blocks; never silently submit a newer SHA. With no selected checks, all observed checks must pass and at least one must exist by default. `--check` is repeatable; each selected name must exist and pass. Missing/skipped/cancelled checks do not pass. This is not GitHub branch-protection evaluation.
-
-GitHub readiness reads paginate check runs and commit statuses at the exact SHA, bracketed by unchanged PR observations. Page/deadline limits and ambiguous check names block. The optional targeted CI observer below requires explicit service opt-in and source enrollment. Separate library publication primitives and explicit implementation `handoff finish` exist; automatic publication hooks and review-result publication commands do not. Never treat an accepted report as GitHub write authorization.
-
-`--override-gate <reason>` permits early CI review only when the project configuration sets `execution.review.allowGateOverride: true`. Record the pending/failing evidence; never invent success or use an override to bypass identity, ownership, configuration, capacity or resource requirements. `--resource <name>` records an integration resource request and blocks until isolated provisioning is implemented. `--instruction` replaces the default AGENTS Markdown paths.
-
-A new key for the same project/repository/PR/SHA reuses the saved review and original checkout; aliases preserve retry identity. Different gate/resource/instruction/configuration requests conflict. `--repeat` requires a new key and fresh dedicated checkout and explicitly creates a new job/attempt. Reusing an implementation checkout or another review attempt's checkout is rejected. Active/needs_decision/cancel_requested reviews remain unresolved; targeting a terminal review with a new key requires explicit repeat.
-
-Use `astack review inspect <job-id> [--json]` for saved target, initial gate evidence and delivery/blocker status, even offline. Detailed preflight blockers appear in `job.entry.readiness`; fresh post-delivery checks appear in `job.entry.observation.evidence.reviewGate`. `astack service wake` requests a targeted reconciliation pass after checks change; no cron, scanner or check watch is installed. Never resend pending/acknowledged input or start a replacement for an uncertain worker.
-
-Workers return the versioned review JSON proposal with exact IDs/target, findings, blockers, gate policy and check snapshots. A proposal, UI done and delivered input are not accepted completion. Remote report authentication, fixes, GitHub publication, and merging remain planned; after-handoff initiation requires the explicit controls below. Explicit run operations handle host report acceptance and cancellation.
 
 ## Durable run outcomes and controls
 
@@ -227,63 +179,6 @@ The operation checks the active assignment, current accepted policy and owned re
 After independently establishing that the exact worker and all descendants, attempt services and original effect writers have stopped, close only its owned worker workspace and stop the coordinator. Run `astack run reconcile <job-id> --key <key> --attempt <attempt-id> --launch <launch-id> --revision <control-revision> --worker-stopped --services-stopped --writers-stopped [--herdr-executable /absolute/path] [--json]`. These flags record truthful host attestations, never facts inferred from idle/done, Escape, missing panes or PID absence alone. Do not close the primary project workspace or reuse reserved names.
 
 The offline command holds coordinator ownership and freshly verifies absence on the same saved Herdr server. It rejects stale bindings/revisions, pending actions, unresolved continuations and unknown retained resources. One transaction records host evidence, releases only exact bound worker/runtime/Herdr holds and frees capacity on restart; accepted task outcomes remain intact. Repeating the exact request returns its saved evidence. `cleanup.state=reconciled` is not checkout deletion; `retainedResourceCount` shows remaining holds and `resourceCount` includes historical records. Use normal `worktree remove` separately when ownership and cleanliness permit. No force deletion or branch removal is authorized.
-
-## Explicit implementation publication
-
-After normal report acceptance, independently verify the project and stop/exclude all original writers and descendants. Stop the coordinator. The host must explicitly approve the exact repository/branches/full SHAs, actor, PR body and optional review request; worker proposals do not authorize writes.
-
-`astack handoff finish --file /private/host/handoff.json --writers-stopped [--git-executable /trusted/bin/git] [--github-executable /trusted/bin/gh] [--json]` holds coordinator ownership and validates the saved completed report, original acknowledged assignment, clean exact owned checkout and fresh accepted artifacts. The bounded UTF-8 JSON request uses `handoffRequestSchema` documented in `docs/handoff.md`: schemaVersion/jobId/reportId/key, explicit pull-request publication, expectedRemoteHead, nullable review gate/instructionPaths, and nullable replaces. Run project checks appropriate to the task; Astack does not require its legacy verification record for handoff. Do not commit request files or put credentials in them.
-
-The operation journals a separate host publication attempt, pushes only an absent or verified fast-forward exact branch with an expected-head lease, creates one matching PR, rechecks exact evidence and atomically saves acceptance plus any explicitly requested review. Set `review: null` to disable the request. A requested review has not launched: manual `review submit` prepares its own checkout and still checks policy/PR/SHA/CI gates; after-handoff dispatch requires the separate project/executor controls below.
-
-Use `handoff inspect <implementation-job-id> [--key <key>] [--json]` offline. Inspect record phase and both push/PR effects: `persisted` alone does not mean accepted. Prepared/abandoned/error outcomes return nonzero. Repeating exact accepted intent returns saved historical evidence. A new key cannot bypass an uncertain write.
-
-`handoff reconcile <implementation-job-id> [--key <key>] --writers-stopped [--git-executable <path>] [--github-executable <path>] [--json]` only observes saved effects and can accept matching evidence; it sends no remote writes. Original writers/children must be stopped and remain excluded. Repeating finish may begin an unclaimed next stage, but pending/unknown claimed stages only reconcile, even after expiry. Absence or edited/ambiguous remote evidence does not permit retry. Correcting a known preflight rejection requires a new key with `replaces` naming the exact current prepared record; replacement rejects uncertain push or any claimed/confirmed/unknown PR. Preserve evidence and investigate blockers.
-
-`handoff follow-ups --project <id> [--after <handoff-id>] [--limit <1–100>] [--json]` lists requested reviews without dispatch/consumption. Its nextCursor uses handoff IDs, not follow-up IDs. It is a listing rather than an arrival cursor; use `run events` and consumer acknowledgements for durable arrival processing. No GitHub polling is installed. Publication neither stops workers nor releases capacity or removes worktrees; use their separate authorized operations.
-
-## Targeted CI observation
-
-`astack service run --observe-ci` enables bounded CI observation without enabling a worker runtime. Default service startup leaves observation disabled. Enroll only existing authorized work with `astack ci watch --handoff <implementation-job-id> [--handoff-key <publication-key>] --key <ci-key> [--timeout-ms <ms>] [--json]` or `astack ci watch --review <review-job-id> --key <ci-key> [--timeout-ms <ms>] [--json]`. Select exactly one source. A handoff must be accepted and contain a requested follow-up review; `review: null` grants no enrollment. The target/gate come from saved source evidence, never arbitrary PR discovery.
-
-`ci inspect <ci-id> [--json]` and `ci list --project <id> [--after <id>] [--limit <1–100>] [--json]` read saved state offline. Inspect request phase/revision/reason, exact SHA, historical snapshot/error, next refresh and deadline. Ready is an observation-time result, not current dispatch authority. The list cursor is not a durable arrival cursor; use run events and explicit consumer acknowledgements.
-
-`ci suspend|cancel|complete|resume <ci-id> --revision <current-revision> [--json]` controls only CI tracking. Resume alone accepts `--timeout-ms` to establish a new deadline (default one hour, supported 1 second–7 days). Resume revalidates original source/policy/context and never follows a newer SHA. Cancelled/completed tracking cannot resume. Completing CI tracking does not complete the review, stop an agent or release resources. Stale revisions reject; inspect before retrying. `ci wake [--json]` only schedules an observer pass and preserves budgets and future due times; it rejects if observation is disabled.
-
-Matching host/repository/PR/full SHA requests share observations while applying their own gate policy. Missing/pending checks keep waiting; failed/skipped/cancelled checks, changed target/base, missing authority, draft/closed PRs, incomplete evidence and deadlines block. Blocked/suspended requests require explicit resume. No-CI behavior requires the saved gate's `allowNoChecks: true` plus private `execution.review.allowNoChecks: true`. For manual submission use `review submit --allow-no-checks`. This permits only an entirely empty check set with no selected required names, never failing or missing selected checks. Existing override reasons retain separate trusted permission.
-
-The observer reserves a conservative per-host API allowance before bounded reads and persists schedules, exponential backoff with positive jitter, cooldowns and read claims. It sleeps until saved work is due and has no timer without active subscriptions. Restart respects unexpired claims, budgets and deadlines. Only expired reads can be repeated; this does not authorize replaying uncertain launch/input/push/publication writes. Historical successful snapshots can remain alongside a later error and do not pass a current gate by themselves. New/resumed revisions are not settled by older in-flight reads.
-
-CI observation never creates a review checkout/job or launches a reviewer. Use `service wake` to reconsider an already authorized manual review with fresh target/readiness checks. After-handoff dispatch requires the explicit controls below. Enrollment/controls require the owning service, while source authority and API cwd come from the explicit registered target project, independent of caller cwd or Herdr focus.
-
-## Explicit after-handoff review
-
-`service run --observe-ci --after-handoff-review` enables the follow-up executor; CI observation is required and the configured worker runtime must be available. Project automation defaults to disabled. Inspect with `review automation inspect --project <id> [--json]`, then explicitly `review automation enable|disable --project <id> --revision <settings-revision> [--json]`. Settings live in trusted host state, not PR configuration.
-
-After accepting a handoff containing a requested review, prepare a distinct clean owned reviewer checkout at its exact full SHA using the existing worktree operation. Attach it with `review follow-up enqueue --handoff <implementation-job-id> [--handoff-key <publication-key>] --checkout <reviewer-checkout-id> --branch <reviewer-branch> --commit <exact-head-sha> [--timeout-ms <1-second-to-7-days>] [--json]`. There is one immutable plan per authorized follow-up. No arbitrary PR target, implicit checkout creation, fetching or service provisioning occurs. Enqueue while disabled records a suspended plan without a watcher.
-
-Use `review follow-up inspect <plan-id> [--json]` or `review follow-up list --project <id> [--after <id>] [--limit <1–100>] [--json]` offline. `waiting` means CI/admission work remains; `queued` is not a worker start; `dispatched` means a capacity/launch claim, not completion. `satisfied` references a compatible existing review without transferring ownership. Inspect the linked run separately for task, worker and cleanup outcomes.
-
-`review follow-up suspend|resume|cancel <plan-id> --revision <plan-revision> [--json]` uses exact saved revisions. Disable suspends eligible plans and their owned CI waits; enabling never resumes them. Starting the service without its executor also suspends eligible backlog; restoring the flag requires explicit plan resume. Resume validates the unchanged binding/policy, uses the current enabled project revision and creates a fresh owned CI generation. It never resets an uncertain launch/input or selects a newer SHA. Claimed/dispatched/satisfied/cancelled plans reject these controls; use explicit run decisions/cancellation/reconciliation for claimed work.
-
-Once owned CI is ready, the dispatcher rechecks source/policy/ownership and fresh PR readiness, atomically links review queue intent to the plan, and lets the existing coordinator enforce fresh readiness and capacity. Settings are rechecked in the claim transaction and at native launch/initial-input reservation boundaries. Effects already authorized before disable may finish; preserve blocked/unknown claimed attempts and resources. Already delivered reviews continue unless explicitly cancelled. Never infer shutdown or retry permission from the automation switch.
-
-Manual `review submit` remains independent, uses its own request key and dedicated checkout, and does not create an automatic plan/watcher. Automatic assignments use prompt version 4 with plan provenance; old manual prompt bytes remain unchanged. Reviewers stay read-only and return structured findings. Findings publication, automatic fixes, approval/merge, provisioning and cleanup remain separate operations.
-
-## Accepted review findings and linked fixes
-
-- `review result inspect <job-id> --report-key <key> --json` reads accepted reviewed findings/artifacts, the last historical freshness observation and a `fixReference` offline. It makes no provider calls.
-- With the coordinator stopped, `review result observe --job <id> --report-key <key> --json` refreshes exact PR/head/base evidence. Saved `current` is historical; stale/unavailable observations do not grant readiness.
-- Normal `run report` rejects a moved review scope. Use `run report <job-id> --key <key> --file <proposal.json> --accept-historical-review --json` only when the host explicitly wants to retain reviewed findings as historical evidence. This does not bypass identity, acknowledged input, local SHA, artifacts or provider availability.
-- Host-only publication requires coordinator exclusion and stopped original writers/descendants: `review result publish --file <request.json> --writers-stopped --json`. Request fields: schemaVersion 1, jobId, reportKey, exact reportId, stable key, actor, optional kind (`review` or `comment`), event (`COMMENT` or `REQUEST_CHANGES`) and zero-based findingIndexes. Omit indexes for all findings. Inspect and check text for sensitive data before publishing. Approval/merge are unsupported; oversized bodies reject without truncation.
-- `review result publication <job-id> --report-key <key> --key <publication-key> --json` reads the saved effect. Confirmed retries use saved receipts without provider access; they can settle a previously missing local terminal host result. Claimed/unknown writes never resend or accept a bypass key. `review result reconcile --job <id> --report-key <key> --key <publication-key> --writers-stopped --json` performs read-only exact receipt lookup, including after the head moves. One publication intent per report is currently supported, with no replacement command.
-- For an explicit fix, copy `fixReference` from inspection, add nonempty unique `findingIndexes`, and save the reference JSON. Astack prepares a fresh owned implementation checkout at its exact reviewed commit. Use ordinary `implement submit ... --task <concrete finding details> --fix-of <reference.json> --json`. The service validates source job/attempt/report/digest/SHA and links the new job transactionally. Never reuse the reviewer checkout or resume it as an implementer. A fix begins an ordinary new implementation/report/publication/review cycle; no automatic fix loop exists.
-
-See `docs/review-results.md` and ADR 0019 for publication limits, cancellation, uncertainty and historical-result semantics. These commands do not close workers or clean up resources.
-
-## Publication-attempt settlement
-
-Successful handoff and review publication resolve their own host publication attempts, separately from worker completion/shutdown. If an older confirmed publication keeps checkout cleanup blocked, stop/exclude the coordinator and original writers and use the same `handoff reconcile ... --writers-stopped` or `review result reconcile ... --writers-stopped` key. Saved confirmed evidence can settle its missing terminal result without provider calls, pushes or POSTs. The first settlement appends `publication_finalized`; later repeats do not change result/event identity. Inspection/startup do not repair records. Pending/unknown effects remain unresolved. Never edit SQLite or change send keys to clear a cleanup hold. Verify worker shutdown and reconcile its separate resources before normal `worktree remove`; resources on jobs accepted after worktree preparation still block removal.
 
 ## Durable cleanup and retention
 
