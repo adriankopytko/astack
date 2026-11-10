@@ -64,6 +64,7 @@ export const operationErrorSchema = z.strictObject({
     'run_control_unavailable',
     'review_blocked',
     'review_target_changed',
+    'github_target_changed',
     'github_unavailable',
     'github_invalid_output',
     'github_failed',

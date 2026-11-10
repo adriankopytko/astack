@@ -10,7 +10,7 @@ import {
   reconcileWorkerWorktree,
 } from '../src/application/worker-worktree.js';
 import { sha256 } from '../src/core/file-paths.js';
-import { createReviewCommitFetcher } from '../src/adapters/git/review-commit.js';
+import { createPullRequestCommitFetcher } from '../src/adapters/git/pull-request-commits.js';
 import { createBaseCommitFetcher } from '../src/adapters/git/base-commit.js';
 import {
   executeCleanup,
@@ -858,10 +858,25 @@ await test(
   },
 );
 
-await test('missing review commits are fetched from the exact PR without exposing credentials', async () => {
+await test('pull request commit fetching rejects invalid targets before invoking Git', async () => {
+  const fetcher = createPullRequestCommitFetcher({
+    executable: '/fixture/git',
+    githubExecutable: '/fixture/gh',
+    environment: {},
+    runner: { run: async () => assert.fail('Invalid targets must not run Git') },
+  });
+  const result = await fetcher.ensure(
+    { host: 'github.com', repository: 'example/project', number: 12, sha: '--not-a-sha' },
+    '/fixture/project',
+  );
+
+  assert.ok(result.outcome === 'rejected' && result.error.code === 'invalid_request');
+});
+
+await test('missing pull request commits are fetched from the exact PR without exposing credentials', async () => {
   const calls: ProcessRequest[] = [];
   let inspections = 0;
-  const fetcher = createReviewCommitFetcher({
+  const fetcher = createPullRequestCommitFetcher({
     executable: '/fixture/git',
     githubExecutable: '/fixture/gh',
     environment: { GH_TOKEN: 'secret-token' },
@@ -901,11 +916,11 @@ await test('missing review commits are fetched from the exact PR without exposin
   assert.equal(calls.filter((call) => call.args.includes('cat-file')).length, 2);
 });
 
-await test('review setup fetches a missing comparison commit and verifies it', async () => {
+await test('pull request setup fetches a missing comparison commit and verifies it', async () => {
   const calls: ProcessRequest[] = [];
   const base = 'b'.repeat(40);
   let baseChecks = 0;
-  const fetcher = createReviewCommitFetcher({
+  const fetcher = createPullRequestCommitFetcher({
     executable: '/fixture/git',
     githubExecutable: '/fixture/gh',
     environment: {},

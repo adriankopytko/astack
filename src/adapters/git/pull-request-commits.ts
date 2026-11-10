@@ -1,11 +1,14 @@
 import { isAbsolute } from 'node:path';
 import { completed, rejected } from '../../contracts/operation-result.js';
 import { processRequestSchema, processResultSchema } from '../../contracts/process.js';
-import type { ReviewTarget } from '../../contracts/review-task.js';
+import {
+  pullRequestCommitTargetSchema,
+  type PullRequestCommitTarget,
+} from '../../contracts/task-context.js';
 import type { ProcessRunner } from '../../ports/process-runner.js';
 
 /** Fetch the targeted PR head and comparison commit when they are not already local. */
-export function createReviewCommitFetcher(options: {
+export function createPullRequestCommitFetcher(options: {
   executable: string;
   githubExecutable: string | null;
   runner: ProcessRunner;
@@ -34,11 +37,15 @@ export function createReviewCommitFetcher(options: {
 
   return {
     async ensure(
-      target: ReviewTarget,
+      target: PullRequestCommitTarget,
       root: string,
       signal?: AbortSignal,
       comparisonBase?: string,
     ) {
+      if (!pullRequestCommitTargetSchema.safeParse(target).success) {
+        return rejected('invalid_request', 'Select a valid pull request and full commit SHA.');
+      }
+
       if (!isAbsolute(options.executable) || !isAbsolute(root)) {
         return rejected(
           'invalid_request',
@@ -112,7 +119,7 @@ export function createReviewCommitFetcher(options: {
       const local = await run(['cat-file', '-e', `${target.sha}^{commit}`]);
 
       if (!complete(local)) {
-        return rejected('git_failed', 'The requested review commit could not be inspected.');
+        return rejected('git_failed', 'The requested pull request commit could not be inspected.');
       }
 
       const localBase =
@@ -121,7 +128,7 @@ export function createReviewCommitFetcher(options: {
           : local;
 
       if (!complete(localBase)) {
-        return rejected('git_failed', 'The review comparison commit could not be inspected.');
+        return rejected('git_failed', 'The comparison commit could not be inspected.');
       }
 
       const headMissing = local.outcome !== 'exited' || local.exitCode !== 0;
@@ -138,7 +145,7 @@ export function createReviewCommitFetcher(options: {
       ) {
         return rejected(
           'github_unavailable',
-          'A trusted GitHub CLI is required to fetch the review commit.',
+          'A trusted GitHub CLI is required to fetch the pull request commit.',
         );
       }
 
@@ -158,7 +165,7 @@ export function createReviewCommitFetcher(options: {
       ) {
         return rejected(
           'git_failed',
-          'Repository Git configuration prevents a direct review fetch.',
+          'Repository Git configuration prevents a direct pull request fetch.',
         );
       }
 
@@ -185,7 +192,7 @@ export function createReviewCommitFetcher(options: {
         if (!complete(fetched) || fetched.outcome !== 'exited' || fetched.exitCode !== 0) {
           return rejected(
             'git_failed',
-            'The review commits could not be fetched from the target repository.',
+            'The pull request commits could not be fetched from the target repository.',
           );
         }
       }
@@ -205,8 +212,8 @@ export function createReviewCommitFetcher(options: {
         verifiedBase.exitCode === 0
         ? completed(null)
         : rejected(
-            'review_target_changed',
-            'The fetched pull request does not contain the requested review commit.',
+            'github_target_changed',
+            'The fetched pull request does not contain the requested pull request commit.',
           );
     },
   };

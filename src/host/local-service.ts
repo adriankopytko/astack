@@ -1,4 +1,4 @@
-import { createReviewCommitFetcher } from '../adapters/git/review-commit.js';
+import { createPullRequestCommitFetcher } from '../adapters/git/pull-request-commits.js';
 import { createBaseCommitFetcher } from '../adapters/git/base-commit.js';
 import { submitGenericWorker } from '../application/generic-worker-submission.js';
 import { createGenericHandoffRuntime } from '../application/generic-handoff.js';
@@ -431,7 +431,7 @@ export async function startLocalService(
               stateDirectory: opened.stateDirectory,
               ...(contextPath ? { contextPath } : {}),
               ...(item.contextSnapshot ? { contextSnapshot: item.contextSnapshot } : {}),
-              reviewCommit: createReviewCommitFetcher({
+              pullRequestCommits: createPullRequestCommitFetcher({
                 executable,
                 githubExecutable: gh,
                 runner: nodeProcessRunner,

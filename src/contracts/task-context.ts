@@ -28,3 +28,9 @@ export const issueReferenceSchema = z.strictObject({
   repository: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,99}\/[a-z0-9][a-z0-9._-]{0,99}$/),
   number: z.number().int().positive().max(2147483647),
 });
+
+/** A PR's exact commit, independent of the agent's purpose. */
+export const pullRequestCommitTargetSchema = issueReferenceSchema.extend({
+  sha: z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/),
+});
+export type PullRequestCommitTarget = z.infer<typeof pullRequestCommitTargetSchema>;

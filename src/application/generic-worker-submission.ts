@@ -14,7 +14,7 @@ import type { HerdrDependencies } from './herdr.js';
 import type { WorktreeDependencies } from './worktree-evidence.js';
 import type { OperationResult } from '../contracts/operation-result.js';
 import type { WorkerQueueItem } from '../contracts/worker-queue.js';
-import type { ReviewTarget } from '../contracts/review-task.js';
+import type { PullRequestCommitTarget } from '../contracts/task-context.js';
 
 /** Prepare a dedicated checkout only after queue capacity has been reserved. */
 export async function submitGenericWorker(
@@ -29,9 +29,9 @@ export async function submitGenericWorker(
     contextPath?: string;
     stateDirectory: string;
     contextSnapshot?: WorkerQueueItem['contextSnapshot'];
-    reviewCommit?: {
+    pullRequestCommits?: {
       ensure(
-        target: ReviewTarget,
+        target: PullRequestCommitTarget,
         root: string,
         signal?: AbortSignal,
         comparisonBase?: string,
@@ -77,9 +77,9 @@ export async function submitGenericWorker(
     return source;
   }
 
-  if (request.context?.kind === 'pr' && deps.contextSnapshot?.headSha && deps.reviewCommit) {
+  if (request.context?.kind === 'pr' && deps.contextSnapshot?.headSha && deps.pullRequestCommits) {
     const target = { ...request.context, sha: deps.contextSnapshot.headSha };
-    const fetched = await deps.reviewCommit.ensure(
+    const fetched = await deps.pullRequestCommits.ensure(
       { host: target.host, repository: target.repository, number: target.number, sha: target.sha },
       source.value.git.checkout.rootPath,
       signal,
@@ -95,7 +95,7 @@ export async function submitGenericWorker(
       requestedBase !== target.sha &&
       requestedBase !== deps.contextSnapshot.baseSha
     ) {
-      const selected = await deps.reviewCommit.ensure(
+      const selected = await deps.pullRequestCommits.ensure(
         {
           host: target.host,
           repository: target.repository,
