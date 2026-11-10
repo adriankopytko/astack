@@ -1,0 +1,11 @@
+# ADR 0037: Generic agent handoffs
+
+Projects define named agents with provider settings, permissions, descriptions, instructions, hooks and ports. A handoff selects one agent explicitly and saves the assignment and current configuration. Agent names carry no special meaning in the generic handoff path. Initialization seeds examples, which projects may change or remove. No default-agent mapping is required.
+
+`handoff submit` accepts a task and optional GitHub issue or PR context. It infers the project from the caller's registered checkout, infers a GitHub repository from origin when needed, and permits explicit overrides. The CLI allocates the handoff ID before sending the request and reports it if the result is uncertain. The queue holds capacity before any checkout, workspace or hook, and the service performs preparation and delivery independently of the caller. The default checkout base is freshly fetched origin/main; an explicit full commit may be selected.
+
+The queue retains the accepted GitHub context, and the worker receives a private artifact with its full bounded content. A PR artifact contains the head and comparison-base SHAs. The host fetches missing PR or comparison commits before creating the checkout. The generic result records completed, needs-input or failed, without interpreting agent-specific content. Agent activity, accepted results, resource shutdown and cleanup remain distinct.
+
+This change introduces a generic path alongside the earlier implementation/review-specific operations. Those legacy operations and automatic workflows are not yet removed or migrated to the generic model. A project configuration using the removed `defaultAgents` field must be edited before use. Workflow chaining, automatic follow-up and notification are not implemented.
+
+The Codex/Herdr runtime currently reports an interactive worker as running even after it has submitted a result. A result does not prove the worker and its descendants stopped. Therefore the existing capacity claim remains held until explicit shutdown reconciliation; automatic worker shutdown and capacity release are not yet implemented. This limits unattended repeated handoffs and must be resolved before relying on the generic flow for sustained use.

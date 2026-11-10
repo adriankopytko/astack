@@ -388,7 +388,9 @@ export function createSqliteServiceStore(
           .get(
             'local-host',
             projectId,
-            `delegate:${workflow === 'implementation' ? 'implementer' : workflow === 'review' ? 'reviewer' : role}`,
+            workflow === 'handoff'
+              ? 'handoff'
+              : `delegate:${workflow === 'implementation' ? 'implementer' : workflow === 'review' ? 'reviewer' : role}`,
             key,
           );
 

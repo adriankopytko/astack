@@ -1,5 +1,17 @@
 # Astack: user workflow and usability
 
+## Generic handoff update
+
+The current direction uses project-defined agents instead of built-in implementation and review roles. `astack init` seeds editable example agents; the orchestrator discovers their names and descriptions with `astack agents list`. It can hand off work with `astack handoff submit --agent <name> --task '<task>'`, optionally adding `--issue <number>` or `--pr <number>`. Astack infers the project and GitHub repository where possible, saves the task and full GitHub context, queues until capacity is available, then prepares the checkout and Herdr workspace and starts the agent. `--base pr-head` starts at the head of an attached PR; a full SHA can also be selected. Otherwise the newest origin/main is used.
+
+The agent records its result using `astack run finish <id> --status completed|needs-input|failed --summary '<text>'`, optionally attaching checkout files with `--artifact <path>`. The orchestrator can inspect a result when needed; it does not need to monitor the agent continuously. Handoffs are not yet connected automatically into workflows.
+
+**Current limitations:** the previous implementation/review-specific paths remain alongside the generic path and have not yet been removed. A completed Codex/Herdr worker continues holding capacity until its shutdown is explicitly reconciled; automatic shutdown and capacity release are not yet implemented. The generic path has disposable fake-provider integration coverage but has not yet had a supervised live-agent pilot.
+
+## Earlier specialized workflow
+
+The following walkthrough records the earlier implementation/review-specific approach. It is retained for reference during the migration; use the generic handoff description above for the current direction.
+
 This walkthrough describes the implemented workflow as of November 2026, from the perspective of someone using Astack through an orchestrator agent. It is a reference for discussion and review; the linked operation contracts define the detailed current behavior and take precedence if this overview becomes outdated.
 
 Astack is an orchestration engine for one coordinating agent and multiple workers. An orchestrator can register a project, delegate an implementation to Codex in its own worktree, collect a structured result, verify and publish the work, and request a separate review. Astack keeps durable records so disconnects, restarts and uncertain provider responses do not silently create duplicate workers or repeat publication.

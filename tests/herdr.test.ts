@@ -13,6 +13,7 @@ import { submitWorkerTask } from '../src/application/worker-submission.js';
 import { nodeImplementationContextReader } from '../src/adapters/filesystem/implementation-context.js';
 import { sha256 } from '../src/core/file-paths.js';
 import { createReviewCommitFetcher } from '../src/adapters/git/review-commit.js';
+import { createBaseCommitFetcher } from '../src/adapters/git/base-commit.js';
 import {
   executeCleanup,
   type CleanupDependencies,
@@ -1115,6 +1116,41 @@ await test(
             idempotencyKey: taskKey,
             operation: 'delegate:reviewer',
             checkoutId: prepared.record.intent.checkoutId,
+            intent: {
+              task: {
+                schemaVersion: 1,
+                workflow: 'review',
+                submission: {
+                  schemaVersion: 1,
+                  projectId: 'project-0',
+                  checkoutId: prepared.record.intent.checkoutId,
+                  key: taskKey,
+                  branch,
+                  commit: sha,
+                  target: { host: 'github.com', repository: 'example/project', number: 1, sha },
+                  gate: { requiredChecks: [], overrideReason: null },
+                  repeat: false,
+                  resources: [],
+                  instructionPaths: [],
+                  request: {},
+                },
+                authorization: 'manual-request',
+                worktreeId: prepared.record.intent.id,
+                root: prepared.record.intent.checkoutPath,
+                instructions: [],
+                initialSnapshot: {
+                  target: { host: 'github.com', repository: 'example/project', number: 1, sha },
+                  baseSha: sha,
+                  state: 'OPEN',
+                  draft: false,
+                  sourceRepository: 'example/project',
+                  checks: [],
+                  observedAt: 1000,
+                },
+                resultContractVersion: 1,
+                promptVersion: 3,
+              },
+            },
           },
           entry: { role: 'reviewer', claim: null },
         },
@@ -1221,6 +1257,76 @@ await test('missing review commits are fetched from the exact PR without exposin
   assert.ok(fetch.args.includes('refs/pull/12/head'));
   assert.equal(JSON.stringify(fetch.args).includes('secret-token'), false);
   assert.equal(calls.filter((call) => call.args.includes('cat-file')).length, 2);
+});
+
+await test('review setup fetches a missing comparison commit and verifies it', async () => {
+  const calls: ProcessRequest[] = [];
+  const base = 'b'.repeat(40);
+  let baseChecks = 0;
+  const fetcher = createReviewCommitFetcher({
+    executable: '/fixture/git',
+    githubExecutable: '/fixture/gh',
+    environment: {},
+    runner: {
+      async run(input) {
+        calls.push(input);
+        const value = execution('');
+
+        if (
+          value.outcome !== 'rejected' &&
+          input.args.includes(`${base}^{commit}`) &&
+          baseChecks++ === 0
+        ) {
+          value.exitCode = 1;
+        }
+
+        return value;
+      },
+    },
+  });
+  const target = {
+    host: 'github.com',
+    repository: 'example/project',
+    number: 12,
+    sha: 'a'.repeat(40),
+  };
+  const result = await fetcher.ensure(target, '/fixture/project', undefined, base);
+
+  assert.equal(result.outcome, 'completed', JSON.stringify(result));
+  assert.ok(calls.some((call) => call.args.includes('fetch') && call.args.includes(base)));
+  assert.equal(baseChecks, 2);
+});
+
+await test('an explicit starting commit is fetched from origin when absent', async () => {
+  const calls: ProcessRequest[] = [];
+  let inspected = false;
+  const fetcher = createBaseCommitFetcher({
+    executable: '/fixture/git',
+    environment: {},
+    runner: {
+      async run(input) {
+        calls.push(input);
+        const result = execution('');
+
+        if (result.outcome !== 'rejected' && input.args.includes('cat-file') && !inspected) {
+          inspected = true;
+          result.exitCode = 1;
+        }
+
+        return result;
+      },
+    },
+  });
+  const sha = 'b'.repeat(40);
+  const result = await fetcher.ensure('/fixture/project', sha);
+
+  assert.equal(result.outcome, 'completed');
+  assert.ok(
+    calls.some(
+      (call) =>
+        call.args.includes('fetch') && call.args.includes('origin') && call.args.includes(sha),
+    ),
+  );
 });
 
 await test('CLI provider creates a worktree and grouped workspace using an explicit base and branch', async () => {

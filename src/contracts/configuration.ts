@@ -56,6 +56,7 @@ export const effectiveConfigurationSchema = z.strictObject({
 });
 export const projectAgentSchema = z.strictObject({
   provider: name.describe('Agent provider. The built-in provider is codex.'),
+  description: z.string().min(1).max(512).optional().describe('What this agent is useful for.'),
   workspacePrefix: z
     .string()
     .regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,19}$/)
@@ -122,9 +123,6 @@ export const hostConfigurationPolicySchema = z
     schemaVersion: z.literal(1),
     projectId: projectIdSchema,
     repositoryId: repositoryIdSchema,
-    defaultAgents: z
-      .strictObject({ implementation: name.optional(), review: name.optional() })
-      .optional(),
     user: configurationPatchSchema.default({}),
     project: configurationPatchSchema,
     local: configurationPatchSchema.default({}),
@@ -157,9 +155,6 @@ export const hostConfigurationPolicySchema = z
 export const projectConfigurationFileSchema = z.strictObject({
   $schema: z.string().min(1).max(1024).optional(),
   schemaVersion: z.literal(1),
-  defaultAgents: z
-    .strictObject({ implementation: name.optional(), review: name.optional() })
-    .optional(),
   agents: z.record(name, projectAgentSchema).refine((value) => Object.keys(value).length <= 32),
   execution: hostConfigurationPolicySchema.shape.execution
     .omit({ agentSettings: true, skills: true })

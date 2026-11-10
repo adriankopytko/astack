@@ -521,4 +521,24 @@ CREATE TABLE worker_requests (
 CREATE INDEX worker_requests_queue ON worker_requests(state,created_at,id);
 `,
   },
+  {
+    version: 22,
+    sql: `
+DROP INDEX worker_requests_queue;
+ALTER TABLE worker_requests RENAME TO worker_requests_v21;
+CREATE TABLE worker_requests (
+ id TEXT PRIMARY KEY,
+ project_id TEXT NOT NULL REFERENCES projects(id),
+ kind TEXT NOT NULL CHECK(kind IN ('implementer','reviewer','handoff')),
+ request_key TEXT NOT NULL,
+ state TEXT NOT NULL CHECK(state IN ('queued','preparing','prepared','started','blocked','cancelled')),
+ created_at INTEGER NOT NULL,
+ data TEXT NOT NULL CHECK(json_valid(data)),
+ UNIQUE(project_id,kind,request_key)
+) STRICT;
+INSERT INTO worker_requests SELECT * FROM worker_requests_v21;
+DROP TABLE worker_requests_v21;
+CREATE INDEX worker_requests_queue ON worker_requests(state,created_at,id);
+`,
+  },
 ] as const;

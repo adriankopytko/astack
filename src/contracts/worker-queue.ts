@@ -8,6 +8,7 @@ import { stateIdSchema } from './state.js';
 import { createOperationResultSchema } from './operation-result.js';
 import { createStateWriteResultSchema } from './state.js';
 import { issueSnapshotSchema } from './implementation-task.js';
+import { genericHandoffSubmissionSchema } from './generic-handoff.js';
 
 export const workerQueueRequestSchema = z.discriminatedUnion('kind', [
   z.strictObject({
@@ -15,6 +16,7 @@ export const workerQueueRequestSchema = z.discriminatedUnion('kind', [
     submission: implementationWorkerSubmissionSchema,
   }),
   z.strictObject({ kind: z.literal('reviewer'), submission: reviewWorkerSubmissionSchema }),
+  z.strictObject({ kind: z.literal('handoff'), submission: genericHandoffSubmissionSchema }),
 ]);
 export const workerQueueItemSchema = z.strictObject({
   id: stateIdSchema,
@@ -22,6 +24,26 @@ export const workerQueueItemSchema = z.strictObject({
   policy: hostConfigurationPolicySchema,
   runtime: z.string().min(1).max(64),
   issueSnapshot: issueSnapshotSchema.optional(),
+  contextSnapshot: z
+    .strictObject({
+      kind: z.enum(['issue', 'pr']),
+      body: z.string().max(1_000_000),
+      title: z.string().max(256),
+      reference: z.string().max(512),
+      author: z.string().max(100).optional(),
+      state: z.string().max(32).optional(),
+      observedAt: z.number().int().nonnegative().optional(),
+      updatedAt: z.string().max(64).optional(),
+      headSha: z
+        .string()
+        .regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/)
+        .optional(),
+      baseSha: z
+        .string()
+        .regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/)
+        .optional(),
+    })
+    .optional(),
   state: z.enum(['queued', 'preparing', 'prepared', 'started', 'blocked', 'cancelled']),
   jobId: stateIdSchema.nullable(),
   cancelRequested: z.boolean().optional(),
@@ -31,7 +53,7 @@ export const workerQueueItemSchema = z.strictObject({
   createdAt: z.number().int().nonnegative(),
 });
 export const workerQueueReceiptSchema = workerQueueItemSchema
-  .omit({ policy: true, issueSnapshot: true })
+  .omit({ policy: true, issueSnapshot: true, contextSnapshot: true })
   .extend({
     worktree: z
       .strictObject({
@@ -49,7 +71,12 @@ export const workerQueueWriteResultSchema = createStateWriteResultSchema(workerQ
 export type WorkerQueueItem = z.infer<typeof workerQueueItemSchema>;
 export type WorkerQueueReceipt = z.infer<typeof workerQueueReceiptSchema>;
 export function workerQueueReceipt(item: WorkerQueueItem): WorkerQueueReceipt {
-  const { policy: _policy, issueSnapshot: _issueSnapshot, ...receipt } = item;
+  const {
+    policy: _policy,
+    issueSnapshot: _issueSnapshot,
+    contextSnapshot: _contextSnapshot,
+    ...receipt
+  } = item;
 
   return workerQueueReceiptSchema.parse(receipt);
 }

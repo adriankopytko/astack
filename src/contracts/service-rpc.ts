@@ -77,6 +77,7 @@ import {
 import { createOperationResultSchema } from './operation-result.js';
 import { createStateWriteResultSchema } from './state.js';
 import { workerQueueReadResultSchema, workerQueueWriteResultSchema } from './worker-queue.js';
+import { genericHandoffSubmissionSchema } from './generic-handoff.js';
 
 export const serviceRpcRequestSchema = z.discriminatedUnion('operation', [
   z.strictObject({
@@ -93,6 +94,7 @@ export const serviceRpcRequestSchema = z.discriminatedUnion('operation', [
     operation: z.literal('implement_worker_submit'),
   }),
   reviewWorkerSubmissionSchema.safeExtend({ operation: z.literal('review_worker_submit') }),
+  genericHandoffSubmissionSchema.extend({ operation: z.literal('handoff_submit') }),
   cleanupRequestSchema.extend({ operation: z.literal('cleanup_request') }),
   cleanupControlSchema.extend({ operation: z.literal('cleanup_control') }),
   cleanupReadSchema.extend({ operation: z.literal('cleanup_inspect') }),

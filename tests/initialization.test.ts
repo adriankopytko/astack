@@ -384,12 +384,20 @@ await test(
       };
 
       assert.deepEqual(config.agents.implementer, {
+        description: 'Implements requested changes and runs relevant checks.',
+        instructions:
+          'Implement the requested changes, run the relevant project checks, and report what you did.',
+        workspacePrefix: 'IMPL',
         provider: 'codex',
         model: null,
         reasoning: null,
         permissions: { files: 'write' },
       });
       assert.deepEqual(config.agents.reviewer, {
+        description: 'Reviews changes and reports actionable findings.',
+        instructions:
+          'Review the requested changes for correctness and regressions. Report actionable findings and evidence.',
+        workspacePrefix: 'CR',
         provider: 'codex',
         model: null,
         reasoning: null,

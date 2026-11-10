@@ -27,8 +27,6 @@ import {
   skillCatalogResultSchema,
   skillsInstallResultSchema,
   skillsInspectResultSchema,
-  implementationWorkerReportSchema,
-  reviewWorkerReportSchema,
   type SkillBundle,
   type SkillsDependencies,
   type SkillsInstallResult,
@@ -393,7 +391,7 @@ function verifyCommand(example: string, program: Command) {
   }
 }
 
-await test('focused guide command references resolve to actual CLI commands/options, and report examples satisfy worker contracts', async () => {
+await test('focused guide command references resolve to actual CLI commands and options', async () => {
   const bundle = await createBundledSkillReader().read();
 
   assert.ok(bundle.outcome === 'completed');
@@ -412,52 +410,6 @@ await test('focused guide command references resolve to actual CLI commands/opti
       verifyCommand(match[1]!, program);
     }
   }
-
-  const implementation = bundle.value.contents.find((entry) => entry.id === 'implementer')!.content;
-  const example = implementation.match(/```json\n([\s\S]+?)\n```/)![1]!;
-  const report = JSON.parse(
-    example.replaceAll(/<[^>]+>/g, (placeholder) =>
-      placeholder.includes('sha') ? 'a'.repeat(40) : 'fixture',
-    ),
-  ) as unknown;
-
-  implementationWorkerReportSchema.parse(report);
-  const finding = JSON.parse(
-    bundle.value.contents
-      .find((entry) => entry.id === 'reviewer')!
-      .content.match(/```json\n([\s\S]+?)\n```/)![1]!,
-  ) as unknown;
-  const target = {
-    host: 'github.com',
-    repository: 'example/project',
-    number: 1,
-    sha: 'a'.repeat(40),
-  };
-  const gate = { requiredChecks: [], overrideReason: null };
-  const snapshot = {
-    target,
-    baseSha: 'b'.repeat(40),
-    state: 'OPEN',
-    draft: false,
-    sourceRepository: 'example/project',
-    checks: [],
-    observedAt: 1,
-  };
-  reviewWorkerReportSchema.parse({
-    schemaVersion: 1,
-    jobId: 'job-1',
-    attemptId: 'attempt-1',
-    projectId: 'project-1',
-    checkoutId: 'checkout-1',
-    target,
-    outcome: 'reviewed',
-    summary: 'Reviewed the assigned scope.',
-    findings: [finding],
-    blockers: [],
-    gate,
-    acceptanceSnapshot: snapshot,
-    currentSnapshot: null,
-  });
 });
 
 await test(

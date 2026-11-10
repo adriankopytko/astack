@@ -74,7 +74,7 @@ export const githubPullRequestSchema = z.strictObject({
   state: z.enum(['OPEN', 'CLOSED', 'MERGED']),
   draft: z.boolean(),
   title: z.string().max(256),
-  body: z.string().max(65536),
+  body: z.string().max(1_000_000),
   author: actor,
 });
 export const githubPublicationReceiptSchema = z

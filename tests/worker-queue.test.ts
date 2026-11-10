@@ -325,10 +325,8 @@ await test(
       await writeProjectConfiguration({ state, sources }, 0);
       const path = join(sources[0]!, '.astack', 'config.json');
       const config = JSON.parse(await readFile(path, 'utf8')) as {
-        defaultAgents: { implementation: string; review: string };
         agents: Record<string, { workspacePrefix?: string; hooks?: { before: string } }>;
       };
-      config.defaultAgents.implementation = 'backend';
       config.agents.backend = {
         ...config.agents.implementer!,
         workspacePrefix: 'OLD',
@@ -409,6 +407,7 @@ await test(
           operation: 'implement_worker_submit',
           projectId: 'project-0',
           key,
+          agent: 'backend',
           description: `Task ${key}`,
         });
 
@@ -465,7 +464,6 @@ await test(
         assert.equal(labels.length, 1);
 
         config.agents.backend!.workspacePrefix = 'NEW';
-        config.defaultAgents.implementation = 'implementer';
         await writeFile(path, JSON.stringify(config));
         release = true;
         await requestLocalService(state, { schemaVersion: 1, operation: 'wake' });

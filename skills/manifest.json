@@ -1,31 +1,31 @@
 {
   "schemaVersion": 1,
   "namespace": "astack",
-  "version": "1.0.20",
+  "version": "1.0.22",
   "skills": [
     {
       "id": "orchestrator",
       "name": "astack-orchestrator",
-      "description": "Delegate implementation and code review through Astack, inspect accepted results, and choose explicit follow-up or recovery actions across registered projects.",
-      "version": "1.0.19",
+      "description": "Delegate project work to configured Astack agents and inspect their handoffs when needed.",
+      "version": "1.0.20",
       "path": "astack-orchestrator/SKILL.md",
-      "sha256": "430300871a6fcdd0fcf1b6cdff9b9de0b639f8044dbe5d4bd8c957721411172f"
+      "sha256": "354f99610b463cdb4182c02765cb72f0e0ae0cbec242756e2a59fc894e5f6dd9"
     },
     {
       "id": "implementer",
       "name": "astack-implementer",
-      "description": "Carry out an explicitly assigned Astack implementation task in its owned checkout and return the structured worker report, without taking over orchestration or publication.",
-      "version": "1.0.1",
+      "description": "Implement an assigned coding task in an Astack handoff and report its outcome.",
+      "version": "1.0.2",
       "path": "astack-implementer/SKILL.md",
-      "sha256": "d7f090b680e5580b617586e81c78913e2b63ad522d7aa4cea243ef211917dd5f"
+      "sha256": "0b391aa529ea98143053fb896e5396940f7e9522b46de30c2e09c60498145e6c"
     },
     {
       "id": "reviewer",
       "name": "astack-reviewer",
-      "description": "Review an explicitly assigned Astack PR and full commit SHA in a dedicated read-only checkout and return structured findings with the supplied scope and readiness snapshots.",
-      "version": "1.0.1",
+      "description": "Review an assigned change in an Astack handoff and report actionable findings.",
+      "version": "1.0.2",
       "path": "astack-reviewer/SKILL.md",
-      "sha256": "d07fbc773fdbf98be4b4f0f4fd3df743b935f12a84e1ff58803f485b4d8f473b"
+      "sha256": "6256ba2674931277a44edf41703dc07ecd6b0618a6d3e5438a60d6983f97aa74"
     }
   ]
 }

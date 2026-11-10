@@ -15,7 +15,7 @@ const rawIssue = z.object({
   number: z.number().int().positive(),
   html_url: z.string(),
   title: z.string().max(256),
-  body: z.string().max(65536).nullable(),
+  body: z.string().max(1_000_000).nullable(),
   state: z.enum(['open', 'closed']),
   updated_at: z.string().max(64),
   user: z.object({ login: z.string().max(100) }),
@@ -92,7 +92,6 @@ export function createGhReadPrimitives(options: GhOptions) {
           if (
             issue.number !== number ||
             issue.pull_request !== undefined ||
-            Buffer.byteLength(issue.body ?? '') > 65536 ||
             issue.html_url.toLowerCase() !==
               `https://${repository.host}/${repository.repository}/issues/${number}`
           ) {

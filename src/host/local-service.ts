@@ -1,4 +1,8 @@
 import { createReviewCommitFetcher } from '../adapters/git/review-commit.js';
+import { createBaseCommitFetcher } from '../adapters/git/base-commit.js';
+import { submitGenericWorker } from '../application/generic-worker-submission.js';
+import { createGenericHandoffRuntime } from '../application/generic-handoff.js';
+import { createPrivateArtifactDirectory, openPrivateArtifact } from '../core/private-artifacts.js';
 import { createMainBaseResolver } from '../adapters/git/main-base.js';
 import { submitWorkerTask } from '../application/worker-submission.js';
 import { enqueueWorker } from '../application/enqueue-worker.js';
@@ -117,6 +121,7 @@ export async function startLocalService(
     cleanupShutdown?: RunShutdownVerifier;
     reviewTargets?: ReviewTargetReader;
     githubExecutable?: string;
+    githubContext?: NonNullable<Parameters<typeof enqueueWorker>[1]['githubContext']>;
     runWorkerInput?: ImplementationWorkerInput;
     runWorkerControl?: RunWorkerControl;
     codexHerdr?: { herdrExecutable?: string; codexExecutable?: string };
@@ -353,6 +358,14 @@ export async function startLocalService(
       workerControl = options.runWorkerControl ?? codexRuntime.workerControl;
     }
 
+    for (let index = 0; index < runtimes.length; index++) {
+      runtimes[index] = createGenericHandoffRuntime({
+        runtime: runtimes[index]!,
+        dependencies: implementationDependencies,
+        workerInput,
+      });
+    }
+
     const workerHerdr: HerdrDependencies | null = workerProvider
       ? {
           ...dependencies,
@@ -391,6 +404,9 @@ export async function startLocalService(
       resolveClosed = resolve;
     });
     const availableWorkerRuntimes = () => ({
+      handoff: runtimes
+        .filter((runtime) => runtime.workflows?.includes('handoff'))
+        .flatMap((runtime) => [runtime.id, ...(runtime.aliases ?? [])]),
       implementer: runtimes
         .filter((runtime) => runtime.workflows?.includes('implementation'))
         .flatMap((runtime) => [runtime.id, ...(runtime.aliases ?? [])]),
@@ -436,32 +452,79 @@ export async function startLocalService(
         let result;
 
         try {
-          result = await submitWorkerTask(
-            item.request.kind,
-            item.request.kind === 'implementer' && item.issueSnapshot
-              ? { ...item.request.submission, issueSnapshot: item.issueSnapshot }
-              : item.request.submission,
-            {
-              implementation,
-              review,
-              worktrees: workerWorktrees,
-              herdr: workerHerdr,
-              reviewCommit: createReviewCommitFetcher({
-                executable,
-                githubExecutable: gh,
-                runner: nodeProcessRunner,
-                environment,
-              }),
-              implementationBase:
-                options.implementationBase ??
-                createMainBaseResolver({
-                  executable,
-                  runner: nodeProcessRunner,
-                  environment: process.env,
-                }),
-            },
-            signal,
-          );
+          let contextPath: string | undefined;
+
+          if (item.request.kind === 'handoff' && item.contextSnapshot) {
+            const directory = await createPrivateArtifactDirectory(opened.stateDirectory, item.id);
+            const artifact = await openPrivateArtifact(directory, 'github-context.json');
+
+            try {
+              await artifact.file.writeFile(`${JSON.stringify(item.contextSnapshot, null, 2)}\n`);
+              await artifact.file.sync();
+              contextPath = artifact.path;
+            } finally {
+              await artifact.file.close();
+            }
+          }
+
+          result =
+            item.request.kind === 'handoff'
+              ? await submitGenericWorker(
+                  item.request.submission,
+                  {
+                    assignment: implementation,
+                    worktrees: workerWorktrees,
+                    herdr: workerHerdr,
+                    stateDirectory: opened.stateDirectory,
+                    ...(contextPath ? { contextPath } : {}),
+                    ...(item.contextSnapshot ? { contextSnapshot: item.contextSnapshot } : {}),
+                    reviewCommit: createReviewCommitFetcher({
+                      executable,
+                      githubExecutable: gh,
+                      runner: nodeProcessRunner,
+                      environment,
+                    }),
+                    baseCommitFetcher: createBaseCommitFetcher({
+                      executable,
+                      runner: nodeProcessRunner,
+                      environment: process.env,
+                    }),
+                    baseResolver:
+                      options.implementationBase ??
+                      createMainBaseResolver({
+                        executable,
+                        runner: nodeProcessRunner,
+                        environment: process.env,
+                      }),
+                  },
+                  signal,
+                )
+              : await submitWorkerTask(
+                  item.request.kind,
+                  item.request.kind === 'implementer' && item.issueSnapshot
+                    ? { ...item.request.submission, issueSnapshot: item.issueSnapshot }
+                    : item.request.submission,
+                  {
+                    implementation,
+                    review,
+                    worktrees: workerWorktrees,
+                    herdr: workerHerdr,
+                    reviewCommit: createReviewCommitFetcher({
+                      executable,
+                      githubExecutable: gh,
+                      runner: nodeProcessRunner,
+                      environment,
+                    }),
+                    implementationBase:
+                      options.implementationBase ??
+                      createMainBaseResolver({
+                        executable,
+                        runner: nodeProcessRunner,
+                        environment: process.env,
+                      }),
+                  },
+                  signal,
+                );
         } catch {
           result = rejected(
             'state_reconciliation_required',
@@ -470,8 +533,11 @@ export async function startLocalService(
         }
 
         if (result.outcome === 'persisted') {
-          if (result.value.job.job.id !== item.id) {
-            const alias = opened.workerQueue.alias(item.id, result.value.job.job.id);
+          const acceptedId =
+            'entry' in result.value ? result.value.job.id : result.value.job.job.id;
+
+          if (acceptedId !== item.id) {
+            const alias = opened.workerQueue.alias(item.id, acceptedId);
 
             if (alias.outcome !== 'persisted') {
               throw new Error('Could not save the existing review assignment.');
@@ -676,7 +742,8 @@ export async function startLocalService(
           }
 
           case 'implement_worker_submit':
-          case 'review_worker_submit': {
+          case 'review_worker_submit':
+          case 'handoff_submit': {
             if (!workerHerdr) {
               return rejected(
                 'runtime_unavailable',
@@ -687,7 +754,12 @@ export async function startLocalService(
             const { operation, ...submission } = request;
             const result = await enqueueWorker(
               {
-                kind: operation === 'implement_worker_submit' ? 'implementer' : 'reviewer',
+                kind:
+                  operation === 'handoff_submit'
+                    ? 'handoff'
+                    : operation === 'implement_worker_submit'
+                      ? 'implementer'
+                      : 'reviewer',
                 submission,
               },
               {
@@ -696,6 +768,50 @@ export async function startLocalService(
                 available: availableWorkerRuntimes(),
                 ...(githubReads
                   ? {
+                      githubContext: {
+                        async read({ reference, root }, contextSignal) {
+                          const query = {
+                            repository: { host: reference.host, repository: reference.repository },
+                            number: reference.number,
+                            root,
+                            maxAgeMs: 60000,
+                          };
+                          const label = `${reference.host}/${reference.repository}#${reference.number}`;
+
+                          if (reference.kind === 'issue') {
+                            const result = await githubReads.issue(query, contextSignal);
+
+                            return result.outcome === 'rejected'
+                              ? result
+                              : completed({
+                                  kind: 'issue' as const,
+                                  title: result.value.value.title,
+                                  body: result.value.value.body,
+                                  reference: label,
+                                  author: result.value.value.author,
+                                  state: result.value.value.state,
+                                  updatedAt: result.value.value.updatedAt,
+                                  observedAt: result.value.observedAt,
+                                });
+                          }
+
+                          const result = await githubReads.pullRequest(query, contextSignal);
+
+                          return result.outcome === 'rejected'
+                            ? result
+                            : completed({
+                                kind: 'pr' as const,
+                                title: result.value.value.title,
+                                body: result.value.value.body,
+                                reference: label,
+                                author: result.value.value.author,
+                                state: result.value.value.state,
+                                observedAt: result.value.observedAt,
+                                headSha: result.value.value.target.sha,
+                                baseSha: result.value.value.baseSha,
+                              });
+                        },
+                      },
                       githubIssues: {
                         async read({ reference, root }, issueSignal) {
                           const result = await githubReads.issue(
@@ -726,7 +842,9 @@ export async function startLocalService(
                       },
                     }
                   : {}),
-                nextId: () => `job-${randomUUID()}`,
+                ...(options.githubContext ? { githubContext: options.githubContext } : {}),
+                nextId: () =>
+                  operation === 'handoff_submit' ? submission.key : `job-${randomUUID()}`,
                 now: Date.now,
               },
               signal,

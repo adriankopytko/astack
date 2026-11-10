@@ -14,6 +14,9 @@ import { rejected } from '../contracts/operation-result.js';
 import { inspectQueuedWorker } from '../application/inspect-worker-queue.js';
 import { renderQueuedWorker } from './render-queued-worker.js';
 import type { ServiceRpcResponse } from '../contracts/service-rpc.js';
+import { createHash } from 'node:crypto';
+import { canonicalFileRoot, readRegularFile } from '../core/file-paths.js';
+import { genericHandoffTask } from '../application/generic-handoff.js';
 function number(value: string): number {
   if (!/^[0-9]+$/.test(value) || !Number.isSafeInteger(Number(value))) {
     throw new InvalidArgumentError('Use a nonnegative safe integer.');
@@ -33,9 +36,21 @@ function render(result: ServiceRpcResponse, json?: boolean, submittedReport = fa
     process.stdout.write(renderQueuedWorker(result.value));
   } else if ('cleanup' in result.value) {
     const value = result.value;
+    const status = value.status === 'needs_decision' ? 'needs-input' : value.status;
     process.stdout.write(
-      `Job: ${value.job.job.id}\nAttempt: ${value.job.attempt.id}\nState: ${value.status}\nWorker: ${value.job.entry.state}\nReport: ${value.control.reportId ?? 'none'}\nBlocker: ${value.job.entry.readiness?.message ?? value.job.entry.reason ?? 'none'}\nCleanup: ${value.cleanup.state} (${value.cleanup.retainedResourceCount} holds)\n`,
+      `Job: ${value.job.job.id}\nAttempt: ${value.job.attempt.id}\nState: ${status}\nWorker: ${value.job.entry.state}\nReport: ${value.control.reportId ?? 'none'}\nBlocker: ${value.job.entry.readiness?.message ?? value.job.entry.reason ?? 'none'}\nCleanup: ${value.cleanup.state} (${value.cleanup.retainedResourceCount} holds)\n`,
     );
+
+    if (value.report) {
+      process.stdout.write(`Summary: ${value.report.request.proposal.summary}\n`);
+      const task = genericHandoffTask(value.job);
+
+      for (const artifact of value.report.request.artifacts) {
+        process.stdout.write(
+          `Artifact: ${task ? join(task.root, artifact.path) : artifact.path}\n`,
+        );
+      }
+    }
 
     for (const resource of value.cleanup.resources) {
       if (resource.hookOutcome) {
@@ -129,6 +144,103 @@ export function wireRunCommands(program: Command) {
         );
       });
     });
+  run
+    .command('finish <job-id>')
+    .description('Record a generic agent result')
+    .requiredOption('--status <status>', 'completed, needs-input, or failed')
+    .requiredOption('--summary <text>', 'Result summary')
+    .option(
+      '--artifact <relative-path>',
+      'Attach a result file from the checkout; repeatable',
+      (value: string, values: string[]) => [...values, value],
+      [],
+    )
+    .option('--json')
+    .action(
+      async (
+        jobId: string,
+        options: { status: string; summary: string; artifact: string[]; json?: boolean },
+      ) => {
+        await execute(
+          options.json,
+          async (state) => {
+            if (!['completed', 'needs-input', 'failed'].includes(options.status)) {
+              return rejected('invalid_request', 'Choose completed, needs-input, or failed.');
+            }
+
+            const selected = inspectRun({ schemaVersion: 1, jobId }, { runs: state.runs });
+
+            if (selected.outcome === 'rejected') {
+              return selected;
+            }
+
+            if (!selected.value) {
+              return rejected('state_not_found', 'Run not found.');
+            }
+
+            const job = selected.value.job;
+            const task = genericHandoffTask(job);
+
+            if (!task || options.artifact.length > 8) {
+              return rejected(
+                'invalid_request',
+                'Select a generic handoff and at most eight result files.',
+              );
+            }
+
+            const artifacts = [];
+
+            try {
+              const root = await canonicalFileRoot(task.root);
+
+              for (const path of options.artifact) {
+                const file = await readRegularFile(root, path, 4 * 1024 * 1024);
+
+                if (!file) {
+                  return rejected(
+                    'invalid_request',
+                    'A result file does not exist in the checkout.',
+                  );
+                }
+
+                artifacts.push({ path, digest: file.sha256, size: file.bytes.length });
+              }
+            } catch {
+              return rejected(
+                'invalid_request',
+                'A result file is unavailable, unsafe or too large.',
+              );
+            }
+
+            const outcome = options.status === 'needs-input' ? 'needs_decision' : options.status;
+            const proposal = {
+              schemaVersion: 1,
+              jobId,
+              attemptId: job.attempt.id,
+              projectId: job.job.projectId,
+              checkoutId: job.job.checkoutId,
+              outcome,
+              summary: options.summary,
+              blockers: [],
+            };
+            const round =
+              selected.value.resumes.find((resume) => resume.state === 'acknowledged')?.id ??
+              'initial';
+            const key = `finish-${createHash('sha256').update(JSON.stringify({ round, proposal, artifacts })).digest('hex')}`;
+
+            return requestLocalService(state.stateDirectory, {
+              schemaVersion: 1,
+              operation: 'run_report',
+              jobId,
+              key,
+              proposal,
+              artifacts,
+            });
+          },
+          true,
+        );
+      },
+    );
   run
     .command('report <job-id>')
     .description(

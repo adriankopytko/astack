@@ -35,6 +35,18 @@ export {
 } from './contracts/herdr.js';
 export { startLocalService } from './host/local-service.js';
 export { requestLocalService } from './adapters/local/service-client.js';
+export {
+  genericHandoffSubmissionSchema,
+  genericHandoffTaskSchema,
+  genericHandoffReportSchema,
+  type GenericHandoffTask,
+} from './contracts/generic-handoff.js';
+export {
+  genericHandoffTask,
+  renderGenericHandoff,
+  submitGenericHandoff,
+  createGenericHandoffRuntime,
+} from './application/generic-handoff.js';
 export { acquireCoordinatorOwnership } from './adapters/state/coordinator-ownership.js';
 export {
   createServiceCoordinator,

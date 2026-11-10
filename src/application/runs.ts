@@ -35,6 +35,11 @@ import { parseOperationRequest } from '../core/parse-operation-request.js';
 import { configurationDigest } from '../core/configuration.js';
 import { implementationTask } from './implementation.js';
 import { reviewTask, type ReviewDependencies } from './review.js';
+import {
+  genericHandoffTask,
+  genericHandoffInputKey,
+  renderGenericHandoff,
+} from './generic-handoff.js';
 import { inspectOwnedAssignment, OwnedAssignmentFailure } from './owned-assignment.js';
 
 export interface RunDependencies extends ReviewDependencies {
@@ -140,16 +145,18 @@ export async function acceptRunReport(
 
     const implementation = implementationTask(job);
     const review = reviewTask(job);
+    const generic = genericHandoffTask(job);
 
     if (
-      (!implementation && !review) ||
+      (!implementation && !review && !generic) ||
       (implementation && !('headCommit' in proposal)) ||
-      (review && !('target' in proposal))
+      (review && !('target' in proposal)) ||
+      (generic && ('headCommit' in proposal || 'target' in proposal))
     ) {
       return rejected('run_report_invalid', 'Report format does not match the accepted workflow.');
     }
 
-    const assignment = implementation ?? review;
+    const assignment = implementation ?? review ?? generic;
 
     if (!assignment) {
       return rejected('run_report_invalid', 'A workflow assignment is required.');
@@ -165,17 +172,28 @@ export async function acceptRunReport(
       read(
         deps.workerInput.receipt({
           attemptId: job.attempt.id,
-          key: implementation ? implementationInputKey : reviewInputKey,
+          key: implementation
+            ? implementationInputKey
+            : review
+              ? reviewInputKey
+              : genericHandoffInputKey,
         }),
       ),
     );
     const prompt = implementation
       ? renderImplementationPrompt(job, implementation)
-      : renderReviewPrompt(job, review!);
+      : review
+        ? renderReviewPrompt(job, review)
+        : renderGenericHandoff(job, generic!);
 
     if (
       receipt.state !== 'acknowledged' ||
-      receipt.key !== (implementation ? implementationInputKey : reviewInputKey) ||
+      receipt.key !==
+        (implementation
+          ? implementationInputKey
+          : review
+            ? reviewInputKey
+            : genericHandoffInputKey) ||
       receipt.digest !== workerInputDigest('input', prompt)
     ) {
       return rejected(
@@ -201,7 +219,9 @@ export async function acceptRunReport(
     }
 
     if (
-      (proposal.outcome === 'completed' || proposal.outcome === 'reviewed' || review) &&
+      ((proposal.outcome === 'completed' && !generic) ||
+        proposal.outcome === 'reviewed' ||
+        review) &&
       !owned.selected.git.status.clean
     ) {
       return rejected(
@@ -422,7 +442,8 @@ export async function resumeRun(
     }
 
     try {
-      const task = implementationTask(run.job) ?? reviewTask(run.job);
+      const task =
+        implementationTask(run.job) ?? reviewTask(run.job) ?? genericHandoffTask(run.job);
 
       if (!task) {
         throw new RunFailure(rejected('run_closed', 'No resumable workflow assignment exists.'));

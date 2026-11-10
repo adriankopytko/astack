@@ -7,6 +7,7 @@ import { implementationWorkerReportSchema } from './implementation-task.js';
 import { reviewWorkerReportSchema, reviewSnapshotSchema } from './review-task.js';
 import { workerInputTextSchema } from './worker-input.js';
 import { createOperationResultSchema } from './operation-result.js';
+import { genericHandoffReportSchema } from './generic-handoff.js';
 export * from './run-control.js';
 const offset = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const text = workerInputTextSchema.refine((v) => Buffer.byteLength(v) <= 4096);
@@ -32,7 +33,11 @@ export const runReadRequestSchema = z.strictObject({
 export const runReportRequestSchema = runReadRequestSchema
   .extend({
     key: stateIdSchema,
-    proposal: z.union([implementationWorkerReportSchema, reviewWorkerReportSchema]),
+    proposal: z.union([
+      implementationWorkerReportSchema,
+      reviewWorkerReportSchema,
+      genericHandoffReportSchema,
+    ]),
     acceptHistoricalReview: z.literal(true).optional(),
     artifacts: z.array(artifactReferenceSchema).max(8).default([]),
   })

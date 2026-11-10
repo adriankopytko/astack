@@ -24,7 +24,7 @@ export const serviceSubmitRequestSchema = z.strictObject({
   projectId: configurationRequestSchema.shape.projectId,
   checkoutId: configurationRequestSchema.shape.checkoutId,
   role: configurationRequestSchema.shape.role,
-  workflow: z.enum(['implementation', 'review']).optional(),
+  workflow: z.enum(['implementation', 'review', 'handoff']).optional(),
   request: configurationRequestSchema.shape.request,
   key: stateIdSchema,
   branch: worktreePrepareRequestSchema.shape.branch,

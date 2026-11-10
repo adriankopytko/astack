@@ -60,7 +60,7 @@ await test(
       opened.store.close();
       const oldState = new DatabaseSync(join(state, 'state.sqlite'));
       oldState.exec(
-        'DROP TABLE worker_requests; DELETE FROM state_migrations WHERE version=21; PRAGMA user_version=20;',
+        'DROP TABLE worker_requests; DELETE FROM state_migrations WHERE version>=21; PRAGMA user_version=20;',
       );
       oldState.close();
       await writeFile(

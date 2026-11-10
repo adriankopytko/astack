@@ -4,6 +4,7 @@ export function renderQueuedWorker(value: WorkerQueueReceipt): string {
   const lines = [
     `Job: ${value.id}`,
     `Project: ${value.request.submission.projectId}`,
+    `Agent: ${value.request.submission.agent ?? value.request.kind}`,
     `State: ${value.state}`,
   ];
 

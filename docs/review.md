@@ -6,13 +6,13 @@ An orchestrator requests a review for a registered project, base repository host
 
 If the requested commit is not local, Astack fetches the explicitly selected PR head and verifies the requested commit is available. It does not discover unrelated PRs, edit fixes, publish GitHub reviews/comments, push or merge.
 
-The default comparison base is the PR base SHA recorded in the acceptance snapshot. Supply `--base <full-sha>` to review a narrower, explicit comparison instead; the PR base remains separately recorded and checked for changes. If the selected comparison commit is unavailable in the checkout, the reviewer reports that it needs a decision.
+The default comparison base is the PR base SHA recorded in the acceptance snapshot. Supply `--base <full-sha>` to review a narrower, explicit comparison instead; the PR base remains separately recorded and checked for changes. Before creating the reviewer checkout, Astack fetches a missing comparison commit from the targeted GitHub repository and verifies it is available. A failed fetch blocks setup and reports the error.
 
 For GitHub-backed reviews, the acceptance snapshot also includes the PR title and description obtained during the existing targeted check reads, so the worker need not fetch them separately. Descriptions over 3,500 UTF-8 bytes are omitted and explicitly marked as such. The text is task data, not instructions or permission to perform side effects.
 
 ## CLI
 
-Configure a project agent and the Herdr target. `defaultAgents.review` selects the default; `--agent <name>` selects another configured agent. Set its file permissions to `readonly` for a read-only review. Astack starts its service on submission when needed. From any directory:
+This describes the legacy review-specific command. For new handoffs use `handoff submit --agent <name> --pr <number>` with the desired agent. Set its file permissions to `readonly` for a read-only review. Astack starts its service on submission when needed. From any directory:
 
 When submitting from inside a registered project, `--project` may be omitted; elsewhere select it explicitly.
 

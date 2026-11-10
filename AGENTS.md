@@ -2,7 +2,7 @@
 
 ## Scope and current state
 
-Astack is a reusable Node toolkit for one orchestrator to delegate implementation and review across projects. Keep project-specific technologies, trackers, prompts, and environment schemas out of generic mechanisms.
+Astack is a reusable Node toolkit for an orchestrator to delegate project work to user-defined agents. Keep project-specific agent roles, technologies, trackers, prompts, and environment schemas out of generic mechanisms. Generic handoffs use `agents list`, `handoff submit`, `run inspect`, and `run finish`; see ADR 0037. The older implementation/review-specific paths described below are legacy and still await removal or migration.
 
 The development scaffold is installed. The CLI implements help, version, package information, `--skill` guidance, project registration/listing, context/doctor diagnostics, owned worktree lifecycle, trusted configuration inspection, the local service/queue, and explicit Herdr project/worker layout operations. Opt-in interactive Codex sessions and runtime controls are implemented; explicit implementation delegation is implemented; manual review delegation is implemented; durable run reports/events, explicit continuation and cancellation are implemented. Use [README.md](README.md) and tracked ADRs as the durable contributor contract. Ignored `.planning` material is supplementary local context, not a prerequisite for contributors.
 

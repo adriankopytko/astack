@@ -143,7 +143,10 @@ export async function submitServiceJob(
       repositoryId: snapshot.repositoryId,
       checkoutId: snapshot.checkoutId,
       requester: 'local-host',
-      operation: `delegate:${request.workflow === 'implementation' ? 'implementer' : request.workflow === 'review' ? 'reviewer' : request.role}`,
+      operation:
+        request.workflow === 'handoff'
+          ? 'handoff'
+          : `delegate:${request.workflow === 'implementation' ? 'implementer' : request.workflow === 'review' ? 'reviewer' : request.role}`,
       idempotencyKey: request.key,
       createdAt: dependencies.now(),
       configuration: snapshot,

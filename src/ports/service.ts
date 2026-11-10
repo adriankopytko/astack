@@ -19,7 +19,7 @@ export interface ServiceStore extends ReviewRequestLookup {
     projectId: string;
     role: string;
     key: string;
-    workflow?: 'implementation' | 'review';
+    workflow?: 'implementation' | 'review' | 'handoff';
   }): OperationResult<ServiceJob | null>;
   read(jobId: string): OperationResult<ServiceJob | null>;
   list(after?: string): OperationResult<{ items: ServiceJob[]; nextCursor: string | null }>;

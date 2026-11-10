@@ -24,15 +24,19 @@ A fresh `.astack/config.json` contains agent entries without a model or reasonin
 ```json
 {
   "schemaVersion": 1,
-  "defaultAgents": { "implementation": "implementer", "review": "reviewer" },
   "agents": {
     "implementer": {
+      "description": "Implements requested changes and runs relevant checks",
+      "workspacePrefix": "IMPL",
       "provider": "codex",
       "model": null,
       "reasoning": null,
-      "permissions": { "files": "write" }
+      "permissions": { "files": "write" },
+      "instructions": "Implement the requested changes and report the result."
     },
     "reviewer": {
+      "description": "Reviews changes and reports actionable findings",
+      "workspacePrefix": "CR",
       "provider": "codex",
       "model": null,
       "reasoning": null,
@@ -44,15 +48,15 @@ A fresh `.astack/config.json` contains agent entries without a model or reasonin
 
 Each agent selects a `provider`, `model` and `reasoning`. Model and reasoning are required to accept that agent's job. An optional `instructions` string is included in that worker's assignment. Other named agents can be configured; a matching runtime adapter must be available. The built-in provider is `codex` through Herdr. Supported Codex reasoning values are `minimal`, `low`, `medium`, `high`, `xhigh` and `max`.
 
-Agent names are project-defined. `defaultAgents` selects which named agent to use for implementation and review when `--agent` is omitted; either command can select a different configured agent with `--agent <name>`. An existing configuration without a default must select an agent explicitly or add `defaultAgents`. A queued task retains the selected agent and settings even if the file changes later.
+Agent names are project-defined. `astack agents list` shows their descriptions, and `astack handoff submit --agent <name>` selects one explicitly. A queued task retains the selected agent and settings even if the file changes later.
 
 Agent entries may specify `hooks.before` and `hooks.after` as package-script-style shell command strings. The local service runs `before` before starting the worker and `after` after a completed, failed or cancelled task; it keeps the environment for `needs_decision`. Defaults are 10 minutes for `before` and 60 seconds for `after`; optional `hookTimeouts.before` and `hookTimeouts.after` set millisecond overrides. Scripts run in the task checkout with the service environment and the checkout’s `node_modules/.bin` on `PATH`, like package scripts. The command exit is recorded; output is not captured. A failed `before` blocks launch; a failed `after` remains visible in `run inspect` while preserving the task result. Hook start and completion generate `hook_changed` events. Unknown executions are not automatically repeated.
 
-Each agent may set `workspacePrefix`, for example `"workspacePrefix": "DEV"`, to identify its Herdr child workspace. Implementation and review default to `IMPL` and `CR`; Astack appends a unique identifier. Prefixes may contain letters, digits, underscores and hyphens, and are limited to 20 characters.
+Each agent may set `workspacePrefix`, for example `"workspacePrefix": "DEV"`, to identify its Herdr child workspace. The starter examples use `IMPL` and `CR`; Astack appends a unique identifier. Without a configured prefix Astack uses `astack`. Prefixes may contain letters, digits, underscores and hyphens, and are limited to 20 characters.
 
 Each agent may declare named ports, for example `"ports": { "APP_PORT": { "range": [20000, 29999] }, "OAUTH_PORT": { "fixed": 3000 } }`. The service reserves ports before the before hook and exports them to hooks and the worker. Ranges coordinate only with other Astack jobs using the same state directory; they do not probe unrelated applications. See [agent ports](agent-ports.md).
 
-Astack maps `permissions.files` to the provider: Codex `readonly` uses `read-only`, and `write` uses `workspace-write`. If omitted, reviewers default to `readonly` and other agents to `write`. Both use Codex's `on-request` approval mode. No executable/version/file digest or approval profile is required. The CLI service makes the Codex runtime available when Codex and Herdr are installed; jobs select it from their saved project configuration.
+Astack maps `permissions.files` to the provider: Codex `readonly` uses `read-only`, and `write` uses `workspace-write`. A generic handoff defaults to `write` when omitted. Both use Codex's `on-request` approval mode. The CLI service makes the Codex runtime available when Codex and Herdr are installed; jobs select it from their saved project configuration.
 
 `astack config-schema` prints the current machine-readable JSON Schema for humans, agents and editors. To use it in VS Code, run `astack config-schema > .astack/schema.json` and add `"$schema": "./schema.json"` to `.astack/config.json`. Regenerate the schema after upgrading Astack. Schema validation describes the file shape; `astack doctor` also checks saved project context and prerequisites, including supported Codex reasoning values.
 

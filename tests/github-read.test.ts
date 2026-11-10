@@ -96,3 +96,33 @@ await test('failed and incorrectly attributed issue reads are not cached', async
   assert.equal((await reader.issue(request)).outcome, 'rejected');
   assert.equal(calls, 2);
 });
+
+await test('issue reads retain long multibyte descriptions without byte-based rejection', async () => {
+  const body = '🌍'.repeat(20000);
+  const reader = createGhReadPrimitives({
+    executable: '/trusted/gh',
+    environment: {},
+    now: () => 1000,
+    runner: {
+      async run() {
+        return http({
+          number: 12,
+          html_url: 'https://github.com/example/project/issues/12',
+          title: 'Long task',
+          body,
+          state: 'open',
+          updated_at: '2026-01-01T00:00:00Z',
+          user: { login: 'author' },
+        });
+      },
+    },
+  });
+  const result = await reader.issue({
+    repository: { host: target.host, repository: target.repository },
+    number: 12,
+    root: '/project',
+  });
+
+  assert.ok(result.outcome === 'completed');
+  assert.equal(result.value.value.body, body);
+});

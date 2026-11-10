@@ -1,61 +1,22 @@
 ---
 name: astack-orchestrator
-description: Delegate implementation and code review through Astack, inspect accepted results, and choose explicit follow-up or recovery actions across registered projects.
+description: Delegate project work to configured Astack agents and inspect their handoffs when needed.
 metadata:
-  asset-version: '1.0.19'
+  asset-version: '1.0.20'
 ---
 
-# Orchestrate with Astack
+# Delegate with Astack
 
-Use this skill for the orchestrator controlling an Astack workflow. An assigned implementation or review worker follows its own assignment and scoped worker skill instead. This guide supplies workflow knowledge; user authorization and project configuration determine which actions are allowed.
+Use this skill when handing project work to agents through Astack. Read `astack --skill` for the installed CLI contracts. Astack handles the queue, checkout, Herdr workspace, configured hooks, ports, and agent launch.
 
-## Select the project and assignment
+Run `astack agents list` in the project to see the configured agent names and descriptions. Choose the agent that fits the user's request. Use `--project <id>` when the current directory does not identify the registered project. Agent names are defined by the project; do not assume a fixed list.
 
-Read `astack --skill` for the installed command contracts when you need details; use command-specific help for arguments. Keep stable request keys and full commit SHAs in your handoff notes. A request returning a saved job is acceptance, not proof that an agent started or finished.
+Submit a handoff with `astack handoff submit --agent <name> --task '<task>'`. For GitHub context, add `--issue <number>` or `--pr <number>`; Astack infers the repository from origin, and `--repo <owner/repo>` overrides it. An issue or PR can be supplied without a separate task. `--base <full-sha>` selects the starting commit; use `--base pr-head` with a PR to start at its saved head without an extra lookup. Otherwise Astack uses the newest origin/main. A PR's saved context includes its head and comparison base.
 
-Use the project's `defaultAgents` for implementation and review, or select any configured agent with `--agent <name>`. For an issue, `implement submit --issue <number> --repo <owner/repo>` includes a saved GitHub issue snapshot. For review, the PR base is the default comparison; `--base <full-sha>` selects an explicit comparison base.
+Submission returns a handoff ID and does not mean the agent has started or finished. The service continues work independently: do not poll or wait for it by default. Use `astack run inspect <id>` when the user asks or the next action requires its result. If submission returns an uncertain error, inspect the reported handoff ID before submitting again.
 
-- `astack project list --json` finds registered identities. `astack context --project <project-id> --json` observes the selected checkout; explicit checkout/path/attempt selectors must agree. Invoking Astack from a directory containing several projects does not scan or choose one.
-- `astack project register <path> --json` deliberately registers an unregistered canonical checkout. Registration does not install files, approve configuration or authorize workers.
-- `astack doctor --project <project-id> --role implementer --json` checks current project configuration and prerequisites. Accepted jobs keep their own settings; edits apply to new jobs. Keep secrets out of descriptions, overrides, reports and logs.
-- Task submission queues the task without preparing a checkout. Once capacity is reserved, Astack creates the owned checkout and grouped Herdr workspace automatically. Use the same task key to inspect or retry an uncertain submission.
+An agent records its result with `astack run finish <id> --status completed|needs-input|failed --summary '<result>'`. A needs-input result identifies something requiring a decision. Do not treat terminal idleness as completion or infer that a finished run authorizes publication or cleanup.
 
-## Delegate and inspect
+Automatic follow-up between handoffs is not yet available. Submit a further handoff only when the user has requested that work and its inputs are available; do not monitor agents continuously.
 
-Submitting work starts the local service if needed; the job selects its runtime from project configuration. The project's saved Herdr primary space is used rather than the calling pane. Preserve user focus and unrelated workspaces.
-
-- `astack implement submit --project <project-id> --key <task-key> --task <task-description> --json` delegates implementation with explicit acceptance criteria and instruction paths when needed. Use a fresh key for a genuinely different task, never to bypass an uncertain send.
-- `astack run inspect <job-id> --json` reads accepted outcome, worker observation and retained resources separately. A worker's done/idle UI and a proposed JSON result are not accepted completion.
-- After the worker checkout is accepted, `astack run events --job <job-id> --after <cursor> --wait 20000 --json` waits on local durable events. Before then, inspect the queued task by job ID. Save/acknowledge a consumer cursor only after processing its events. This does not poll GitHub or automatically collect worker output.
-- `astack run collect-report <job-id> --key <report-key> --session-file <explicit-session-file> --json` collects a structured proposal from one host-selected matching session and submits it for ordinary validation. Never search unrelated transcripts or fabricate a completed report from the terminal badge.
-
-When a report needs a decision, inspect the request. Record the chosen answer with `astack run respond <job-id> --key <answer-key> --decision <report-id> --text <answer> --json`, then explicitly authorize `astack run resume <job-id> --key <resume-key> --response <response-id> --json`. Continuation uses the same worker and durable input key. Pending/unknown delivery must be inspected and reconciled under its contract; never resend with a fresh key because the worker looks idle. Native approval/trust dialogs need an authorized host decision.
-
-## Publish and review deliberately
-
-An accepted implementation does not push or request a reviewer automatically. Run project checks appropriate to the task. With coordinator/original writers excluded, `astack handoff finish --file <request.json> --writers-stopped --json` publishes the accepted commit; no separate Astack verification record is required. Its optional review request is not reviewer dispatch.
-
-For manual review, use `astack review submit --project <project-id> --key <review-key> --commit <head-sha> --host <host> --repo <owner/repo> --pr <number> --json`. Astack creates a separate reviewer checkout and local branch at that SHA. Use help for gate/check options and explicit no-CI/override policy; missing or skipped checks do not mean passing. The reviewer is read-only and must not start integration services.
-
-For CI-triggered follow-up, explicitly enable project review automation and attach a dedicated checkout using `astack review automation enable --project <project-id> --revision <settings-revision> --json` and `astack review follow-up enqueue --handoff <source-job-id> --checkout <review-checkout-id> --branch <branch> --commit <head-sha> --json`. The service also needs `--observe-ci --after-handoff-review`. A disabled plan stays suspended until explicit resume; restoring flags does not silently resume backlog. Let the bounded CI observer and local events handle waiting.
-
-Inspect accepted findings with `astack review result inspect <review-job-id> --report-key <report-key> --json`. Publication is a separate authorized host action. For fixes, select finding indexes in the returned immutable fix reference, use `astack implement submit` with its `--fix-of` file; Astack prepares a fresh implementation checkout at the reviewed SHA. Keep historical findings attached to their original SHA. There is no automatic fix loop, merge or approval operation.
-
-## Recover and retain
-
-- A disconnected client, timeout, expired claim or absent-looking worker does not authorize a replacement. Inspect saved launch/input/publication intents and exact provider evidence. Follow the installed recovery contract; preserve uncertain effects.
-- `astack run cancel <job-id> --key <cancel-key> --json` blocks new work. An optional keyed interrupt is a request, not proof of shutdown. Repeating the original cancellation can settle an eligible never-launched legacy attempt without releasing resources.
-- Accepted outcome, verified shutdown and checkout cleanup are separate. After independent host shutdown evidence, use the exact run reconciliation request. Do not manufacture stopped flags from age, PIDs, Escape or UI status.
-- `astack cleanup request <job-id> --key <cleanup-key> --not-before <unix-ms> --json` saves retention policy. Only explicitly automatic requests plus `service run --cleanup` can execute automatically, and they still need established shutdown evidence. Preserve dirty/untracked/ignored files and unknown service holds. A started uncertain cleanup requires writer-excluded reconciliation, not retry by a new key.
-
-Report concrete job/attempt/checkout/commit identities, accepted outcomes, blockers and next authorized action. Keep worker shutdown, service/resource stop, publication and cleanup evidence distinct. Preserve task branches and primary project spaces.
-
-## Bootstrap a project deliberately
-
-For a new project, inspect `astack init <path> --dry-run --json`. Apply with `astack init <path> --with-skills --json` to install the bundled project skills. Initialization preserves authored setup and creates an incomplete `.astack/config.json` starter; fill it using project instructions. Init creates or reuses the named Herdr workspace. Commit and push project skills and instructions so they are available in worker worktrees. It does not discover tools or run scripts, dependencies or agents. Preserve partial registration and pending writer intents; inspect their component recovery contracts before retrying. See `astack init --help` and the canonical `astack --skill` guide.
-
-Before a new Codex worker starts, configure its agent provider, model and reasoning. Instructions are optional. Astack supplies launch flags and uses the saved job settings; project-agent launches do not require executable or configuration-file hashes. Preserve pending launch records and resource holds for deliberate recovery.
-
-Per-agent `hooks.before` and `hooks.after` run automatically. Before failure blocks launch; after runs for terminal tasks, not needs_decision. Inspect hook outcomes with `astack run inspect <job-id> --json`.
-
-Agents may declare named `ports` with `{ "range": [first, last] }` or `{ "fixed": port }`. Astack coordinates assignments in the shared state database and passes them to hooks and supported worker panes. Unrelated applications are not checked. Inspect reservations with `astack resources list --project <id> --json`.
+The current Codex/Herdr runtime retains a worker's capacity claim after a result until shutdown is explicitly reconciled. If capacity fills, subsequent handoffs remain queued; do not assume an idle pane proves the worker stopped.

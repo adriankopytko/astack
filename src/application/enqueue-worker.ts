@@ -1,5 +1,9 @@
 import { isDeepStrictEqual } from 'node:util';
-import { workerQueueRequestSchema, workerQueueReceipt } from '../contracts/worker-queue.js';
+import {
+  workerQueueRequestSchema,
+  workerQueueReceipt,
+  workerQueueItemSchema,
+} from '../contracts/worker-queue.js';
 import { hostConfigurationPolicySchema } from '../contracts/configuration.js';
 import { rejected } from '../contracts/operation-result.js';
 import { configurationDigest } from '../core/configuration.js';
@@ -24,6 +28,21 @@ export async function enqueueWorker(
         signal?: AbortSignal,
       ): Promise<OperationResult<z.infer<typeof issueSnapshotSchema>>>;
     };
+    githubContext?: {
+      read(
+        input: {
+          reference: NonNullable<
+            z.infer<
+              typeof import('../contracts/generic-handoff.js').genericHandoffSubmissionSchema
+            >['context']
+          >;
+          root: string;
+        },
+        signal?: AbortSignal,
+      ): Promise<
+        OperationResult<NonNullable<z.infer<typeof workerQueueItemSchema>['contextSnapshot']>>
+      >;
+    };
   },
   signal?: AbortSignal,
 ) {
@@ -40,6 +59,14 @@ export async function enqueueWorker(
       'invalid_request',
       'Issue snapshots are fetched by Astack, not supplied with the request.',
     );
+  }
+
+  if (
+    request.kind === 'handoff' &&
+    request.submission.baseCommit === 'pr-head' &&
+    request.submission.context?.kind !== 'pr'
+  ) {
+    return rejected('invalid_request', 'Use --base pr-head with a pull request.');
   }
 
   const prior = deps.workerQueue.find(
@@ -69,6 +96,16 @@ export async function enqueueWorker(
       : rejected('state_conflict', 'This task key already identifies a different submission.');
   }
 
+  const projectRecord = await deps.registry.readProject(request.submission.projectId);
+
+  if (projectRecord.outcome === 'rejected') {
+    return projectRecord;
+  }
+
+  if (projectRecord.value?.registeredAt == null) {
+    return rejected('project_not_found', 'The registered project could not be found.');
+  }
+
   let policy: ReturnType<typeof hostConfigurationPolicySchema.safeParse>;
 
   try {
@@ -83,16 +120,7 @@ export async function enqueueWorker(
     return rejected('configuration_blocked', 'Project configuration could not be resolved.');
   }
 
-  const agent =
-    request.submission.agent ??
-    policy.data.defaultAgents?.[request.kind === 'implementer' ? 'implementation' : 'review'];
-
-  if (!agent) {
-    return rejected(
-      'configuration_blocked',
-      'Select --agent or configure a default agent for this task in .astack/config.json.',
-    );
-  }
+  const agent = request.submission.agent ?? request.kind;
 
   request = workerQueueRequestSchema.parse({
     ...request,
@@ -146,6 +174,59 @@ export async function enqueueWorker(
   }
 
   let issueSnapshot: z.infer<typeof issueSnapshotSchema> | undefined;
+  let contextSnapshot: z.infer<typeof workerQueueItemSchema>['contextSnapshot'];
+
+  if (request.kind === 'handoff' && request.submission.context) {
+    if (!deps.githubContext) {
+      return rejected('github_unavailable', 'GitHub context reads are unavailable in the service.');
+    }
+
+    const project = await deps.registry.readProject(request.submission.projectId);
+
+    if (project.outcome === 'rejected') {
+      return project;
+    }
+
+    if (!project.value) {
+      return rejected('project_not_found', 'Registered project not found.');
+    }
+
+    const checkout = await deps.registry.readCheckout(project.value.project.primaryCheckoutId);
+
+    if (checkout.outcome === 'rejected') {
+      return checkout;
+    }
+
+    if (!checkout.value?.registered) {
+      return rejected('checkout_not_found', 'Registered project checkout not found.');
+    }
+
+    const result = await deps.githubContext.read(
+      { reference: request.submission.context, root: checkout.value.checkout.rootPath },
+      signal,
+    );
+
+    if (result.outcome === 'rejected') {
+      return result;
+    }
+
+    const parsedContext = workerQueueItemSchema.shape.contextSnapshot.safeParse(result.value);
+
+    const expectedReference = `${request.submission.context.host}/${request.submission.context.repository}#${request.submission.context.number}`;
+
+    if (
+      !parsedContext.success ||
+      !parsedContext.data ||
+      parsedContext.data.kind !== request.submission.context.kind ||
+      parsedContext.data.reference !== expectedReference ||
+      (parsedContext.data.kind === 'pr' &&
+        (!parsedContext.data.headSha || !parsedContext.data.baseSha))
+    ) {
+      return rejected('github_invalid_output', 'GitHub context was incomplete or too large.');
+    }
+
+    contextSnapshot = parsedContext.data;
+  }
 
   if (request.kind === 'implementer' && request.submission.issue) {
     if (!deps.githubIssues) {
@@ -212,6 +293,7 @@ export async function enqueueWorker(
     policy: policy.data,
     runtime,
     ...(issueSnapshot ? { issueSnapshot } : {}),
+    ...(contextSnapshot ? { contextSnapshot } : {}),
     state: 'queued',
     jobId: null,
     error: null,

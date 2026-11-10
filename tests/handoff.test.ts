@@ -652,7 +652,7 @@ await test(
 
       try {
         raw.exec(
-          'DROP TABLE job_configurations; DROP TABLE implementation_verifications; DROP TRIGGER hook_release_guard; DROP TABLE hook_invocations; DROP TRIGGER allocation_release_guard; DROP TABLE resource_allocations; DROP TABLE cleanup_plans; DROP TABLE review_result_publications; DROP TABLE review_result_observations; DROP TABLE review_follow_ups; DROP TABLE review_automation; DROP TABLE ci_requests; DROP TABLE ci_targets; DROP TABLE ci_budgets; DROP TABLE implementation_handoffs; DELETE FROM state_migrations WHERE version>=11; PRAGMA user_version=10;',
+          'DROP TABLE worker_requests; DROP TABLE service_errors; DROP TABLE job_configurations; DROP TABLE implementation_verifications; DROP TRIGGER hook_release_guard; DROP TABLE hook_invocations; DROP TRIGGER allocation_release_guard; DROP TABLE resource_allocations; DROP TABLE cleanup_plans; DROP TABLE review_result_publications; DROP TABLE review_result_observations; DROP TABLE review_follow_ups; DROP TABLE review_automation; DROP TABLE ci_requests; DROP TABLE ci_targets; DROP TABLE ci_budgets; DROP TABLE implementation_handoffs; DELETE FROM state_migrations WHERE version>=11; PRAGMA user_version=10;',
         );
       } finally {
         raw.close();

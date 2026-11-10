@@ -37,6 +37,7 @@ export async function requestLocalService(
     'project_initialize',
     'implement_worker_submit',
     'review_worker_submit',
+    'handoff_submit',
     'worker_worktree_prepare',
     'worker_worktree_reconcile',
   ].includes(String(operation));

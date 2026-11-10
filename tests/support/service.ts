@@ -80,7 +80,6 @@ export async function writeProjectConfiguration(
     join(root, '.astack', 'config.json'),
     JSON.stringify({
       schemaVersion: 1,
-      defaultAgents: { implementation: 'implementer', review: 'reviewer' },
       agents,
       execution,
     }),
@@ -151,7 +150,6 @@ export async function fixture(
           schemaVersion: 1,
           projectId: registration.value.project.id,
           repositoryId: registration.value.repository.id,
-          defaultAgents: { implementation: 'implementer', review: 'reviewer' },
           project: { roles: { implementer: role, reviewer: role } },
           execution: {
             allowedEnvironment: [],

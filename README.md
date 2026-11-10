@@ -1,8 +1,12 @@
 # astack
 
-Reusable tooling for delegating implementation and code review to coding agents across projects.
+Reusable tooling for delegating project work to coding agents across projects.
 
-One orchestrator selects work and decides what happens next. Astack prepares owned checkouts, launches workers, records handoffs and results, and handles authorized waiting and recovery. The initial integrations are Git, GitHub CLI, Herdr, and Codex. Project profiles and hooks keep application-specific setup outside the orchestration core.
+One orchestrator selects work and hands it to project-defined agents. Astack prepares owned checkouts, launches workers, records handoffs and results, and handles authorized recovery. The initial integrations are Git, GitHub CLI, Herdr, and Codex. Project configuration and hooks keep application-specific setup outside the orchestration core.
+
+Run `astack agents list` to see the project's configured agents, then `astack handoff submit --agent <name> --task '<task>'` to delegate. `--issue <number>` and `--pr <number>` attach saved GitHub context; `--repo` overrides the repository inferred from origin. `--base <full-sha>` selects the checkout commit, and `--base pr-head` selects the head of an attached PR; otherwise Astack fetches the latest `origin/main`. The agent records its result with `astack run finish <id> --status completed|needs-input|failed --summary '<text>'`. Inspect a run with `astack run inspect <id>`; Astack continues independently after submission.
+
+Current limitation: a completed Codex/Herdr handoff keeps its capacity claim until worker shutdown is explicitly reconciled. Automatic worker shutdown and release are not yet implemented, so unattended use can fill the configured capacity. See [ADR 0037](docs/adr/0037-generic-agent-handoffs.md).
 
 ## Status
 
