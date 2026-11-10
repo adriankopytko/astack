@@ -26,28 +26,6 @@ import { createAgentHooks } from './agent-hooks.js';
 import { createAgentPorts } from '../application/agent-ports.js';
 import { createCleanupExecutor, suspendCleanupExecutor } from '../application/automatic-cleanup.js';
 import { composeCleanupDependencies } from './cleanup.js';
-import {
-  inspectReviewAutomation,
-  configureReviewAutomation,
-  enqueueFollowUpReview,
-  inspectFollowUpReview,
-  listFollowUpReviews,
-  controlFollowUpReview,
-  createFollowUpDispatcher,
-  suspendFollowUpExecutor,
-  type AutomaticReviewDependencies,
-} from '../application/automatic-review.js';
-import {
-  watchCi,
-  controlCi,
-  inspectCi,
-  listCi,
-  createCiObserver,
-  type CiDependencies,
-} from '../application/ci.js';
-import { ciPolicySchema } from '../contracts/ci.js';
-import type { CiReader } from '../ports/ci.js';
-import { createGhCiReader } from '../adapters/github/ci-reader.js';
 import { prepareStateDirectory } from '../adapters/state/state-directory.js';
 import {
   inspectRun,
@@ -109,8 +87,6 @@ export async function startLocalService(
       resolve(root: string, signal?: AbortSignal): Promise<OperationResult<string>>;
     };
     workerSetupProvider?: HerdrProvider;
-    ci?: { policy?: unknown; reader?: CiReader };
-    afterHandoffReview?: boolean;
     cleanup?: boolean;
     cleanupHerdrExecutable?: string;
     cleanupShutdown?: RunShutdownVerifier;
@@ -130,16 +106,6 @@ export async function startLocalService(
 
   if (process.platform !== 'linux' && process.platform !== 'darwin') {
     return rejected('unsupported_platform', 'The local service requires Linux or macOS.');
-  }
-
-  if (options.afterHandoffReview && !options.ci) {
-    return rejected('invalid_request', 'After-handoff review requires the CI observer opt-in.');
-  }
-
-  const ciPolicy = ciPolicySchema.safeParse(options.ci?.policy ?? {});
-
-  if (!ciPolicy.success) {
-    return rejected('invalid_request', 'Invalid CI observer policy.');
   }
 
   let ownership: CoordinatorOwnership | undefined;
@@ -178,7 +144,6 @@ export async function startLocalService(
       registry: opened.registry,
       queue: opened.service,
       workerQueue: opened.workerQueue,
-      ...(options.afterHandoffReview ? { automaticReviews: opened.automaticReviews } : {}),
       git: createGitInspector({ executable, runner: nodeProcessRunner }),
       identity: nodeCheckoutIdentityReader,
       configuration: createNodeConfigurationReader(opened.registry, opened.store),
@@ -232,16 +197,6 @@ export async function startLocalService(
       instructions: nodeImplementationContextReader,
     };
     const gh = await hostExecutable('gh', options.githubExecutable);
-
-    if (options.ci && !options.ci.reader && !gh) {
-      ownership.release();
-      opened.store.close();
-
-      return rejected(
-        'github_unavailable',
-        'Select a trusted GitHub CLI executable before enabling CI observation.',
-      );
-    }
 
     const environment: Record<string, string> = {};
 
@@ -342,11 +297,9 @@ export async function startLocalService(
       const codexRuntime = composeCodexHerdrRuntime({
         opened,
         dependencies,
-        reviewDependencies,
         herdrExecutable: herdr,
         codexExecutable: codex,
         agentPorts,
-        allowAutomaticReview: options.afterHandoffReview ?? false,
       });
       runtimes.push(codexRuntime.runtime);
       workerInput = options.runWorkerInput ?? codexRuntime.workerInput;
@@ -547,68 +500,6 @@ export async function startLocalService(
           void close();
         })
       : null;
-    const ciDependencies: CiDependencies = {
-      ...dependencies,
-      ci: opened.ci,
-      ...(options.afterHandoffReview ? { automaticCi: opened.automaticReviews } : {}),
-      handoffs: opened.handoffs,
-      runs: opened.runs,
-      nextId: () => `ci-controller-${randomUUID()}`,
-      random: Math.random,
-      reader:
-        options.ci?.reader ??
-        (gh
-          ? createGhCiReader({
-              executable: gh,
-              runner: nodeProcessRunner,
-              environment,
-              now: Date.now,
-              timeoutMs: 30000,
-            })
-          : {
-              read: async () =>
-                rejected('github_unavailable', 'Select a trusted GitHub CLI executable.'),
-            }),
-    };
-    const automaticDependencies: AutomaticReviewDependencies = {
-      executorEnabled: options.afterHandoffReview ?? false,
-      store: opened.automaticReviews,
-      reviews: reviewDependencies,
-      ci: ciDependencies,
-      now: Date.now,
-      wake: () => coordinator.wake(),
-      wakeCi: () => ciObserver?.wake(),
-    };
-    let ciObserver: ReturnType<typeof createCiObserver> | null = null;
-    const automaticDispatcher = options.afterHandoffReview
-      ? createFollowUpDispatcher(automaticDependencies, () => {
-          fatal = true;
-          void close();
-        })
-      : null;
-    ciObserver = options.ci
-      ? createCiObserver(
-          ciDependencies,
-          ciPolicy.data,
-          () => {
-            fatal = true;
-            void close();
-          },
-          () => automaticDispatcher?.wake(),
-        )
-      : null;
-
-    if (!options.afterHandoffReview) {
-      const suspended = await suspendFollowUpExecutor(opened.automaticReviews, Date.now);
-
-      if (suspended.outcome !== 'completed') {
-        opened.store.close();
-        ownership.release();
-
-        return suspended;
-      }
-    }
-
     const transport = await listenLocalService({
       stateDirectory: opened.stateDirectory,
       sessionId,
@@ -834,107 +725,6 @@ export async function startLocalService(
             return completed(await initializeProject(request.request, initialization, signal));
           }
 
-          case 'review_automation_inspect': {
-            const { operation: _operation, ...value } = request;
-
-            return inspectReviewAutomation(value, automaticDependencies);
-          }
-
-          case 'review_automation_configure': {
-            const { operation: _operation, ...value } = request;
-            const result = await configureReviewAutomation(value, automaticDependencies, signal);
-            automaticDispatcher?.wake();
-            cleanupExecutor?.wake();
-            ciObserver?.wake();
-
-            return result;
-          }
-
-          case 'follow_up_inspect': {
-            const { operation: _operation, ...value } = request;
-
-            return inspectFollowUpReview(value, automaticDependencies);
-          }
-
-          case 'follow_up_list': {
-            const { operation: _operation, ...value } = request;
-
-            return listFollowUpReviews(value, automaticDependencies);
-          }
-
-          case 'follow_up_enqueue': {
-            const { operation: _operation, ...value } = request;
-            const result = await enqueueFollowUpReview(value, automaticDependencies, signal);
-
-            if (result.outcome === 'persisted') {
-              automaticDispatcher?.wake();
-              cleanupExecutor?.wake();
-            }
-
-            return result;
-          }
-
-          case 'follow_up_control': {
-            const { operation: _operation, ...value } = request;
-            const result = await controlFollowUpReview(value, automaticDependencies, signal);
-
-            if (result.outcome === 'persisted') {
-              automaticDispatcher?.wake();
-              cleanupExecutor?.wake();
-              ciObserver?.wake();
-              coordinator.wake();
-            }
-
-            return result;
-          }
-
-          case 'ci_inspect': {
-            const { operation: _operation, ...value } = request;
-
-            return inspectCi(value, ciDependencies);
-          }
-
-          case 'ci_list': {
-            const { operation: _operation, ...value } = request;
-
-            return listCi(value, ciDependencies);
-          }
-
-          case 'ci_watch': {
-            const { operation: _operation, ...value } = request;
-            const result = await watchCi(value, ciDependencies, signal);
-
-            if (result.outcome === 'persisted') {
-              ciObserver?.wake();
-            }
-
-            return result;
-          }
-
-          case 'ci_control': {
-            const { operation: _operation, ...value } = request;
-            const result = await controlCi(value, ciDependencies, signal);
-
-            if (result.outcome === 'persisted') {
-              ciObserver?.wake();
-            }
-
-            return result;
-          }
-
-          case 'ci_wake': {
-            if (!ciObserver) {
-              return rejected(
-                'ci_blocked',
-                'CI observation is disabled; restart the service with explicit CI opt-in.',
-              );
-            }
-
-            ciObserver.wake();
-
-            return completed({ scheduled: true as const });
-          }
-
           case 'run_inspect':
             return inspectRun({ schemaVersion: 1, jobId: request.jobId }, runDependencies, signal);
           case 'run_events': {
@@ -1017,7 +807,6 @@ export async function startLocalService(
             return completed({ stopping: true as const });
           case 'wake':
             coordinator.wake();
-            automaticDispatcher?.wake();
             cleanupExecutor?.wake();
 
             return coordinator.status();
@@ -1107,8 +896,6 @@ export async function startLocalService(
             const drained = await Promise.allSettled([
               transport.close(),
               coordinator.stop(),
-              ciObserver?.stop(),
-              automaticDispatcher?.stop(),
               cleanupExecutor?.stop(),
             ]);
 
@@ -1139,8 +926,6 @@ export async function startLocalService(
     }
 
     coordinator.start();
-    ciObserver?.start();
-    automaticDispatcher?.start();
     cleanupExecutor?.start();
 
     return {

@@ -1,11 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { createCodexHerdrRuntime } from '../application/runtime.js';
-import { createReviewRuntime, type ReviewDependencies } from '../application/review.js';
-import { createImplementationRuntime } from '../application/implementation.js';
 import { createCodexRunControl } from '../application/codex-run-control.js';
 import { createCodexImplementationInput } from '../application/codex-implementation-input.js';
-import { nodeImplementationContextReader } from '../adapters/filesystem/implementation-context.js';
 import type { RuntimeDependencies } from '../application/runtime.js';
 import { createHerdrCliProvider } from '../adapters/herdr/cli-provider.js';
 import { nodeHerdrEndpointReader } from '../adapters/filesystem/herdr-endpoint.js';
@@ -19,9 +16,7 @@ import type { createAgentPorts } from '../application/agent-ports.js';
 export function composeCodexHerdrRuntime(input: {
   opened: Extract<StateOpenResult, { outcome: 'opened' }>;
   dependencies: ServiceDependencies;
-  reviewDependencies: ReviewDependencies;
   herdrExecutable: string;
-  allowAutomaticReview?: boolean;
   codexExecutable: string;
   agentPorts?: ReturnType<typeof createAgentPorts>;
 }) {
@@ -34,7 +29,6 @@ export function composeCodexHerdrRuntime(input: {
   const dependencies: RuntimeDependencies = {
     ...input.dependencies,
     ...(input.agentPorts ? { agentPorts: input.agentPorts } : {}),
-    allowAutomaticReview: input.allowAutomaticReview ?? false,
     state: input.opened.store,
     herdr: input.opened.herdr,
     runtime: input.opened.runtime,
@@ -45,25 +39,8 @@ export function composeCodexHerdrRuntime(input: {
     newId: () => randomUUID(),
   };
 
-  const implementation = createImplementationRuntime({
-    runtime: createCodexHerdrRuntime(dependencies),
-    dependencies: {
-      ...input.dependencies,
-      worktrees: input.opened.worktrees,
-      files: dependencies.files,
-      instructions: nodeImplementationContextReader,
-    },
-    workerInput: createCodexImplementationInput(dependencies),
-  });
-
-  const runtime = createReviewRuntime({
-    runtime: implementation,
-    dependencies: input.reviewDependencies,
-    workerInput: createCodexImplementationInput(dependencies),
-  });
-
   return {
-    runtime,
+    runtime: createCodexHerdrRuntime(dependencies),
     workerInput: createCodexImplementationInput(dependencies),
     workerControl: createCodexRunControl(dependencies),
   };
