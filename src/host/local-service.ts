@@ -395,7 +395,7 @@ export async function startLocalService(
         try {
           let contextPath: string | undefined;
 
-          if (item.request.kind === 'handoff' && item.contextSnapshot) {
+          if (item.contextSnapshot) {
             const directory = await createPrivateArtifactDirectory(opened.stateDirectory, item.id);
             const artifact = await openPrivateArtifact(directory, 'github-context.json');
 
@@ -408,39 +408,36 @@ export async function startLocalService(
             }
           }
 
-          result =
-            item.request.kind === 'handoff'
-              ? await submitGenericWorker(
-                  item.request.submission,
-                  {
-                    assignment: implementation,
-                    worktrees: workerWorktrees,
-                    herdr: workerHerdr,
-                    stateDirectory: opened.stateDirectory,
-                    ...(contextPath ? { contextPath } : {}),
-                    ...(item.contextSnapshot ? { contextSnapshot: item.contextSnapshot } : {}),
-                    reviewCommit: createReviewCommitFetcher({
-                      executable,
-                      githubExecutable: gh,
-                      runner: nodeProcessRunner,
-                      environment,
-                    }),
-                    baseCommitFetcher: createBaseCommitFetcher({
-                      executable,
-                      runner: nodeProcessRunner,
-                      environment: process.env,
-                    }),
-                    baseResolver:
-                      options.implementationBase ??
-                      createMainBaseResolver({
-                        executable,
-                        runner: nodeProcessRunner,
-                        environment: process.env,
-                      }),
-                  },
-                  signal,
-                )
-              : rejected('invalid_request', 'Legacy role-specific queue items are unsupported.');
+          result = await submitGenericWorker(
+            item.request.submission,
+            {
+              assignment: implementation,
+              worktrees: workerWorktrees,
+              herdr: workerHerdr,
+              stateDirectory: opened.stateDirectory,
+              ...(contextPath ? { contextPath } : {}),
+              ...(item.contextSnapshot ? { contextSnapshot: item.contextSnapshot } : {}),
+              reviewCommit: createReviewCommitFetcher({
+                executable,
+                githubExecutable: gh,
+                runner: nodeProcessRunner,
+                environment,
+              }),
+              baseCommitFetcher: createBaseCommitFetcher({
+                executable,
+                runner: nodeProcessRunner,
+                environment: process.env,
+              }),
+              baseResolver:
+                options.implementationBase ??
+                createMainBaseResolver({
+                  executable,
+                  runner: nodeProcessRunner,
+                  environment: process.env,
+                }),
+            },
+            signal,
+          );
         } catch {
           result = rejected(
             'state_reconciliation_required',

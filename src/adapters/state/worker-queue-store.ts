@@ -74,7 +74,7 @@ export function createSqliteWorkerQueueStore(db: StateDatabase): WorkerQueueStor
       db.read(() => {
         const rows = db
           .statement(
-            "SELECT state,COUNT(*) AS count FROM worker_requests WHERE state IN ('queued','preparing') GROUP BY state",
+            "SELECT state,COUNT(*) AS count FROM worker_requests WHERE kind='handoff' AND state IN ('queued','preparing') GROUP BY state",
           )
           .all();
         const counts = { queued: 0, preparing: 0 };
@@ -131,12 +131,14 @@ export function createSqliteWorkerQueueStore(db: StateDatabase): WorkerQueueStor
         }
 
         const rows = db
-          .statement("SELECT data FROM worker_requests WHERE state='queued' ORDER BY created_at,id")
+          .statement(
+            "SELECT data FROM worker_requests WHERE kind='handoff' AND state='queued' ORDER BY created_at,id",
+          )
           .iterate();
 
         for (const row of rows) {
           const item = db.data(workerQueueItemSchema, row)!;
-          const agent = item.request.submission.agent ?? item.request.kind;
+          const agent = item.request.submission.agent;
           const limit = limits.perRole[agent] ?? limits.defaultRole;
 
           if (

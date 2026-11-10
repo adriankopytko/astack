@@ -1,29 +1,19 @@
 import { z } from 'zod';
 import { hostConfigurationPolicySchema } from './configuration.js';
-import {
-  implementationWorkerSubmissionSchema,
-  reviewWorkerSubmissionSchema,
-} from './worker-submission.js';
 import { stateIdSchema } from './state.js';
 import { createOperationResultSchema } from './operation-result.js';
 import { createStateWriteResultSchema } from './state.js';
-import { issueSnapshotSchema } from './implementation-task.js';
 import { genericHandoffSubmissionSchema } from './generic-handoff.js';
 
-export const workerQueueRequestSchema = z.discriminatedUnion('kind', [
-  z.strictObject({
-    kind: z.literal('implementer'),
-    submission: implementationWorkerSubmissionSchema,
-  }),
-  z.strictObject({ kind: z.literal('reviewer'), submission: reviewWorkerSubmissionSchema }),
-  z.strictObject({ kind: z.literal('handoff'), submission: genericHandoffSubmissionSchema }),
-]);
+export const workerQueueRequestSchema = z.strictObject({
+  kind: z.literal('handoff'),
+  submission: genericHandoffSubmissionSchema,
+});
 export const workerQueueItemSchema = z.strictObject({
   id: stateIdSchema,
   request: workerQueueRequestSchema,
   policy: hostConfigurationPolicySchema,
   runtime: z.string().min(1).max(64),
-  issueSnapshot: issueSnapshotSchema.optional(),
   contextSnapshot: z
     .strictObject({
       kind: z.enum(['issue', 'pr']),
@@ -53,7 +43,7 @@ export const workerQueueItemSchema = z.strictObject({
   createdAt: z.number().int().nonnegative(),
 });
 export const workerQueueReceiptSchema = workerQueueItemSchema
-  .omit({ policy: true, issueSnapshot: true, contextSnapshot: true })
+  .omit({ policy: true, contextSnapshot: true })
   .extend({
     worktree: z
       .strictObject({
@@ -71,12 +61,7 @@ export const workerQueueWriteResultSchema = createStateWriteResultSchema(workerQ
 export type WorkerQueueItem = z.infer<typeof workerQueueItemSchema>;
 export type WorkerQueueReceipt = z.infer<typeof workerQueueReceiptSchema>;
 export function workerQueueReceipt(item: WorkerQueueItem): WorkerQueueReceipt {
-  const {
-    policy: _policy,
-    issueSnapshot: _issueSnapshot,
-    contextSnapshot: _contextSnapshot,
-    ...receipt
-  } = item;
+  const { policy: _policy, contextSnapshot: _contextSnapshot, ...receipt } = item;
 
   return workerQueueReceiptSchema.parse(receipt);
 }

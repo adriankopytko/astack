@@ -475,3 +475,57 @@ await test(
     });
   },
 );
+
+await test('obsolete queued records do not block new handoffs and remain untouched', async () => {
+  await fixture(async ({ deps, opened, state }) => {
+    const { DatabaseSync } = await import('node:sqlite');
+    const database = new DatabaseSync(join(state, 'state.sqlite'));
+
+    try {
+      database
+        .prepare(
+          'INSERT INTO worker_requests(id,project_id,kind,request_key,state,created_at,data) VALUES (?,?,?,?,?,?,?)',
+        )
+        .run(
+          'legacy-queued',
+          'project-0',
+          'implementer',
+          'old',
+          'queued',
+          1,
+          JSON.stringify({ legacy: true }),
+        );
+      const queued = await enqueueHandoff(
+        {
+          schemaVersion: 1,
+          projectId: 'project-0',
+          agent: 'implementer',
+          key: 'new',
+          task: 'Task',
+        },
+        { ...deps, workerQueue: opened.workerQueue, nextId: () => 'new-handoff' },
+      );
+
+      assert.equal(queued.outcome, 'persisted');
+
+      const counts = opened.workerQueue.counts();
+
+      assert.ok(counts.outcome === 'completed');
+      assert.equal(counts.value.queued, 1);
+
+      const claimed = opened.workerQueue.claim(
+        { global: 1, defaultRole: 1, perRole: {} },
+        { handoff: ['fixture'] },
+      );
+
+      assert.ok(claimed.outcome === 'persisted' && claimed.value?.id === 'new-handoff');
+      assert.equal(
+        database.prepare('SELECT state FROM worker_requests WHERE id=?').get('legacy-queued')
+          ?.state,
+        'queued',
+      );
+    } finally {
+      database.close();
+    }
+  });
+});
