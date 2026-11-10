@@ -85,7 +85,7 @@ function render(result: InitializationResult, json?: boolean) {
 
       if (result.outcome === 'initialized' && view.delegation === 'ready') {
         steps.push(
-          'Submit an implementation or review task; Astack starts its service if needed and prepares the worker checkout and workspace.',
+          'Run astack agents list, then use astack handoff submit --agent <name> to delegate work.',
         );
       }
     }
