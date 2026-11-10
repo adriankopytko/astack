@@ -34,6 +34,7 @@ type Dependencies = {
       target: ReviewTarget,
       root: string,
       signal?: AbortSignal,
+      comparisonBase?: string,
     ): Promise<OperationResult<null>>;
   };
 };
@@ -176,6 +177,8 @@ export async function submitWorkerTask(
     );
   }
 
+  let reviewDependencies = deps.review;
+
   if ('target' in request && deps.reviewCommit) {
     const snapshot = await deps.review.targets.read(
       { target: request.target, root: source.value.git.checkout.rootPath },
@@ -197,11 +200,31 @@ export async function submitWorkerTask(
       request.target,
       source.value.git.checkout.rootPath,
       signal,
+      request.comparisonBase ?? snapshot.value.baseSha,
     );
 
     if (fetched.outcome === 'rejected') {
       return fetched;
     }
+
+    const expectedBase = snapshot.value.baseSha;
+    reviewDependencies = {
+      ...deps.review,
+      targets: {
+        async read(input, readSignal) {
+          const observed = await deps.review.targets.read(input, readSignal);
+
+          if (observed.outcome === 'completed' && observed.value.baseSha !== expectedBase) {
+            return rejected(
+              'review_target_changed',
+              'The pull request base changed during preparation.',
+            );
+          }
+
+          return observed;
+        },
+      },
+    };
   }
 
   const tree = await prepareWorkerWorktree(
@@ -238,5 +261,5 @@ export async function submitWorkerTask(
 
   return kind === 'implementer'
     ? submitImplementation(submission, deps.implementation, signal)
-    : submitReview(submission, deps.review, signal);
+    : submitReview(submission, reviewDependencies, signal);
 }

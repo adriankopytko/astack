@@ -4,7 +4,7 @@ import { processRequestSchema, processResultSchema } from '../../contracts/proce
 import type { ReviewTarget } from '../../contracts/review-task.js';
 import type { ProcessRunner } from '../../ports/process-runner.js';
 
-/** Fetch only the explicitly targeted PR head when its commit is not already local. */
+/** Fetch the targeted PR head and comparison commit when they are not already local. */
 export function createReviewCommitFetcher(options: {
   executable: string;
   githubExecutable: string | null;
@@ -33,12 +33,21 @@ export function createReviewCommitFetcher(options: {
   }
 
   return {
-    async ensure(target: ReviewTarget, root: string, signal?: AbortSignal) {
+    async ensure(
+      target: ReviewTarget,
+      root: string,
+      signal?: AbortSignal,
+      comparisonBase?: string,
+    ) {
       if (!isAbsolute(options.executable) || !isAbsolute(root)) {
         return rejected(
           'invalid_request',
           'Review commit fetch requires a trusted Git executable and project root.',
         );
+      }
+
+      if (comparisonBase !== undefined && !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(comparisonBase)) {
+        return rejected('invalid_request', 'Select a full comparison commit SHA.');
       }
 
       const run = async (args: string[], credentials = false) =>
@@ -106,7 +115,19 @@ export function createReviewCommitFetcher(options: {
         return rejected('git_failed', 'The requested review commit could not be inspected.');
       }
 
-      if (local.outcome === 'exited' && local.exitCode === 0) {
+      const localBase =
+        comparisonBase && comparisonBase !== target.sha
+          ? await run(['cat-file', '-e', `${comparisonBase}^{commit}`])
+          : local;
+
+      if (!complete(localBase)) {
+        return rejected('git_failed', 'The review comparison commit could not be inspected.');
+      }
+
+      const headMissing = local.outcome !== 'exited' || local.exitCode !== 0;
+      const baseMissing = localBase.outcome !== 'exited' || localBase.exitCode !== 0;
+
+      if (!headMissing && !baseMissing) {
         return completed(null);
       }
 
@@ -141,29 +162,47 @@ export function createReviewCommitFetcher(options: {
         );
       }
 
-      const fetched = await run(
-        [
-          'fetch',
-          '--no-tags',
-          '--no-write-fetch-head',
-          '--no-recurse-submodules',
-          '--',
-          `https://${target.host}/${target.repository}.git`,
-          `refs/pull/${target.number}/head`,
-        ],
-        true,
-      );
-
-      if (!complete(fetched) || fetched.outcome !== 'exited' || fetched.exitCode !== 0) {
-        return rejected(
-          'git_failed',
-          'The review commit could not be fetched from its pull request.',
+      const fetch = async (ref: string) =>
+        run(
+          [
+            'fetch',
+            '--no-tags',
+            '--no-write-fetch-head',
+            '--no-recurse-submodules',
+            '--',
+            `https://${target.host}/${target.repository}.git`,
+            ref,
+          ],
+          true,
         );
+
+      for (const ref of [
+        ...(headMissing ? [`refs/pull/${target.number}/head`] : []),
+        ...(baseMissing && comparisonBase && comparisonBase !== target.sha ? [comparisonBase] : []),
+      ]) {
+        const fetched = await fetch(ref);
+
+        if (!complete(fetched) || fetched.outcome !== 'exited' || fetched.exitCode !== 0) {
+          return rejected(
+            'git_failed',
+            'The review commits could not be fetched from the target repository.',
+          );
+        }
       }
 
       const verified = await run(['cat-file', '-e', `${target.sha}^{commit}`]);
 
-      return complete(verified) && verified.outcome === 'exited' && verified.exitCode === 0
+      const verifiedBase =
+        comparisonBase && comparisonBase !== target.sha
+          ? await run(['cat-file', '-e', `${comparisonBase}^{commit}`])
+          : verified;
+
+      return complete(verified) &&
+        verified.outcome === 'exited' &&
+        verified.exitCode === 0 &&
+        complete(verifiedBase) &&
+        verifiedBase.outcome === 'exited' &&
+        verifiedBase.exitCode === 0
         ? completed(null)
         : rejected(
             'review_target_changed',
