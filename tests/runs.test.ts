@@ -1317,7 +1317,7 @@ await test(
         acceptanceCriteria: _criteria,
         ...base
       } = await context.prepare();
-      const { deps } = dependencies(context);
+      const { deps: initialDeps } = dependencies(context);
       const target = {
         host: 'github.com',
         repository: 'example/project',
@@ -1333,7 +1333,10 @@ await test(
         checks: [{ name: 'test', state: 'pass' as const }],
         observedAt: 100,
       };
-      deps.targets = { read: async () => completed(structuredClone(snapshot)) };
+      const deps = {
+        ...initialDeps,
+        targets: { read: async () => completed(structuredClone(snapshot)) },
+      };
       const submitted = await submitReview({ ...base, target }, deps);
 
       assert.ok(submitted.outcome === 'persisted', JSON.stringify(submitted));

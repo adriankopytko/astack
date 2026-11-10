@@ -34,7 +34,9 @@ import { sameReviewTarget, reviewGateBlocker } from '../core/review-gates.js';
 import { parseOperationRequest } from '../core/parse-operation-request.js';
 import { configurationDigest } from '../core/configuration.js';
 import { implementationTask } from './implementation.js';
-import { reviewTask, type ReviewDependencies } from './review.js';
+import { reviewTask } from './review.js';
+import type { ReviewTargetReader } from '../ports/review.js';
+import type { TaskDeliveryDependencies } from './task-delivery.js';
 import {
   genericHandoffTask,
   genericHandoffInputKey,
@@ -42,7 +44,8 @@ import {
 } from './generic-handoff.js';
 import { inspectOwnedAssignment, OwnedAssignmentFailure } from './owned-assignment.js';
 
-export interface RunDependencies extends ReviewDependencies {
+export interface RunDependencies extends TaskDeliveryDependencies {
+  targets?: ReviewTargetReader;
   runs: RunStore;
   artifacts: RunArtifactReader;
   workerInput: ImplementationWorkerInput;
@@ -252,6 +255,10 @@ export async function acceptRunReport(
         );
       }
 
+      if (!deps.targets) {
+        return rejected('github_unavailable', 'Legacy review validation is unavailable.');
+      }
+
       const observed = await deps.targets.read(
         { target: review.submission.target, root: review.root },
         signal,
@@ -458,6 +465,12 @@ export async function resumeRun(
       const review = reviewTask(run.job);
 
       if (review) {
+        if (!deps.targets) {
+          throw new RunFailure(
+            rejected('github_unavailable', 'Legacy review validation is unavailable.'),
+          );
+        }
+
         const snapshot = reviewSnapshotSchema.parse(
           read(
             await deps.targets.read(

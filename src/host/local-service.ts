@@ -69,10 +69,7 @@ import {
 import type { ImplementationDependencies } from '../application/implementation.js';
 import { createNodeWorktreeFiles } from '../adapters/filesystem/worktree-files.js';
 import { nodeImplementationContextReader } from '../adapters/filesystem/implementation-context.js';
-import type { ReviewDependencies } from '../application/review.js';
-import { createGhReviewTargetReader } from '../adapters/github/review-target.js';
 import { createGhReadPrimitives } from '../adapters/github/read.js';
-import type { ReviewTargetReader } from '../ports/review.js';
 import { composeCodexHerdrRuntime } from './codex-runtime.js';
 import { listenLocalService } from '../service/local-transport.js';
 import type { CoordinatorOwnership, ServiceWorkerRuntime } from '../ports/service.js';
@@ -90,7 +87,6 @@ export async function startLocalService(
     cleanup?: boolean;
     cleanupHerdrExecutable?: string;
     cleanupShutdown?: RunShutdownVerifier;
-    reviewTargets?: ReviewTargetReader;
     githubExecutable?: string;
     githubContext?: HandoffContextReader;
     runWorkerInput?: ImplementationWorkerInput;
@@ -218,25 +214,6 @@ export async function startLocalService(
       }
     }
 
-    const reviewDependencies: ReviewDependencies = {
-      ...implementationDependencies,
-      targets:
-        options.reviewTargets ??
-        (gh
-          ? createGhReviewTargetReader({
-              executable: gh,
-              runner: nodeProcessRunner,
-              environment,
-              now: Date.now,
-            })
-          : {
-              read: async () =>
-                rejected(
-                  'github_unavailable',
-                  'Install or select a trusted GitHub CLI executable.',
-                ),
-            }),
-    };
     const githubReads = gh
       ? createGhReadPrimitives({
           executable: gh,
@@ -337,7 +314,7 @@ export async function startLocalService(
     };
 
     const runDependencies: RunDependencies = {
-      ...reviewDependencies,
+      ...implementationDependencies,
       runs: opened.runs,
       artifacts: nodeRunArtifactReader,
       workerInput,
