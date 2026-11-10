@@ -913,3 +913,37 @@ for (const sessionEvidence of ['id', 'null', 'omitted'] as const) {
     },
   );
 }
+
+await test(
+  'a missing owned pane is recorded as unverified close evidence without releasing capacity',
+  options,
+  async () => {
+    await fixture(async ({ prepare, deps, context }) => {
+      const job = await prepare();
+      const request = { schemaVersion: 1, attemptId: job.attempt.id };
+      const session = value(await launchRuntime(request, deps)).session;
+
+      assert.ok(session?.space.handle);
+
+      const snapshot = context.fake.snapshot(session.space.target);
+      snapshot.panes = snapshot.panes.filter(
+        (pane) => pane.paneId !== session.space.handle!.paneId,
+      );
+      snapshot.agents = snapshot.agents.filter((agent) => agent.name !== session.agent!.name);
+
+      const observed = value(await inspectRuntime(request, deps));
+
+      assert.equal(observed.state, 'unknown');
+      assert.equal(observed.reason, 'pane_absent');
+
+      snapshot.server = { ...snapshot.server, inode: '999999' };
+
+      assert.equal(value(await inspectRuntime(request, deps)).reason, 'identity_changed');
+
+      const saved = context.opened.service.read(job.job.id);
+
+      assert.ok(saved.outcome === 'completed' && saved.value);
+      assert.ok(saved.value.entry.claim);
+    });
+  },
+);

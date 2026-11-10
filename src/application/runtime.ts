@@ -328,6 +328,47 @@ async function observed(session: RuntimeSession, deps: RuntimeDependencies, sign
   return result.observation;
 }
 
+/** Fresh matching-server absence is close evidence, not proof that detached children stopped. */
+async function paneAbsent(
+  session: RuntimeSession,
+  deps: RuntimeDependencies,
+  signal?: AbortSignal,
+) {
+  if (session.phase !== 'ready' || !session.space.handle || !session.agent) {
+    return false;
+  }
+
+  const saved = read(deps.herdr.worker(session.attemptId));
+
+  if (!saved || !isDeepStrictEqual({ ...saved, agent: session.space.agent }, session.space)) {
+    return false;
+  }
+
+  const snapshot = await deps.provider.snapshot(
+    session.space.target,
+    session.space.primaryRoot ?? session.space.root,
+    signal,
+  );
+
+  if (
+    snapshot.outcome !== 'completed' ||
+    !isDeepStrictEqual(snapshot.value.server, session.space.server)
+  ) {
+    return false;
+  }
+
+  const handle = session.space.handle;
+
+  return (
+    !snapshot.value.panes.some(
+      (pane) => pane.paneId === handle.paneId || pane.terminalId === handle.terminalId,
+    ) &&
+    !snapshot.value.agents.some(
+      (agent) => agent.name === session.agent?.name || agent.terminalId === handle.terminalId,
+    )
+  );
+}
+
 /** Read-only provider observation; idle/done are never accepted completion or verified process shutdown. */
 export async function inspectRuntime(
   input: unknown,
@@ -344,7 +385,9 @@ export async function inspectRuntime(
     const observation = await observed(session, deps, signal);
 
     if (!observation) {
-      return status(session, 'unknown', 'identity_changed');
+      const absent = await paneAbsent(session, deps, signal);
+
+      return status(session, 'unknown', absent ? 'pane_absent' : 'identity_changed');
     }
 
     const action = read(deps.runtime.pending(attemptId));

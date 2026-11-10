@@ -51,6 +51,7 @@ await test(
         paneId: 'w1:p1',
         endpoint: nodeHerdrEndpointReader,
         reconnectMs: 20,
+        acknowledgementTimeoutMs: 30,
         changed: () => changes++,
       });
       const until = async (predicate: () => boolean) => {
@@ -64,6 +65,10 @@ await test(
       };
 
       await until(() => changes === 1);
+      await new Promise((resolve) => setTimeout(resolve, 75));
+
+      assert.equal(connections.length, 1);
+
       const connection = connections[0]!;
       connection.write('{"event":"pane_closed","data":{"pane_id":"other"}}\n');
       connection.write('{"event":"pane.agent_status_');
@@ -129,6 +134,54 @@ await test(
 
       assert.ok(changes > 0);
       assert.equal(received, false);
+    } finally {
+      stop();
+
+      for (const connection of connections) {
+        connection.destroy();
+      }
+
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
+
+await test(
+  'a stalled subscription reconnects instead of silently missing events',
+  { timeout: 10000 },
+  async () => {
+    const directory = await realpath(await mkdtemp(join(tmpdir(), 'as-events-')));
+    const path = join(directory, 'h.sock');
+    const connections: Socket[] = [];
+    const server = createServer((connection) => {
+      connections.push(connection);
+    });
+    let stop = () => {};
+
+    try {
+      await new Promise<void>((resolve, reject) =>
+        server.once('error', reject).listen(path, resolve),
+      );
+      await chmod(path, 0o600);
+      const target = { session: 'test', socketPath: path };
+      const identity = await nodeHerdrEndpointReader.read(target);
+      let changes = 0;
+      stop = watchHerdrPane({
+        server: { ...identity, protocol: 22 },
+        paneId: 'w1:p1',
+        endpoint: nodeHerdrEndpointReader,
+        reconnectMs: 10,
+        acknowledgementTimeoutMs: 30,
+        changed: () => changes++,
+      });
+
+      for (let i = 0; i < 500 && connections.length < 2; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+
+      assert.ok(connections.length >= 2);
+      assert.ok(changes >= 1);
     } finally {
       stop();
 

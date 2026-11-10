@@ -10,7 +10,7 @@ Herdr documents worktree creation and grouping in its [CLI reference](https://he
 
 ## Worker event notifications
 
-The running service subscribes to Herdr pane-close and agent-status events for its verified Codex workers. The listener checks the saved socket identity and wakes the coordinator after subscription, relevant events, and disconnects. Reconnection subscribes again and triggers a fresh inspection because events are not replayed. Event messages are hints, not identity, task-result, or shutdown evidence. The listener does not close workers or release capacity. In an isolated Herdr 0.9.0 test, closing a pane stopped the foreground process but a detached child survived. Automatic close and capacity release therefore require stronger process containment or other independent shutdown evidence.
+The running service subscribes to Herdr pane-close and agent-status events for its verified Codex workers. The listener checks the saved socket identity and wakes the coordinator after subscription, relevant events, and disconnects. Reconnection subscribes again and triggers a fresh inspection because events are not replayed. Event messages are hints, not identity, task-result, or shutdown evidence. A fresh snapshot on the same saved server that lacks both the owned pane and agent is reported as `pane_absent` with an unknown worker state; capacity and resource holds remain. The listener does not close workers or release capacity. In an isolated Herdr 0.9.0 test, closing a pane stopped the foreground process but a detached child survived. Automatic close and capacity release therefore require stronger process containment or other independent shutdown evidence.
 
 ## Commands
 

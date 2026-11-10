@@ -90,6 +90,7 @@ export const runtimeStatusSchema = z.strictObject({
       'not_launched',
       'launch_pending',
       'identity_changed',
+      'pane_absent',
       'provider_unavailable',
       'policy_blocked',
       'capability_missing',

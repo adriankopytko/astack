@@ -10,6 +10,7 @@ export function watchHerdrPane(input: {
   endpoint: HerdrEndpointReader;
   changed: () => void;
   reconnectMs?: number;
+  acknowledgementTimeoutMs?: number;
 }) {
   let stopped = false;
   let socket: Socket | undefined;
@@ -28,6 +29,7 @@ export function watchHerdrPane(input: {
       socket = connection;
       let pending = Buffer.alloc(0);
       let acknowledged = false;
+      let acknowledgementTimer: ReturnType<typeof setTimeout> | undefined;
       connection.on('error', () => connection.destroy());
       connection.once('connect', () => {
         void (async () => {
@@ -42,6 +44,11 @@ export function watchHerdrPane(input: {
           connection.write(
             `${JSON.stringify({ id: 'astack-events', method: 'events.subscribe', params: { subscriptions: [{ type: 'pane.closed' }, { type: 'pane.agent_status_changed', pane_id: input.paneId }] } })}\n`,
           );
+          acknowledgementTimer = setTimeout(
+            () => connection.destroy(),
+            input.acknowledgementTimeoutMs ?? 10000,
+          );
+          acknowledgementTimer.unref();
         })().catch(() => connection.destroy());
       });
       connection.on('data', (chunk: Buffer) => {
@@ -85,6 +92,12 @@ export function watchHerdrPane(input: {
             }
 
             acknowledged = true;
+
+            if (acknowledgementTimer) {
+              clearTimeout(acknowledgementTimer);
+              acknowledgementTimer = undefined;
+            }
+
             input.changed();
             continue;
           }
@@ -102,6 +115,10 @@ export function watchHerdrPane(input: {
         }
       });
       connection.once('close', () => {
+        if (acknowledgementTimer) {
+          clearTimeout(acknowledgementTimer);
+        }
+
         if (socket === connection) {
           socket = undefined;
         }
