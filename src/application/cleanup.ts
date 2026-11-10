@@ -1,7 +1,3 @@
-import type { RunView } from '../contracts/runs.js';
-import type { WorktreeRecord } from '../contracts/worktrees.js';
-import { reviewTaskSchema } from '../contracts/review-task.js';
-import { gitSucceeded } from './worktree-evidence.js';
 import { isDeepStrictEqual } from 'node:util';
 import { isAbsolute, relative } from 'node:path';
 import {
@@ -30,47 +26,6 @@ export interface CleanupDependencies {
   cwd: string;
   shutdown?: RunShutdownVerifier;
   now(): number;
-}
-
-function isManagedReviewBranch(run: RunView, tree: WorktreeRecord): boolean {
-  const match = /^worker-reviewer-([a-f0-9]{32})$/.exec(tree.intent.key);
-  const digest = match?.[1];
-  const task = reviewTaskSchema.safeParse(run.job.job.intent.task);
-
-  return (
-    digest !== undefined &&
-    task.success &&
-    run.job.entry.role === (task.data.submission.agent ?? 'reviewer') &&
-    run.job.job.operation === 'delegate:reviewer' &&
-    tree.intent.key === `worker-reviewer-${digest}` &&
-    tree.intent.branch === `refs/heads/astack/code-review-${digest}` &&
-    tree.intent.checkoutId === run.job.job.checkoutId &&
-    tree.intent.workspace !== undefined
-  );
-}
-
-async function reviewBranchState(
-  tree: WorktreeRecord,
-  deps: CleanupDependencies,
-): Promise<'present' | 'absent' | 'changed' | 'unknown'> {
-  const observation = await deps.worktrees.git.inspect({
-    schemaVersion: 1,
-    path: tree.intent.sourceRoot,
-  });
-
-  if (
-    observation.outcome === 'rejected' ||
-    observation.value.checkout.rootPath !== tree.intent.sourceRoot ||
-    observation.value.repository.commonDirectory !==
-      tree.intent.sourceLocation.commonDirectory.path ||
-    observation.value.worktrees.some((item) => item.branch === tree.intent.branch)
-  ) {
-    return 'unknown';
-  }
-
-  const branch = observation.value.refs.find((item) => item.name === tree.intent.branch);
-
-  return !branch ? 'absent' : branch.objectId === tree.removalCommit ? 'present' : 'changed';
 }
 
 export function inspectCleanup(input: unknown, deps: Pick<CleanupDependencies, 'cleanups'>) {
@@ -290,8 +245,6 @@ export async function executeCleanup(
     return block('resources_retained');
   }
 
-  const removeReviewBranch = isManagedReviewBranch(run.value, tree.value);
-
   if (
     run.value.job.entry.claim !== null &&
     run.value.job.entry.observation?.state !== 'not_started'
@@ -340,7 +293,6 @@ export async function executeCleanup(
     { schemaVersion: 1, id: plan.worktreeId },
     {
       ...deps.worktrees,
-      reviewBranchMayBeAbsent: removeReviewBranch,
       store: {
         forCheckout: (id) => store.forCheckout(id),
         read: (id) => store.read(id),
@@ -359,28 +311,6 @@ export async function executeCleanup(
   );
 
   if (result.outcome === 'removed') {
-    if (removeReviewBranch) {
-      const state = await reviewBranchState(result.record, deps);
-
-      if (state === 'present') {
-        if (!deps.worktrees.effects.deleteBranch || !result.record.removalCommit) {
-          return { schemaVersion: 1, outcome: 'persisted', disposition: 'updated', value: current };
-        }
-
-        const deleted = await deps.worktrees.effects.deleteBranch(
-          result.record.intent,
-          result.record.removalCommit,
-          signal,
-        );
-
-        if (!gitSucceeded(deleted) || (await reviewBranchState(result.record, deps)) !== 'absent') {
-          return { schemaVersion: 1, outcome: 'persisted', disposition: 'updated', value: current };
-        }
-      } else if (state !== 'absent') {
-        return block('review_branch_changed', current);
-      }
-    }
-
     return deps.cleanups.transition({
       jobId: request.jobId,
       expectedRevision: current.revision,
@@ -464,40 +394,14 @@ export async function reconcileCleanup(
 
   // A removed record still requires fresh filesystem/Git absence evidence.
   if (fresh.value?.phase === 'removed') {
-    const run = deps.runs.inspect(plan.request.jobId);
-
-    if (run.outcome === 'rejected') {
-      return run;
-    }
-
-    const removeReviewBranch = run.value && isManagedReviewBranch(run.value, fresh.value);
     const result = await removeWorktree(
       { schemaVersion: 1, id: plan.worktreeId },
-      { ...deps.worktrees, reviewBranchMayBeAbsent: Boolean(removeReviewBranch) },
+      deps.worktrees,
       signal,
     );
 
     if (result.outcome !== 'removed' || result.record.removalCommit !== plan.commit) {
       return rejected('cleanup_blocked', 'Removed checkout absence could not be verified.');
-    }
-
-    if (removeReviewBranch) {
-      const state = await reviewBranchState(result.record, deps);
-
-      if (state === 'present') {
-        return deps.cleanups.transition({
-          jobId: plan.request.jobId,
-          expectedRevision: plan.revision,
-          phase: 'requested',
-          reason: 'writers_stopped',
-          reconciliation: true,
-          now: deps.now(),
-        });
-      }
-
-      if (state !== 'absent') {
-        return rejected('cleanup_blocked', 'Reviewer branch changed; inspect it before cleanup.');
-      }
     }
 
     return deps.cleanups.transition({

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { createCodexHerdrRuntime } from '../application/runtime.js';
 import { createCodexRunControl } from '../application/codex-run-control.js';
-import { createCodexImplementationInput } from '../application/codex-implementation-input.js';
+import { createCodexWorkerInput } from '../application/codex-worker-input.js';
 import type { RuntimeDependencies } from '../application/runtime.js';
 import { createHerdrCliProvider } from '../adapters/herdr/cli-provider.js';
 import { nodeHerdrEndpointReader } from '../adapters/filesystem/herdr-endpoint.js';
@@ -41,7 +41,7 @@ export function composeCodexHerdrRuntime(input: {
 
   return {
     runtime: createCodexHerdrRuntime(dependencies),
-    workerInput: createCodexImplementationInput(dependencies),
+    workerInput: createCodexWorkerInput(dependencies),
     workerControl: createCodexRunControl(dependencies),
   };
 }

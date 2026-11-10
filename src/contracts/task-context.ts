@@ -20,6 +20,8 @@ export const instructionReferenceSchema = z.strictObject({
   path: instructionPathSchema,
   digest: configurationDigestSchema.nullable(),
 });
+export type InstructionReference = z.infer<typeof instructionReferenceSchema>;
+
 export const issueReferenceSchema = z.strictObject({
   host: z
     .string()

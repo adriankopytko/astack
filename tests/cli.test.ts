@@ -14,6 +14,16 @@ await test('legacy explicit hook and verification operations are not public expo
   assert.equal('executeHook' in astack, false);
   assert.equal('reconcileHook' in astack, false);
   assert.equal('verifyImplementation' in astack, false);
+
+  for (const name of [
+    'submitImplementation',
+    'submitReview',
+    'finishImplementation',
+    'dispatchFollowUpReviews',
+    'publishReviewResult',
+  ]) {
+    assert.equal(name in astack, false, `${name} is not part of the public API`);
+  }
 });
 
 await test('compiled CLI works outside its source checkout and keeps JSON output clean', async () => {

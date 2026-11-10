@@ -1,11 +1,9 @@
 import { completed, rejected } from '../contracts/operation-result.js';
-import type { ImplementationWorkerInput } from '../ports/implementation.js';
+import type { WorkerInput } from '../ports/task-delivery.js';
 import { inputRuntime, type RuntimeDependencies } from './runtime.js';
 
 /** Composition bridge: workflow policy stays generic, while this runtime enforces its own native binding. */
-export function createCodexImplementationInput(
-  deps: RuntimeDependencies,
-): ImplementationWorkerInput {
+export function createCodexWorkerInput(deps: RuntimeDependencies): WorkerInput {
   return {
     receipt({ attemptId, key }) {
       const result = deps.runtime.action(attemptId, key);
@@ -18,10 +16,7 @@ export function createCodexImplementationInput(
 
       return action.kind === 'input'
         ? completed({ key: action.key, digest: action.digest, state: action.state })
-        : rejected(
-            'runtime_conflict',
-            'The implementation input key identifies a different action kind.',
-          );
+        : rejected('runtime_conflict', 'The worker input key identifies a different action kind.');
     },
     async submit(input, signal) {
       const result = await inputRuntime({ schemaVersion: 1, ...input }, deps, signal);

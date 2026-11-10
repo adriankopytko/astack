@@ -2,15 +2,12 @@ import { constants } from 'node:fs';
 import { lstat, open, realpath } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { createHash } from 'node:crypto';
-import {
-  instructionPathSchema,
-  type InstructionReference,
-} from '../../contracts/implementation-task.js';
+import { instructionPathSchema, type InstructionReference } from '../../contracts/task-context.js';
 import { completed, rejected } from '../../contracts/operation-result.js';
-import type { ImplementationContextReader } from '../../ports/implementation.js';
+import type { TaskContextReader } from '../../ports/task-delivery.js';
 
 /** Bounded, non-executing reads. Repository text never leaves this adapter; only exact byte digests do. */
-export const nodeImplementationContextReader: ImplementationContextReader = {
+export const nodeTaskContextReader: TaskContextReader = {
   async read(input, signal) {
     try {
       if (
@@ -19,7 +16,7 @@ export const nodeImplementationContextReader: ImplementationContextReader = {
         input.paths.length > 8
       ) {
         return rejected(
-          'implementation_context_invalid',
+          'task_context_invalid',
           'Select a canonical checkout and bounded repository instruction paths.',
         );
       }
@@ -136,7 +133,7 @@ export const nodeImplementationContextReader: ImplementationContextReader = {
         : completed(references);
     } catch {
       return rejected(
-        'implementation_context_invalid',
+        'task_context_invalid',
         'Repository instruction evidence is unsafe, oversized or changed; inspect the assigned checkout.',
       );
     }

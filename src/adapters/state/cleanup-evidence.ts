@@ -1,8 +1,6 @@
 import { cleanupPlanSchema, type CleanupPlan } from '../../contracts/cleanup.js';
 import { stateAttemptSchema, stateJobSchema } from '../../contracts/state.js';
 import { worktreeRecordSchema, type WorktreeRecord } from '../../contracts/worktrees.js';
-import { handoffRecordSchema } from '../../contracts/handoff.js';
-import { reviewResultPublicationSchema } from '../../contracts/review-results.js';
 import { type StateDatabase } from './database.js';
 import { stateFailure } from './errors.js';
 import { runControl } from './run-events.js';
@@ -12,7 +10,7 @@ export function readCleanup(db: StateDatabase, jobId: string) {
   return db.get(cleanupPlanSchema, 'SELECT data FROM cleanup_plans WHERE job_id=?', jobId);
 }
 
-/** Transactional saved authority, independent from provider observations and review readiness. */
+/** Transactional saved authority, independent from provider observations. */
 export function assertCleanupSource(db: StateDatabase, plan: CleanupPlan, publication = false) {
   const job = db.get(stateJobSchema, 'SELECT data FROM jobs WHERE id=?', plan.request.jobId);
   const entry = db
@@ -49,7 +47,7 @@ export function assertCleanupSource(db: StateDatabase, plan: CleanupPlan, public
     entry.attempt_id !== plan.attemptId ||
     control.reportId !== plan.reportId ||
     !['completed', 'failed', 'cancelled'].includes(control.phase) ||
-    !['delegate:implementer', 'delegate:reviewer'].includes(job.operation) ||
+    job.operation !== 'handoff' ||
     worktree.intent.projectId !== plan.projectId ||
     worktree.intent.repositoryId !== plan.repositoryId ||
     worktree.intent.checkoutId !== plan.checkoutId ||
@@ -65,44 +63,14 @@ export function assertCleanupSource(db: StateDatabase, plan: CleanupPlan, public
   // Another delegated task must have its own cleanup/retention authority, even if terminal.
   if (
     db
-      .statement(
-        "SELECT id FROM jobs WHERE checkout_id=? AND id<>? AND operation IN ('delegate:implementer','delegate:reviewer') LIMIT 1",
-      )
+      .statement('SELECT id FROM jobs WHERE checkout_id=? AND id<>? LIMIT 1')
       .get(plan.checkoutId, job.id)
   ) {
     stateFailure('state_conflict');
   }
 
-  if (publication) {
-    const handoff = db.get(
-      handoffRecordSchema,
-      "SELECT data FROM implementation_handoffs WHERE job_id=? AND phase!='abandoned' ORDER BY rowid DESC LIMIT 1",
-      job.id,
-    );
-    const review =
-      plan.reportId === null
-        ? null
-        : db.get(
-            reviewResultPublicationSchema,
-            'SELECT data FROM review_result_publications WHERE report_id=?',
-            plan.reportId,
-          );
-    const confirmed =
-      (handoff?.phase === 'accepted' &&
-        handoff.request.reportId === plan.reportId &&
-        handoff.source.headCommit === plan.commit) ||
-      (review !== null &&
-        db
-          .statement("SELECT id FROM effects WHERE id=? AND state='confirmed'")
-          .get(review.effectId) !== undefined);
-
-    if (
-      (handoff && handoff.phase !== 'accepted') ||
-      (review && !confirmed) ||
-      (plan.request.publication === 'required' && !confirmed)
-    ) {
-      stateFailure('cleanup_blocked');
-    }
+  if (publication && plan.request.publication === 'required') {
+    stateFailure('cleanup_blocked');
   }
 
   return { job, worktree };

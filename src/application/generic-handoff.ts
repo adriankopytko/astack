@@ -3,7 +3,7 @@ import { genericHandoffTaskSchema, type GenericHandoffTask } from '../contracts/
 import { rejected } from '../contracts/operation-result.js';
 import type { ServiceJob } from '../contracts/service.js';
 import type { ServiceWorkerRuntime } from '../ports/service.js';
-import type { ImplementationWorkerInput } from '../ports/implementation.js';
+import type { WorkerInput } from '../ports/task-delivery.js';
 import { inspectOwnedAssignment, OwnedAssignmentFailure } from './owned-assignment.js';
 import { submitServiceJob } from './service.js';
 import { createTaskDeliveryRuntime, type TaskDeliveryDependencies } from './task-delivery.js';
@@ -133,14 +133,14 @@ export async function submitGenericHandoff(
   } catch (error) {
     return error instanceof OwnedAssignmentFailure
       ? error.result
-      : rejected('implementation_context_invalid', 'The handoff checkout could not be verified.');
+      : rejected('task_context_invalid', 'The handoff checkout could not be verified.');
   }
 }
 
 export function createGenericHandoffRuntime(input: {
   runtime: ServiceWorkerRuntime;
   dependencies: TaskDeliveryDependencies;
-  workerInput: ImplementationWorkerInput;
+  workerInput: WorkerInput;
 }): ServiceWorkerRuntime {
   return createTaskDeliveryRuntime({
     ...input,

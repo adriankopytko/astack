@@ -1,4 +1,3 @@
-import type { ReviewRequestLookup } from './review.js';
 import type { OperationResult, OperationError } from '../contracts/operation-result.js';
 import type { StateJob, StateWriteResult } from '../contracts/state.js';
 import type { HostConfigurationPolicy } from '../contracts/configuration.js';
@@ -9,7 +8,7 @@ import type {
   WorkerObservation,
 } from '../contracts/service.js';
 
-export interface ServiceStore extends ReviewRequestLookup {
+export interface ServiceStore {
   submit(input: {
     job: StateJob;
     entry: ServiceEntry;
@@ -19,7 +18,7 @@ export interface ServiceStore extends ReviewRequestLookup {
     projectId: string;
     role: string;
     key: string;
-    workflow?: 'implementation' | 'review' | 'handoff';
+    workflow?: string;
   }): OperationResult<ServiceJob | null>;
   read(jobId: string): OperationResult<ServiceJob | null>;
   list(after?: string): OperationResult<{ items: ServiceJob[]; nextCursor: string | null }>;

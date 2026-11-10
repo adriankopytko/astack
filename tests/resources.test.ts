@@ -804,3 +804,30 @@ await test(
     });
   },
 );
+
+await test(
+  'a generic handoff can reserve a named resource without a built-in agent role',
+  options,
+  async () => {
+    const { fixture: taskFixture } = await import('./support/task.js');
+    const { submitFixture } = await import('./support/generic-job.js');
+
+    await taskFixture(async (context) => {
+      const request = await context.prepare();
+      const submitted = await submitFixture(context, request, context.deps);
+
+      assert.ok(submitted.outcome === 'persisted');
+
+      const allocation = context.context.opened.allocations.reserve({
+        schemaVersion: 1,
+        jobId: submitted.value.job.id,
+        attemptId: submitted.value.attempt.id,
+        key: 'cache',
+        spec: { kind: 'name', namespace: 'cache', prefix: 'task', fixed: false },
+      });
+
+      assert.ok(allocation.outcome === 'persisted', JSON.stringify(allocation));
+      assert.equal(allocation.value.binding.projectId, submitted.value.job.projectId);
+    });
+  },
+);

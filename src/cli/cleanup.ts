@@ -103,7 +103,7 @@ export function wireCleanupCommands(program: Command) {
     .option('--automatic', 'Allow service run --cleanup to execute this saved plan')
     .option(
       '--allow-unpublished',
-      'Explicitly allow cleanup without confirmed publication; pending publication still blocks',
+      'Allow cleanup without confirmed publication (required for generic handoffs)',
     )
     .option('--json')
     .action(

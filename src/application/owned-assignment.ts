@@ -52,7 +52,7 @@ export async function inspectOwnedAssignment(
   ) {
     throw new OwnedAssignmentFailure(
       rejected(
-        'implementation_assignment_changed',
+        'task_assignment_changed',
         'Select a clean, ready owned checkout at the exact initial branch and commit.',
       ),
     );
@@ -63,7 +63,7 @@ export async function inspectOwnedAssignment(
   if (files.container !== 'owned' || files.checkout !== 'present') {
     throw new OwnedAssignmentFailure(
       rejected(
-        'implementation_assignment_changed',
+        'task_assignment_changed',
         'Owned checkout evidence changed; preserve the resource and inspect it.',
       ),
     );

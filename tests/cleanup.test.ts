@@ -12,23 +12,22 @@ import {
   controlCleanup,
   reconcileCleanup,
   createCleanupExecutor,
-  finishImplementation,
   reconcileRun,
   createWorktreeGit,
   nodeProcessRunner,
   openSqliteState,
   acquireCoordinatorOwnership,
   executeLocalCleanup,
-  submitImplementation,
-  implementationTaskSchema,
   cleanupWriteResultSchema,
   type CleanupDependencies,
   type StateWriteResult,
 } from '../src/index.js';
+import { submitGenericHandoff } from '../src/application/generic-handoff.js';
+import { genericHandoffTaskSchema } from '../src/contracts/generic-handoff.js';
 import { suspendCleanupExecutor } from '../src/application/automatic-cleanup.js';
 import { completed, rejected } from '../src/contracts/operation-result.js';
 import type { RunShutdownVerifier } from '../src/ports/runs.js';
-import { fixture, type HandoffFixture } from './support/handoff.js';
+import { fixture, type CleanupFixture } from './support/cleanup.js';
 import { git, gitPath } from './support/service.js';
 
 const options = { timeout: 120000 };
@@ -38,7 +37,7 @@ function saved<T>(result: StateWriteResult<T>): T {
   return result.value;
 }
 
-function setup(f: HandoffFixture) {
+function setup(f: CleanupFixture) {
   const opened = f.context.context.opened;
   let now = 2000;
   let sequence = 0;
@@ -91,7 +90,14 @@ function setup(f: HandoffFixture) {
 
   function request(extra: Record<string, unknown> = {}) {
     return requestCleanup(
-      { schemaVersion: 1, jobId: f.job.job.id, key: 'cleanup', notBefore: 2000, ...extra },
+      {
+        schemaVersion: 1,
+        jobId: f.job.job.id,
+        key: 'cleanup',
+        notBefore: 2000,
+        publication: 'not_required',
+        ...extra,
+      },
       deps,
     );
   }
@@ -142,7 +148,7 @@ function setup(f: HandoffFixture) {
 }
 
 await test(
-  'cleanup preserves retained resources, ignored/untracked/dirty files and unpublished results before completing independently of review',
+  'cleanup preserves retained resources and ignored, untracked or dirty files before completing',
   options,
   async () => {
     await fixture(async (f) => {
@@ -152,9 +158,6 @@ await test(
       assert.equal(first.phase, 'requested');
       assert.equal(saved(c.request()).id, first.id);
       assert.equal(c.request({ key: 'different' }).outcome, 'rejected');
-      assert.equal(saved(await c.execute()).reason, 'cleanup_blocked');
-
-      saved(await finishImplementation(f.input, f.deps));
 
       assert.equal(saved(await c.execute()).reason, 'resources_retained');
 
@@ -186,8 +189,6 @@ await test(
       await assert.rejects(access(f.root));
 
       assert.equal(saved(await c.execute()).revision, complete.revision);
-      assert.equal(f.remote.postCalls, 1);
-      assert.equal(f.inspect().record.followUpReview?.state, 'requested');
 
       const reopened = await openSqliteState({
         schemaVersion: 1,
@@ -232,7 +233,6 @@ await test(
   async () => {
     await fixture(async (f) => {
       const c = setup(f);
-      saved(await finishImplementation(f.input, f.deps));
       saved(c.request());
       await c.reconcile();
       await rm(join(f.root, f.artifact.path));
@@ -313,8 +313,6 @@ await test(
       git(f.root, 'add', 'result.txt');
       git(f.root, 'commit', '-m', 'feat: different work');
 
-      assert.equal(saved(await c.execute()).reason, 'cleanup_blocked');
-
       await access(f.root);
 
       assert.equal(
@@ -332,7 +330,6 @@ await test(
   async () => {
     await fixture(async (f) => {
       const c = setup(f);
-      saved(await finishImplementation(f.input, f.deps));
       saved(c.request({ automatic: true }));
       await c.reconcile();
       await rm(join(f.root, f.artifact.path));
@@ -406,7 +403,6 @@ await test(
   async () => {
     await fixture(async (f) => {
       const c = setup(f);
-      saved(await finishImplementation(f.input, f.deps));
       saved(c.request());
       await c.reconcile();
       await rm(join(f.root, f.artifact.path));
@@ -419,9 +415,9 @@ await test(
           now: 2000,
         }),
       );
-      const task = implementationTaskSchema.parse(f.job.job.intent.task);
-      const competing = await submitImplementation(
-        { ...task.submission, key: 'new-assignment', commit: f.head },
+      const task = genericHandoffTaskSchema.parse(f.job.job.intent.task);
+      const competing = await submitGenericHandoff(
+        { ...task, submission: { ...task.submission, key: 'new-assignment', commit: f.head } },
         f.context.deps,
       );
 
@@ -465,7 +461,6 @@ await test(
   async () => {
     await fixture(async (f) => {
       const c = setup(f);
-      saved(await finishImplementation(f.input, f.deps));
       saved(c.request({ automatic: true, notBefore: 2200 }));
       await c.reconcile();
       await rm(join(f.root, f.artifact.path));
@@ -504,7 +499,6 @@ await test(
       }
 
       assert.equal(c.plan().phase, 'completed');
-      assert.equal(f.remote.postCalls, 1);
     });
   },
 );
@@ -527,7 +521,6 @@ await test(
           result.outcome === 'rejected' && result.error.code === 'service_already_running',
           JSON.stringify(result),
         );
-        assert.equal(f.remote.postCalls, 0);
       } finally {
         lock.release();
       }
@@ -542,7 +535,6 @@ await test(
     const { startLocalService, requestLocalService } = await import('../src/index.js');
     await fixture(async (f) => {
       const c = setup(f);
-      saved(await finishImplementation(f.input, f.deps));
       await c.reconcile();
       await rm(join(f.root, f.artifact.path));
       const disabled = await startLocalService({
@@ -561,6 +553,7 @@ await test(
           key: 'cleanup',
           notBefore: 0,
           automatic: true,
+          publication: 'not_required',
         });
 
         assert.ok(
@@ -618,7 +611,6 @@ await test(
         await enabled.close();
       }
 
-      assert.equal(f.remote.postCalls, 1);
       assert.equal(c.plan().phase, 'completed');
     });
   },
@@ -664,28 +656,7 @@ await test(
 
       assert.equal(c.plan().phase, 'blocked');
       assert.equal(saved(await c.execute({ shutdown })).phase, 'completed');
-      assert.equal(f.remote.postCalls, 0);
       assert.equal(git(f.context.context.sources[0]!, 'rev-parse', f.job.entry.branch), f.head);
-    });
-  },
-);
-
-await test(
-  'allow-unpublished does not bypass a prepared or uncertain publication',
-  options,
-  async () => {
-    await fixture(async (f) => {
-      const c = setup(f);
-      f.remote.pushMode = 'lost';
-      await finishImplementation(f.input, f.deps);
-      saved(c.request({ publication: 'not_required' }));
-
-      assert.equal(saved(await c.execute()).reason, 'cleanup_blocked');
-      assert.equal(f.inspect().record.phase, 'prepared');
-      assert.equal(f.remote.pushCalls, 1);
-      assert.equal(f.remote.postCalls, 0);
-
-      await access(f.root);
     });
   },
 );

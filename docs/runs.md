@@ -4,7 +4,7 @@
 
 A run is the saved service job and execution attempt, its accepted reports, decision responses, continuation attempts, cancellation intents and resource evidence. `run inspect` works offline. `run events` reads or waits for durable local changes without querying GitHub, inspecting an idle pane or injecting a prompt. Report and decision mutations use the owning local service. Explicit shutdown reconciliation runs offline under coordinator ownership.
 
-These operations consume implementation/review assignments. They do not discover tasks, ingest arbitrary terminal transcripts, authenticate remote worker submissions, automatically wake an orchestrator, create replacement workers, publish changes, or clean up work. The private Unix socket has same-host-user authority. `run report` accepts a supplied proposal from the worker or another same-user client; the coordinator validates it. The socket is not a restricted worker-report endpoint.
+These operations consume generic handoff assignments for project-defined agents. They do not discover tasks, ingest arbitrary terminal transcripts, authenticate remote worker submissions, automatically wake an orchestrator, create replacement workers, publish changes, or clean up work. The private Unix socket has same-host-user authority. `run report` accepts a supplied proposal from the worker or another same-user client; the coordinator validates it. The socket is not a restricted worker-report endpoint.
 
 ## CLI
 
@@ -12,7 +12,10 @@ These operations consume implementation/review assignments. They do not discover
 # Inspect saved assignment, task outcome, worker status and retained resources.
 astack run inspect <job-id> --json
 
-# Submit a versioned worker JSON proposal.
+# A worker can record its result directly.
+astack run finish <job-id> --status completed --summary 'Completed the task.' --json
+
+# Or submit a versioned worker JSON proposal.
 astack run report <job-id> --key report-1 --file ./worker-result.json --json
 # Or pipe a JSON proposal to --stdin (useful for a read-only worker).
 cat worker-result.json | astack run report <job-id> --key report-1 --stdin --json
@@ -49,13 +52,11 @@ All commands honor global `--state-directory`; no target is inferred from an amb
 
 ## Report validation and acceptance
 
-`acceptRunReport` requires the original job/attempt/project/checkout, workflow report schema and acknowledged initial prompt with the expected key/digest. Fresh evidence must establish the owned worktree, canonical location, branch and full current SHA. Implementation base SHA must equal its saved assignment; reported head must equal observed HEAD. Completed implementation and static review require a clean checkout. Failed/needs_decision implementation reports can describe retained dirty work.
-
-Review reports must reproduce the saved target, gate and acceptance snapshot. A targeted GitHub read rechecks the exact PR head and base SHA and records fresh CI evidence. Changed scope rejects current acceptance. Completing a review records that review work finished; it neither approves the PR nor declares CI, findings or merge readiness successful.
+`acceptRunReport` requires the original job, attempt, project and checkout identities, a generic handoff report, and the acknowledged initial prompt with its expected key and digest. Fresh evidence must establish the owned checkout, canonical location, branch and current full commit SHA. Generic results may describe uncommitted work; they do not claim that checks passed or changes were published.
 
 Artifact references are bounded relative paths, SHA-256 digests and byte sizes. At most eight files, four MiB each and sixteen MiB total, may be inspected. Reads reject traversal, `.git`, links, nonregular files, wrong digests/sizes and detected mutation, including leaf replacement. Only references are stored. These are observations of retained checkout files, not immutable artifact copies; revalidate bytes before later use. Report validation repeats checkout inspection before persistence. It cannot atomically lock Git/files/provider state against later changes; the host must coordinate writers. Accepted evidence remains historical if later work changes the checkout or PR.
 
-Acceptance atomically stores the report, control revision, terminal result where applicable, and event. `needs_decision` opens a decision without resolving the execution attempt. `completed`/`reviewed` and `failed` create the existing state's terminal result and resolve the attempt. No resource is released from a report alone. A worker still observed running or unknown continues occupying capacity until trusted quiescence evidence exists.
+Acceptance atomically stores the report, control revision, terminal result where applicable, and event. `needs_decision` opens a decision without resolving the execution attempt. `completed` and `failed` create the existing state's terminal result and resolve the attempt. No resource is released from a report alone. A worker still observed running or unknown continues occupying capacity until trusted quiescence evidence exists.
 
 This validates structure, assignment and observed evidence. It does not cryptographically authenticate report authorship, prove the business behavior or independently rerun claimed tests. A worker or same-host orchestrator submits the proposal. Never accept arbitrary terminal text or treat a reported check as independently verified merely because its JSON parses.
 
@@ -65,17 +66,15 @@ Keys are scoped to job and operation. An identical report retry returns saved ac
 
 `collectRunReport` consumes an injected `RunReportReader` and returns a strict `RunReportRequest`; it never accepts completion or releases resources. The CLI's `run collect-report` uses the optional Codex adapter and sends that proposal through normal coordinator acceptance. `run report --file` remains available for other providers and manual proposals.
 
-Select one exact local Codex session JSONL file explicitly. No global session search or terminal capture occurs. The adapter checks the bound ready job/attempt/effect/checkout, exact session cwd, session start at/after job acceptance, native session ID if captured, and one user message containing the exact reconstructed assignment. It reads only typed `response_item` assistant messages with `phase=final_answer`; a later user message without a new final response, duplicate assignment, malformed JSON or invalid report shape rejects collection. A formatting correction can be requested explicitly from the same worker. There is no silent conversion of a string snapshot into an object.
+Select one exact local Codex session JSONL file explicitly. No global session search or terminal capture occurs. The adapter checks the bound ready job/attempt/effect/checkout, exact session cwd, session start at/after job acceptance, native session ID if captured, and one user message containing the exact reconstructed assignment. It reads only typed `response_item` assistant messages with `phase=final_answer`; a later user message without a new final response, duplicate assignment, malformed JSON or invalid report shape rejects collection. A formatting correction can be requested explicitly from the same worker. The final response must match the generic handoff report schema.
 
 Files are bounded at 16 MiB, JSONL records at one MiB and final proposals at 48,000 bytes. Reads reject symbolic/hard links, nonregular files, detected mutation, incomplete final lines and invalid UTF-8. Only the proposal reaches acceptance; unrelated log contents are neither printed nor stored. Use a host-trusted path and coordinate writers; this is same-user attribution, not cryptographic authorship. A provider log format change fails closed and may need an adapter update.
-
-New review assignments persist prompt version 3, whose example embeds the actual `acceptanceSnapshot` object and a numeric finding `line`. The prompt explicitly requires the actual positive integer line number as a JSON number, not a quoted string. Saved version 2 tasks retain their original object snapshot and string placeholder; version 1 and tasks without a prompt version retain their original rendering. All saved prompt bytes and input digests remain stable across restart. Collection and acceptance always reconstruct the saved version; report validation does not coerce string line numbers.
 
 ## Decisions and continuation
 
 `respondToRun` saves a bounded response to the currently accepted needs_decision report. It sends no input and grants no new execution policy. Duplicate keys preserve the original response; changed text conflicts. Responses are bound to the execution attempt and decision/report ID.
 
-`resumeRun` records a distinct continuation identity, selected response, reserved native input key and authorization before effects. It reuses the existing claimed worker. It does not create a new execution attempt, checkout or agent. Ownership and review scope/gates must still permit continuation. A subsequent project configuration edit does not by itself block continuation. Native input additionally rechecks the saved pane/terminal/cwd/native identity through the existing runtime.
+`resumeRun` records a distinct continuation identity, selected response, reserved native input key and authorization before effects. It reuses the existing claimed worker. It does not create a new execution attempt, checkout or agent. Ownership must still permit continuation. A subsequent project configuration edit does not by itself block continuation. Native input additionally rechecks the saved pane/terminal/cwd/native identity through the existing runtime.
 
 The continuation advances through authorized → pending → acknowledged/blocked/unknown. A compare-and-set transition permits only one sender. Resume keys/digests bind the exact saved response; pending/acknowledged input never resends. An acknowledged continuation permits a subsequent report; it is not proof the worker completed the task. A blocked request with proven receipt absence returns the run to needs_decision. Record another explicit response/continuation to change the decision; do not manufacture a replacement worker.
 
@@ -111,18 +110,10 @@ Events contain IDs, bounded state and safe references, not response text, report
 
 ## Verification
 
-Disposable repositories/state, private sockets and injected runtimes exercise duplicate/invalid/stale reports, exact review scope, artifacts, disconnect/reconnect cursors, bounded waiting, decision/resume, lost acknowledgement, cancellation during preflight, verified native interrupt, changed binding, retained work and migration backfill. Routine checks never launch real agents, mutate GitHub or use user-project runtime resources.
-
-## Implementation publication events
-
-The explicit [handoff workflow](handoff.md) appends `handoff_prepared`, `handoff_abandoned` and `handoff_accepted` events transactionally with the corresponding publication journal mutations. Acceptance includes the exact target and nullable follow-up review ID. These events do not change the accepted implementation outcome, prove worker shutdown or release resources. A saved requested review remains distinct from a submitted/dispatched review job.
-
-## Explicit historical review acceptance
-
-`run report --accept-historical-review` can retain a reviewed commit-bound proposal after a positively identified remote head/base change. Normal acceptance stays strict. All assignment, acknowledged delivery, clean local SHA, artifact and transaction checks remain required; provider failures do not grant historical acceptance. The optional request flag and `evidence.historicalReview: true` preserve older saved bytes when absent. Historical findings grant neither current readiness nor publication. See [review results](review-results.md).
+Disposable repositories/state, private sockets and injected runtimes exercise duplicate/invalid reports, assignment identity, artifacts, disconnect/reconnect cursors, bounded waiting, decision/resume, lost acknowledgement, cancellation during preflight, verified native interrupt, changed binding, retained work and migration backfill. Routine checks never launch real agents, mutate GitHub or use user-project runtime resources.
 
 ## Durable cleanup requests
 
-After shutdown reconciliation, the explicit [cleanup operation](cleanup.md) can persist retention and removal evidence independently of the run outcome and review readiness. Opt-in automatic execution consumes the same checks and never creates shutdown attestations. `run.cleanup.state=reconciled` continues to mean lifecycle holds were settled, not that a checkout was removed. Inspect the separate cleanup plan for removal state.
+After shutdown reconciliation, the explicit [cleanup operation](cleanup.md) can persist retention and removal evidence independently of the run outcome. Opt-in automatic execution consumes the same checks and never creates shutdown attestations. `run.cleanup.state=reconciled` continues to mean lifecycle holds were settled, not that a checkout was removed. Inspect the separate cleanup plan for removal state.
 
 Explicitly repeating the same saved cancellation key can settle a legacy never-claimed cancellation that lacks its local effect/result closure. The first settlement emits one additional `cancelled` event with `attemptSettled`; subsequent repeats are unchanged. Read-only inspection and coordinator startup never perform this repair. Existing reports/results and native shutdown/resource requirements remain separate; this path neither creates a native worker nor releases any resource.

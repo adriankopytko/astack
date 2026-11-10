@@ -9,7 +9,7 @@ import { requestLocalService } from '../src/adapters/local/service-client.js';
 import { completed } from '../src/contracts/operation-result.js';
 import { collectRunReport } from '../src/application/report-collection.js';
 import { workerInputDigest } from '../src/core/worker-input.js';
-import type { ImplementationInputReceipt } from '../src/contracts/implementation-task.js';
+import type { WorkerInputReceipt } from '../src/contracts/task-delivery.js';
 import { readGithubOrigin } from '../src/adapters/git/github-origin.js';
 import { nodeProcessRunner } from '../src/core/node-process-runner.js';
 import { gitPath } from './support/service.js';
@@ -47,7 +47,7 @@ await test(
         hooks: { before: `printf ready > '${state}/generic-hook'` },
       };
       await writeFile(path, JSON.stringify(config));
-      const receipts = new Map<string, ImplementationInputReceipt>();
+      const receipts = new Map<string, WorkerInputReceipt>();
       const prompts: string[] = [];
       let release = false;
       const workerInput = {
@@ -55,7 +55,7 @@ await test(
           return completed(receipts.get(`${attemptId}:${key}`) ?? null);
         },
         async submit(input: { attemptId: string; key: string; text: string }) {
-          const receipt: ImplementationInputReceipt = {
+          const receipt: WorkerInputReceipt = {
             key: input.key,
             digest: workerInputDigest('input', input.text),
             state: 'acknowledged',
@@ -90,7 +90,7 @@ await test(
         },
         {
           workerSetupProvider: fake.provider,
-          implementationBase: { resolve: async () => completed(sha) },
+          baseResolver: { resolve: async () => completed(sha) },
           runtimes: [runtime],
           runWorkerInput: workerInput,
           githubContext: {
@@ -313,6 +313,18 @@ await test(
         );
         assert.equal(report.value.status, 'completed');
         assert.equal(report.value.report.request.artifacts[0]?.path, 'findings.md');
+
+        const cleanup = await requestLocalService(state, {
+          schemaVersion: 1,
+          operation: 'cleanup_request',
+          jobId: job.value.job.id,
+          key: 'retain-generic-result',
+          notBefore: 0,
+          automatic: false,
+          publication: 'not_required',
+        });
+
+        assert.ok(cleanup.outcome === 'persisted', JSON.stringify(cleanup));
 
         release = true;
         await requestLocalService(state, { schemaVersion: 1, operation: 'wake' });

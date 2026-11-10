@@ -8,10 +8,6 @@ import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
-  submitReview,
-  createReviewRuntime,
-  submitImplementation,
-  inspectImplementation,
   createServiceCoordinator,
   acceptRunReport,
   inspectRun,
@@ -33,7 +29,8 @@ import {
   type StateWriteResult,
 } from '../src/index.js';
 import { completed } from '../src/contracts/operation-result.js';
-import { fixture } from './support/implementation.js';
+import { genericRuntime, submitFixture } from './support/generic-job.js';
+import { fixture } from './support/task.js';
 import { createAgentHooks } from '../src/host/agent-hooks.js';
 import { createAgentPorts } from '../src/application/agent-ports.js';
 import { git, gitPath } from './support/service.js';
@@ -71,7 +68,7 @@ await test(
       const coordinator = createServiceCoordinator({
         sessionId: 'lifecycle-test',
         dependencies: { ...deps, agentHooks: hooks },
-        runtimes: [{ ...context.runtime, supportsAgentPorts: true }],
+        runtimes: [{ ...genericRuntime(context), supportsAgentPorts: true }],
         limits: { global: 1, defaultRole: 1, perRole: {} },
         onFailure: () => assert.fail('coordinator failed'),
       });
@@ -213,7 +210,7 @@ await test(
             }),
           }),
         },
-        runtimes: [{ ...context.runtime, supportsAgentPorts: true }],
+        runtimes: [{ ...genericRuntime(context), supportsAgentPorts: true }],
         limits: { global: 1, defaultRole: 1, perRole: {} },
         onFailure: () => assert.fail('coordinator failed'),
       });
@@ -289,7 +286,6 @@ function dependencies(context: Context) {
     runs: context.context.opened.runs,
     artifacts: nodeRunArtifactReader,
     workerInput: context.workerInput,
-    targets: { read: async () => assert.fail('Implementation lifecycle must not query GitHub') },
     workerControl: {
       async interrupt(input) {
         interrupts.push(input);
@@ -301,7 +297,7 @@ function dependencies(context: Context) {
   const coordinator = createServiceCoordinator({
     sessionId: 'runs-fixture',
     dependencies: deps,
-    runtimes: [context.runtime],
+    runtimes: [genericRuntime(context)],
     limits: { global: 1, defaultRole: 1, perRole: {} },
     onFailure: () => assert.fail('Fixture coordinator failed'),
   });
@@ -312,20 +308,17 @@ function dependencies(context: Context) {
 async function prepare(context: Context) {
   const request = await context.prepare();
   const setup = dependencies(context);
-  const submission = await submitImplementation(request, setup.deps);
+  const submission = await submitFixture(context, request, setup.deps);
 
   assert.ok(submission.outcome === 'persisted', JSON.stringify(submission));
 
-  const job = submission.value.job;
+  const job = submission.value;
   const proposal = {
     schemaVersion: 1,
     jobId: job.job.id,
     attemptId: job.attempt.id,
     projectId: job.job.projectId,
     checkoutId: job.job.checkoutId,
-    branch: job.entry.branch,
-    baseCommit: job.entry.commit,
-    headCommit: job.entry.commit,
     outcome: 'completed' as 'completed' | 'needs_decision' | 'failed',
     summary: 'Fixture report',
     blockers: [] as string[],
@@ -362,11 +355,6 @@ await test(
           result.cleanup.resources.some((resource) => resource.releasedAt === null),
           true,
         );
-
-        const task = inspectImplementation({ schemaVersion: 1, jobId: job.job.id }, deps);
-
-        assert.ok(task.outcome === 'completed' && task.value);
-        assert.equal(task.value.implementation.acceptedOutcome, 'completed');
 
         const duplicate = await acceptRunReport(report, {
           ...deps,
@@ -409,7 +397,7 @@ await test(
   },
 );
 await test(
-  'report validation rejects undelivered tasks, wrong identities, stale local SHA and dirty completion',
+  'report validation rejects undelivered tasks and wrong identities, and permits a decision with uncommitted work',
   options,
   async () => {
     await fixture(async (context) => {
@@ -449,8 +437,6 @@ await test(
 
         await writeFile(join(task.root, 'pending.txt'), 'Uncommitted work');
 
-        assert.equal((await acceptRunReport(report, deps)).outcome, 'rejected');
-
         const decision = accepted(
           await acceptRunReport(
             {
@@ -489,7 +475,6 @@ await test(
         await writeFile(join(task.root, 'evidence.txt'), bytes);
         git(task.root, 'add', 'evidence.txt');
         git(task.root, 'commit', '-m', 'test: add fixture evidence');
-        const head = git(task.root, 'rev-parse', 'HEAD');
         const reference = {
           path: 'evidence.txt',
           size: Buffer.byteLength(bytes),
@@ -499,7 +484,7 @@ await test(
           schemaVersion: 1,
           jobId: job.job.id,
           key: 'artifact-report',
-          proposal: { ...proposal, headCommit: head },
+          proposal,
           artifacts: [reference],
         };
 
@@ -749,24 +734,20 @@ await test(
   options,
   async () => {
     await fixture(async (context) => {
-      const request = await context.prepare();
-      const { deps } = dependencies(context);
-      const submitted = await submitImplementation(request, deps);
-
-      assert.ok(submitted.outcome === 'persisted');
-
+      const { deps, job } = await prepare(context);
+      const original = genericRuntime(context);
       const runtime = {
-        ...context.runtime,
+        ...original,
         async preflight(
-          job: Parameters<NonNullable<typeof context.runtime.preflight>>[0],
+          job: Parameters<NonNullable<typeof original.preflight>>[0],
           signal: AbortSignal,
         ) {
           accepted(
             await cancelRun({ schemaVersion: 1, jobId: job.job.id, key: 'race-cancel' }, deps),
           );
 
-          return context.runtime.preflight
-            ? context.runtime.preflight(job, signal)
+          return original.preflight
+            ? original.preflight(job, signal)
             : completed({ ready: true as const });
         },
       };
@@ -782,7 +763,7 @@ await test(
       await coordinator.stop();
 
       assert.equal(context.launches.length, 0);
-      assert.equal(saved(submitted.value.job.job.id, deps).control.phase, 'cancelled');
+      assert.equal(saved(job.job.id, deps).control.phase, 'cancelled');
     });
   },
 );
@@ -1307,94 +1288,6 @@ await test(
 );
 
 await test(
-  'review report acceptance rechecks pinned head and base and records fresh CI evidence',
-  options,
-  async () => {
-    await fixture(async (context) => {
-      const {
-        description: _description,
-        acceptanceCriteria: _criteria,
-        ...base
-      } = await context.prepare();
-      const { deps: initialDeps } = dependencies(context);
-      const target = {
-        host: 'github.com',
-        repository: 'example/project',
-        number: 42,
-        sha: base.commit,
-      };
-      let snapshot = {
-        target,
-        baseSha: base.commit,
-        state: 'OPEN' as const,
-        draft: false,
-        sourceRepository: 'contributor/fork',
-        checks: [{ name: 'test', state: 'pass' as const }],
-        observedAt: 100,
-      };
-      const deps = {
-        ...initialDeps,
-        targets: { read: async () => completed(structuredClone(snapshot)) },
-      };
-      const submitted = await submitReview({ ...base, target }, deps);
-
-      assert.ok(submitted.outcome === 'persisted', JSON.stringify(submitted));
-
-      const job = submitted.value.job;
-      const assignment = submitted.value.assignment;
-      const runtime = createReviewRuntime({
-        runtime: context.runtime,
-        dependencies: deps,
-        workerInput: context.workerInput,
-      });
-      const coordinator = createServiceCoordinator({
-        sessionId: 'review-results',
-        dependencies: deps,
-        runtimes: [runtime],
-        limits: { global: 1, defaultRole: 1, perRole: {} },
-        onFailure: () => assert.fail('Review result fixture failed'),
-      });
-      coordinator.start();
-      await coordinator.idle();
-
-      try {
-        const proposal = {
-          schemaVersion: 1,
-          jobId: job.job.id,
-          attemptId: job.attempt.id,
-          projectId: job.job.projectId,
-          checkoutId: job.job.checkoutId,
-          target,
-          outcome: 'reviewed',
-          summary: 'Fixture static review',
-          findings: [],
-          blockers: [],
-          gate: assignment.submission.gate,
-          acceptanceSnapshot: assignment.initialSnapshot,
-          currentSnapshot: null,
-        };
-        const report = { schemaVersion: 1, jobId: job.job.id, key: 'review-result', proposal };
-        snapshot = { ...snapshot, baseSha: 'f'.repeat(40) };
-
-        assert.equal((await acceptRunReport(report, deps)).outcome, 'rejected');
-
-        snapshot = { ...snapshot, baseSha: base.commit };
-        const result = accepted(await acceptRunReport(report, deps));
-
-        assert.equal(result.status, 'completed');
-        assert.deepEqual(result.report?.evidence.reviewSnapshot, snapshot);
-        assert.equal(
-          (await submitReview({ ...assignment.submission, key: 'unrequested-repeat' }, deps))
-            .outcome,
-          'rejected',
-        );
-      } finally {
-        await coordinator.stop();
-      }
-    });
-  },
-);
-await test(
   'migration eight backfills a baseline event for existing queued jobs without launching or adopting workers',
   options,
   async () => {
@@ -1431,10 +1324,6 @@ await test(
         assert.equal(page.value.events[0]?.kind, 'baseline');
         assert.equal(saved(job.job.id, { runs: reopened.runs }).status, 'queued');
 
-        const handoff = reopened.handoffs.find(job.job.id);
-
-        assert.ok(handoff.outcome === 'completed');
-        assert.equal(handoff.value, null);
         assert.equal(context.launches.length, 0);
       } finally {
         reopened.store.close();

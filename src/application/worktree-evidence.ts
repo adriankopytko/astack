@@ -25,7 +25,6 @@ export interface WorktreeDependencies extends ProjectDependencies {
   managedRoot: string;
   nextId(kind: 'worktree' | 'checkout' | 'operation' | 'marker'): string;
   workspaceIntent?(worktreeId: string): WorktreeWorkspaceIntent;
-  reviewBranchMayBeAbsent?: boolean;
   now(): number;
 }
 export function take<T>(result: OperationResult<T>): T {

@@ -13,7 +13,6 @@ export interface InteractiveWorkerProvider {
   interrupt(space: HerdrSpace, signal?: AbortSignal): Promise<OperationResult<null>>;
 }
 export interface RuntimeStore {
-  checkAutomaticReview?(jobId: string): OperationResult<null>;
   read(attemptId: string): OperationResult<RuntimeSession | null>;
   reserve(session: RuntimeSession): StateWriteResult<RuntimeSession>;
   bind(previous: RuntimeSession, next: RuntimeSession): StateWriteResult<RuntimeSession>;

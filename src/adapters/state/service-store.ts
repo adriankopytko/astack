@@ -1,10 +1,3 @@
-import { assertReviewFix } from './review-fix-evidence.js';
-import {
-  assertFollowUpSubmission,
-  linkFollowUpJob,
-  automaticReviewAllowed,
-  markAutomaticDispatch,
-} from './automatic-review-evidence.js';
 import {
   serviceEntrySchema,
   serviceJobSchema,
@@ -20,7 +13,6 @@ import {
   stateResourceIntentSchema,
 } from '../../contracts/state.js';
 import type { ServiceStore } from '../../ports/service.js';
-import { reviewTaskSchema, reviewSubmitRequestSchema } from '../../contracts/review-task.js';
 import { canonicalJson, type StateDatabase } from './database.js';
 import { acceptJobTransaction } from './store.js';
 import { runControl, saveRunControl, appendRunEvent } from './run-events.js';
@@ -115,108 +107,6 @@ export function createSqliteServiceStore(
           stateFailure('state_conflict');
         }
 
-        const review = reviewTaskSchema.safeParse(job.intent.task);
-
-        if (
-          review.success &&
-          (entry.role !== (review.data.submission.agent ?? 'reviewer') ||
-            job.operation !== 'delegate:reviewer' ||
-            review.data.submission.projectId !== job.projectId ||
-            review.data.submission.checkoutId !== job.checkoutId ||
-            review.data.submission.key !== job.idempotencyKey ||
-            review.data.submission.branch !== entry.branch ||
-            review.data.submission.commit !== entry.commit)
-        ) {
-          stateFailure('state_conflict');
-        }
-
-        if (review.success) {
-          assertFollowUpSubmission(db, review.data, job);
-          const submission = review.data.submission;
-          const alias = db
-            .statement(
-              'SELECT job_id, submission FROM review_requests WHERE project_id=? AND request_key=?',
-            )
-            .get(job.projectId, submission.key);
-
-          if (alias) {
-            if (String(alias.submission) !== canonicalJson(submission)) {
-              stateFailure('state_conflict');
-            }
-
-            const saved = required(String(alias.job_id));
-            linkFollowUpJob(db, review.data, saved.job, now());
-
-            return { value: saved, disposition: 'existing' };
-          }
-
-          if (!submission.repeat) {
-            const target = submission.target;
-            const existing = db
-              .statement(`SELECT id FROM jobs WHERE project_id=? AND repository_id=? AND operation='delegate:reviewer'
-              AND json_extract(data, '$.intent.task.workflow')='review'
-              AND json_extract(data, '$.intent.task.submission.target.host')=?
-              AND json_extract(data, '$.intent.task.submission.target.repository')=?
-              AND json_extract(data, '$.intent.task.submission.target.number')=?
-              AND json_extract(data, '$.intent.task.submission.target.sha')=? AND (?='after-handoff' OR json_extract(data, '$.intent.task.authorization')='manual-request') ORDER BY json_extract(data, '$.createdAt') DESC, id DESC LIMIT 1`)
-              .get(
-                job.projectId,
-                job.repositoryId,
-                target.host,
-                target.repository,
-                target.number,
-                target.sha,
-                review.data.authorization,
-              );
-
-            if (existing) {
-              const saved = required(String(existing.id));
-
-              if (
-                ['completed', 'failed', 'cancelled'].includes(runControl(db, saved.job.id).phase)
-              ) {
-                stateFailure('run_closed');
-              }
-
-              const task = reviewTaskSchema.parse(saved.job.intent.task);
-
-              if (
-                (task.submission.agent ?? 'reviewer') !== (submission.agent ?? 'reviewer') ||
-                task.submission.comparisonBase !== submission.comparisonBase ||
-                canonicalJson(task.submission.gate) !== canonicalJson(submission.gate) ||
-                canonicalJson(task.submission.resources) !== canonicalJson(submission.resources) ||
-                canonicalJson(task.submission.request) !== canonicalJson(submission.request) ||
-                canonicalJson(task.submission.instructionPaths) !==
-                  canonicalJson(submission.instructionPaths)
-              ) {
-                stateFailure('state_conflict');
-              }
-
-              db.statement(
-                'INSERT INTO review_requests(project_id, request_key, job_id, submission) VALUES (?,?,?,?)',
-              ).run(job.projectId, submission.key, saved.job.id, canonicalJson(submission));
-
-              linkFollowUpJob(db, review.data, saved.job, now());
-
-              return { value: saved, disposition: 'existing' };
-            }
-          }
-        }
-
-        // A review checkout is dedicated across its lifetime, including unresolved/quiescent work.
-        const prior = db
-          .statement('SELECT data FROM jobs WHERE checkout_id=? AND id<>?')
-          .all(job.checkoutId, job.id);
-
-        for (const row of prior) {
-          const previous = stateJobSchema.parse(JSON.parse(String(row.data)));
-          const previousReview = reviewTaskSchema.safeParse(previous.intent.task).success;
-
-          if (review.success || previousReview) {
-            stateFailure('state_conflict');
-          }
-        }
-
         // Serialize new assignments against durable cleanup claims and worktree removal.
         // Existing idempotent submissions remain inspectable after cleanup.
         if (
@@ -235,7 +125,6 @@ export function createSqliteServiceStore(
           stateFailure('state_conflict');
         }
 
-        const fix = assertReviewFix(db, job, required);
         const accepted = acceptJobTransaction(db, job);
 
         if (accepted.disposition === 'existing') {
@@ -247,10 +136,6 @@ export function createSqliteServiceStore(
             existing.entry.role !== entry.role
           ) {
             stateFailure('state_conflict');
-          }
-
-          if (review.success) {
-            linkFollowUpJob(db, review.data, existing.job, now());
           }
 
           return { value: existing, disposition: 'existing' };
@@ -325,17 +210,6 @@ export function createSqliteServiceStore(
           canonicalJson(entry),
         );
 
-        if (review.success) {
-          db.statement(
-            'INSERT INTO review_requests(project_id, request_key, job_id, submission) VALUES (?,?,?,?)',
-          ).run(
-            job.projectId,
-            review.data.submission.key,
-            job.id,
-            canonicalJson(review.data.submission),
-          );
-        }
-
         const created = required(job.id);
         const request = db.get(
           workerQueueItemSchema,
@@ -347,7 +221,7 @@ export function createSqliteServiceStore(
           if (
             request.state !== 'preparing' ||
             request.cancelRequested ||
-            (request.request.submission.agent ?? request.request.kind) !== entry.role ||
+            request.request.submission.agent !== entry.role ||
             request.request.submission.projectId !== job.projectId ||
             request.request.submission.key !== job.idempotencyKey ||
             configurationDigest(request.policy) !== job.configuration?.policyDigest
@@ -365,17 +239,6 @@ export function createSqliteServiceStore(
 
         appendRunEvent(db, created, 'accepted', now(), { role: entry.role });
 
-        if (fix) {
-          appendRunEvent(db, required(fix.reviewJobId), 'review_fix_accepted', now(), {
-            reportId: fix.reportId,
-            implementationJobId: job.id,
-          });
-        }
-
-        if (review.success) {
-          linkFollowUpJob(db, review.data, created.job, now());
-        }
-
         return { value: created, disposition: 'created' };
       });
     },
@@ -388,40 +251,11 @@ export function createSqliteServiceStore(
           .get(
             'local-host',
             projectId,
-            workflow === 'handoff'
-              ? 'handoff'
-              : `delegate:${workflow === 'implementation' ? 'implementer' : workflow === 'review' ? 'reviewer' : role}`,
+            workflow === 'handoff' ? 'handoff' : `delegate:${role}`,
             key,
           );
 
         return row ? required(String(row.id)) : null;
-      }),
-    reviewRequest: ({ projectId, key }) =>
-      db.read(() => {
-        const row = db
-          .statement(
-            'SELECT job_id, submission FROM review_requests WHERE project_id=? AND request_key=?',
-          )
-          .get(projectId, key);
-
-        if (!row) {
-          return null;
-        }
-
-        const job = required(String(row.job_id));
-        const submission = reviewSubmitRequestSchema.parse(JSON.parse(String(row.submission)));
-        const task = reviewTaskSchema.parse(job.job.intent.task);
-
-        if (
-          submission.projectId !== projectId ||
-          submission.key !== key ||
-          job.job.projectId !== projectId ||
-          canonicalJson(submission.target) !== canonicalJson(task.submission.target)
-        ) {
-          stateFailure('state_invalid_data');
-        }
-
-        return { job, submission };
       }),
     read: (id) => db.read(() => read(id)),
     list(after) {
@@ -465,10 +299,6 @@ export function createSqliteServiceStore(
           current.effect.state !== 'pending' ||
           !['queued', 'blocked'].includes(current.entry.state)
         ) {
-          return { value: null, disposition: 'existing' };
-        }
-
-        if (!automaticReviewAllowed(db, jobId)) {
           return { value: null, disposition: 'existing' };
         }
 
@@ -546,7 +376,6 @@ export function createSqliteServiceStore(
           );
         }
 
-        markAutomaticDispatch(db, jobId, now);
         appendRunEvent(db, current, 'claimed', now, { owner });
 
         return {

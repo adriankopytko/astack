@@ -263,7 +263,7 @@ export async function removeWorktree(
     if (record.phase === 'removed') {
       const evidence = await worktreeEvidence(record, dependencies, signal);
 
-      return removalAbsent(record, evidence, dependencies.reviewBranchMayBeAbsent)
+      return removalAbsent(record, evidence)
         ? { schemaVersion: 1, outcome: 'removed', record, observation: evidence.observation }
         : blocked(record, 'identity_changed');
     }
@@ -343,7 +343,6 @@ export async function removeWorktree(
 function removalAbsent(
   record: WorktreeRecord,
   evidence: Awaited<ReturnType<typeof worktreeEvidence>>,
-  reviewBranchMayBeAbsent = false,
 ): boolean {
   const branch = evidence.source.git.refs.find((ref) => ref.name === record.intent.branch);
 
@@ -351,7 +350,7 @@ function removalAbsent(
     evidence.observation.container === 'owned' &&
     evidence.observation.checkout === 'absent' &&
     !evidence.source.git.worktrees.some((tree) => tree.path === record.intent.checkoutPath) &&
-    (branch?.objectId === record.removalCommit || (reviewBranchMayBeAbsent && branch === undefined))
+    branch?.objectId === record.removalCommit
   );
 }
 

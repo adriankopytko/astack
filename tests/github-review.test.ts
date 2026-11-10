@@ -1,13 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import {
-  createGhReviewTargetReader,
-  processRequestSchema,
-  type ProcessRequest,
-  type ProcessExecution,
-} from '../src/index.js';
+import { processRequestSchema, type ProcessRequest, type ProcessExecution } from '../src/index.js';
+import { createGhReviewTargetReader } from '../src/adapters/github/review-target.js';
 import { reviewGateBlocker } from '../src/core/review-gates.js';
-import type { ReviewSnapshot } from '../src/contracts/review.js';
+import type { ReviewSnapshot } from '../src/contracts/review-task.js';
 const target = {
   host: 'github.com',
   repository: 'example/project',

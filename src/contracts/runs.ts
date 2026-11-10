@@ -30,22 +30,31 @@ export const runReadRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   jobId: stateIdSchema,
 });
+const reportRequestFields = {
+  key: stateIdSchema,
+  artifacts: z.array(artifactReferenceSchema).max(8).default([]),
+};
+const reportWithinLimits = (value: { artifacts: { path: string }[] }) =>
+  Buffer.byteLength(JSON.stringify(value)) <= 48000 &&
+  new Set(value.artifacts.map((artifact) => artifact.path)).size === value.artifacts.length;
+
+/** New reports use project-defined agents and the generic result format. */
 export const runReportRequestSchema = runReadRequestSchema
+  .extend({ ...reportRequestFields, proposal: genericHandoffReportSchema })
+  .refine(reportWithinLimits);
+
+// Preserve already stored records without accepting new legacy reports.
+const storedRunReportRequestSchema = runReadRequestSchema
   .extend({
-    key: stateIdSchema,
+    ...reportRequestFields,
     proposal: z.union([
       implementationWorkerReportSchema,
       reviewWorkerReportSchema,
       genericHandoffReportSchema,
     ]),
     acceptHistoricalReview: z.literal(true).optional(),
-    artifacts: z.array(artifactReferenceSchema).max(8).default([]),
   })
-  .refine(
-    (v) =>
-      Buffer.byteLength(JSON.stringify(v)) <= 48000 &&
-      new Set(v.artifacts.map((a) => a.path)).size === v.artifacts.length,
-  );
+  .refine(reportWithinLimits);
 export const acceptedRunReportMaxBytes = 96 * 1024;
 export const acceptedRunReportSchema = z
   .strictObject({
@@ -53,7 +62,7 @@ export const acceptedRunReportSchema = z
     jobId: stateIdSchema,
     attemptId: stateIdSchema,
     key: stateIdSchema,
-    request: runReportRequestSchema,
+    request: storedRunReportRequestSchema,
     validatedAt: offset,
     evidence: z.strictObject({
       commit: z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/),

@@ -6,29 +6,28 @@ import {
   createWorktreeGit,
   nodeProcessRunner,
   createNodeWorktreeFiles,
-  nodeImplementationContextReader,
-  createImplementationRuntime,
-  type ImplementationDependencies,
-  type ImplementationSubmitRequest,
-  type ImplementationInputReceipt,
-  type ImplementationWorkerInput,
   type ServiceWorkerRuntime,
   type ServiceJob,
   type WorkerObservation,
 } from '../../src/index.js';
+import { nodeTaskContextReader } from '../../src/adapters/filesystem/task-context.js';
+import type { TaskDeliveryDependencies } from '../../src/application/task-delivery.js';
+import type { GenericHandoffTask } from '../../src/contracts/generic-handoff.js';
+import type { WorkerInputReceipt } from '../../src/contracts/task-delivery.js';
+import type { WorkerInput } from '../../src/ports/task-delivery.js';
 import { completed } from '../../src/contracts/operation-result.js';
 import { workerInputDigest } from '../../src/core/worker-input.js';
 import { fixture as serviceFixture, gitPath, git } from './service.js';
 
 export async function fixture(
   action: (context: {
-    deps: ImplementationDependencies;
+    deps: TaskDeliveryDependencies;
     context: Parameters<Parameters<typeof serviceFixture>[0]>[0];
-    prepare: (index?: number, key?: string) => Promise<ImplementationSubmitRequest>;
+    prepare: (index?: number, key?: string) => Promise<GenericHandoffTask['submission']>;
     runtime: ServiceWorkerRuntime;
     base: ServiceWorkerRuntime;
-    workerInput: ImplementationWorkerInput;
-    receipts: Map<string, ImplementationInputReceipt>;
+    workerInput: WorkerInput;
+    receipts: Map<string, WorkerInputReceipt>;
     prompts: { attemptId: string; key: string; text: string }[];
     launches: string[];
     modes: { runtime: string; input: string; agentStatus: string };
@@ -36,17 +35,17 @@ export async function fixture(
 ) {
   await serviceFixture(async (context) => {
     const files = createNodeWorktreeFiles(join(context.state, 'worktrees'));
-    const deps: ImplementationDependencies = {
+    const deps: TaskDeliveryDependencies = {
       ...context.deps,
       files,
       worktrees: context.opened.worktrees,
-      instructions: nodeImplementationContextReader,
+      instructions: nodeTaskContextReader,
     };
     let sequence = 0;
     const prepare = async (
       index = 0,
       key = `task-${index}`,
-    ): Promise<ImplementationSubmitRequest> => {
+    ): Promise<GenericHandoffTask['submission']> => {
       const source = context.sources[index];
 
       assert.ok(source);
@@ -88,8 +87,8 @@ export async function fixture(
         key,
         branch: prepared.record.intent.branch,
         commit,
-        description: `Implement selected task for project ${index}.`,
-        acceptanceCriteria: ['Preserve the requested behavior.'],
+        agent: 'implementer',
+        task: `Complete the selected task for project ${index}.`,
         instructionPaths: ['AGENTS.md', 'AGENTS.override.md'],
         request: {},
       };
@@ -97,7 +96,7 @@ export async function fixture(
       return request;
     };
 
-    const receipts = new Map<string, ImplementationInputReceipt>();
+    const receipts = new Map<string, WorkerInputReceipt>();
     const prompts: { attemptId: string; key: string; text: string }[] = [];
     const launches: string[] = [];
     const modes = { runtime: 'running', input: 'acknowledged', agentStatus: 'idle' };
@@ -126,7 +125,7 @@ export async function fixture(
       },
       inspect: async (job) => observation(job),
     };
-    const workerInput: ImplementationWorkerInput = {
+    const workerInput: WorkerInput = {
       receipt: ({ attemptId, key }) => completed(receipts.get(`${attemptId}:${key}`) ?? null),
       async submit(input) {
         const id = `${input.attemptId}:${input.key}`;
@@ -144,7 +143,7 @@ export async function fixture(
 
         assert.ok(accepted.outcome === 'completed' && accepted.value);
 
-        const receipt: ImplementationInputReceipt = {
+        const receipt: WorkerInputReceipt = {
           key: input.key,
           digest: workerInputDigest('input', input.text),
           state: 'pending',
@@ -161,7 +160,7 @@ export async function fixture(
         return completed({ receipt, blocker: null });
       },
     };
-    const runtime = createImplementationRuntime({ runtime: base, dependencies: deps, workerInput });
+    const runtime = base;
     await action({
       deps,
       context,

@@ -1,6 +1,4 @@
 import { isDeepStrictEqual } from 'node:util';
-import type { AutomaticReviewStore } from '../ports/automatic-review.js';
-import { reviewTaskSchema } from '../contracts/review-task.js';
 import {
   completed,
   rejected,
@@ -40,7 +38,6 @@ export interface ServiceDependencies extends ConfigurationDependencies {
       signal: AbortSignal,
     ): Promise<OperationResult<null>>;
   };
-  automaticReviews?: Pick<AutomaticReviewStore, 'authorize'>;
   queue: ServiceStore;
   now: () => number;
   nextId: (kind: 'job' | 'attempt' | 'effect' | 'claim') => string;
@@ -143,10 +140,7 @@ export async function submitServiceJob(
       repositoryId: snapshot.repositoryId,
       checkoutId: snapshot.checkoutId,
       requester: 'local-host',
-      operation:
-        request.workflow === 'handoff'
-          ? 'handoff'
-          : `delegate:${request.workflow === 'implementation' ? 'implementer' : request.workflow === 'review' ? 'reviewer' : request.role}`,
+      operation: request.workflow === 'handoff' ? 'handoff' : `delegate:${request.role}`,
       idempotencyKey: request.key,
       createdAt: dependencies.now(),
       configuration: snapshot,
@@ -289,29 +283,6 @@ export function createServiceCoordinator(input: {
     let observation: WorkerObservation;
 
     try {
-      const automatic = reviewTaskSchema.safeParse(job.job.intent.task);
-
-      if (
-        start &&
-        automatic.success &&
-        automatic.data.authorization === 'after-handoff' &&
-        dependencies.automaticReviews?.authorize(job.job.id).outcome !== 'completed'
-      ) {
-        written(
-          dependencies.queue.observe(
-            job.job.id,
-            {
-              state: 'not_started',
-              handle: null,
-              evidence: { reason: 'automatic_review_suspended' },
-            },
-            dependencies.now(),
-          ),
-        );
-
-        return;
-      }
-
       observation = provider
         ? workerObservationSchema.parse(
             await (start
@@ -360,23 +331,6 @@ export function createServiceCoordinator(input: {
         job.entry.claim !== null ||
         !['queued', 'blocked'].includes(job.entry.state)
       ) {
-        return;
-      }
-
-      const automatic = reviewTaskSchema.safeParse(job.job.intent.task);
-
-      if (
-        automatic.success &&
-        automatic.data.authorization === 'after-handoff' &&
-        dependencies.automaticReviews?.authorize(job.job.id).outcome !== 'completed'
-      ) {
-        written(
-          dependencies.queue.block(job.job.id, 'workflow_blocked', {
-            code: 'automatic_review_blocked',
-            message: 'Automatic review is suspended or disabled.',
-          }),
-        );
-
         return;
       }
 
@@ -451,16 +405,6 @@ export function createServiceCoordinator(input: {
       }
 
       const provider = runtime(job);
-
-      if (
-        automatic.success &&
-        automatic.data.authorization === 'after-handoff' &&
-        !provider?.preflight
-      ) {
-        written(dependencies.queue.block(job.job.id, 'workflow_unavailable'));
-
-        return;
-      }
 
       if (provider?.preflight) {
         let ready = false;

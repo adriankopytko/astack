@@ -181,8 +181,6 @@ export function createWorktreeGit(options: GitInspectorOptions): WorktreeGit {
       ),
     remove: (intent, signal) =>
       run(intent.sourceRoot, ['worktree', 'remove', '--', intent.checkoutPath], signal),
-    deleteBranch: (intent, expectedHead, signal) =>
-      run(intent.sourceRoot, ['update-ref', '-d', intent.branch, expectedHead], signal),
     async ignored(intent, signal): Promise<OperationResult<boolean>> {
       try {
         const result = await read(

@@ -125,7 +125,7 @@ await test(
         },
         {
           workerSetupProvider: provider,
-          implementationBase: { resolve: async () => completed(sha) },
+          baseResolver: { resolve: async () => completed(sha) },
           runtimes: [
             {
               id: 'fixture',
@@ -372,7 +372,7 @@ await test(
         },
         {
           workerSetupProvider: provider,
-          implementationBase: { resolve: async () => completed(sha) },
+          baseResolver: { resolve: async () => completed(sha) },
           runtimes: [runtime],
         },
       );

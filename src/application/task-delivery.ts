@@ -1,23 +1,23 @@
 import { isDeepStrictEqual } from 'node:util';
 import {
-  implementationProgressSchema,
-  implementationInputReceiptSchema,
-  implementationInputObservationSchema,
-  type ImplementationProgress,
-  type InstructionReference,
-} from '../contracts/implementation-task.js';
+  taskProgressSchema,
+  workerInputReceiptSchema,
+  workerInputObservationSchema,
+  type TaskProgress,
+} from '../contracts/task-delivery.js';
+import type { InstructionReference } from '../contracts/task-context.js';
 import { workerInputTextSchema } from '../contracts/worker-input.js';
 import { completed, rejected, type OperationResult } from '../contracts/operation-result.js';
 import type { ServiceJob, WorkerObservation } from '../contracts/service.js';
 import type { ServiceWorkerRuntime } from '../ports/service.js';
-import type { ImplementationWorkerInput } from '../ports/implementation.js';
+import type { WorkerInput } from '../ports/task-delivery.js';
 import { workerInputDigest } from '../core/worker-input.js';
 import { checkConfigurationDispatch } from './configuration.js';
 import { inspectOwnedAssignment, OwnedAssignmentFailure } from './owned-assignment.js';
-import type { ImplementationContextReader } from '../ports/implementation.js';
+import type { TaskContextReader } from '../ports/task-delivery.js';
 import type { OwnedAssignmentDependencies } from './owned-assignment.js';
 export interface TaskDeliveryDependencies extends OwnedAssignmentDependencies {
-  instructions: ImplementationContextReader;
+  instructions: TaskContextReader;
 }
 interface DeliveryTask {
   submission: {
@@ -45,10 +45,10 @@ function read<T>(result: OperationResult<T>): T {
 }
 
 function progress(
-  state: ImplementationProgress['state'],
-  delivery: ImplementationProgress['delivery'] = 'not_submitted',
+  state: TaskProgress['state'],
+  delivery: TaskProgress['delivery'] = 'not_submitted',
   reason: string | null = null,
-): ImplementationProgress {
+): TaskProgress {
   return { state, delivery, reason, acceptedOutcome: null };
 }
 
@@ -56,7 +56,7 @@ function progress(
 export function createTaskDeliveryRuntime<T extends DeliveryTask>(input: {
   runtime: ServiceWorkerRuntime;
   dependencies: TaskDeliveryDependencies;
-  workerInput: ImplementationWorkerInput;
+  workerInput: WorkerInput;
   workflow: string;
   inputKey: string;
   task: (job: ServiceJob) => T | null;
@@ -70,7 +70,7 @@ export function createTaskDeliveryRuntime<T extends DeliveryTask>(input: {
   const { dependencies: deps, workerInput } = input;
   function evidence(
     base: WorkerObservation,
-    state: ImplementationProgress,
+    state: TaskProgress,
     uncertain = false,
   ): WorkerObservation {
     const detail = { ...base.evidence, [input.workflow]: state };
@@ -87,13 +87,13 @@ export function createTaskDeliveryRuntime<T extends DeliveryTask>(input: {
       return null;
     }
 
-    const receipt = implementationInputReceiptSchema.parse(value);
+    const receipt = workerInputReceiptSchema.parse(value);
 
     if (receipt.key !== input.inputKey) {
       throw new DeliveryFailure(
         rejected(
           'runtime_conflict',
-          'Implementation receipt key does not match the saved input scope.',
+          'Worker input receipt key does not match the saved input scope.',
         ),
       );
     }
@@ -240,7 +240,7 @@ export function createTaskDeliveryRuntime<T extends DeliveryTask>(input: {
       );
 
       if (response.outcome === 'completed') {
-        implementationInputObservationSchema.parse(response.value);
+        workerInputObservationSchema.parse(response.value);
       }
 
       const freshReceipt = receiptFor(job.attempt.id);
@@ -327,8 +327,8 @@ export function createTaskDeliveryRuntime<T extends DeliveryTask>(input: {
 
         if (owned.managed.intent.id !== task.worktreeId || owned.root !== task.root) {
           return rejected(
-            'implementation_assignment_changed',
-            'Initial implementation context changed before dispatch.',
+            'task_assignment_changed',
+            'Initial task context changed before dispatch.',
           );
         }
 
@@ -343,17 +343,11 @@ export function createTaskDeliveryRuntime<T extends DeliveryTask>(input: {
           owned.root === task.root &&
           isDeepStrictEqual(references, task.instructions)
           ? completed({ ready: true as const })
-          : rejected(
-              'implementation_assignment_changed',
-              'Initial implementation context changed before dispatch.',
-            );
+          : rejected('task_assignment_changed', 'Initial task context changed before dispatch.');
       } catch (error) {
         return error instanceof DeliveryFailure || error instanceof OwnedAssignmentFailure
           ? error.result
-          : rejected(
-              'implementation_context_invalid',
-              'Implementation context is unavailable before dispatch.',
-            );
+          : rejected('task_context_invalid', 'Task context is unavailable before dispatch.');
       }
     },
     id: input.runtime.id,
@@ -368,11 +362,8 @@ export function createTaskDeliveryRuntime<T extends DeliveryTask>(input: {
   };
 }
 
-export function taskDeliveryProgress(
-  job: ServiceJob,
-  evidenceName: string,
-): ImplementationProgress {
-  let state: ImplementationProgress;
+export function taskDeliveryProgress(job: ServiceJob, evidenceName: string): TaskProgress {
+  let state: TaskProgress;
 
   switch (job.entry.state) {
     case 'queued':
@@ -399,9 +390,7 @@ export function taskDeliveryProgress(
       break;
   }
 
-  const evidence = implementationProgressSchema.safeParse(
-    job.entry.observation?.evidence[evidenceName],
-  );
+  const evidence = taskProgressSchema.safeParse(job.entry.observation?.evidence[evidenceName]);
 
   if (job.entry.claim && job.entry.state !== 'blocked' && evidence.success) {
     state = evidence.data;

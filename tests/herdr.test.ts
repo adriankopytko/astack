@@ -672,7 +672,7 @@ await test(
 );
 
 await test(
-  'cleanup deletes only the generated reviewer branch after removing its checkout',
+  'cleanup preserves the task branch even for an old reviewer-shaped checkout',
   options,
   async () => {
     await fixture(async ({ configure, deps, opened, fake, state, sources, root }) => {
@@ -841,19 +841,11 @@ await test(
         result.outcome === 'persisted' && result.value.phase === 'completed',
         JSON.stringify(result),
       );
-      assert.equal(git(sources[0]!, 'branch', '--list', branch.slice('refs/heads/'.length)), '');
+      assert.equal(git(sources[0]!, 'rev-parse', branch), sha);
       assert.match(
         git(sources[0]!, 'branch', '--list', 'keep-implementation'),
         /keep-implementation/,
       );
-
-      git(sources[0]!, 'commit', '--allow-empty', '-m', 'advance after review');
-      git(sources[0]!, 'branch', branch.slice('refs/heads/'.length), 'HEAD');
-      const changedHead = git(sources[0]!, 'rev-parse', branch);
-      const refused = await worktrees.effects.deleteBranch!(prepared.record.intent, sha);
-
-      assert.ok(refused.outcome !== 'exited' || refused.exitCode !== 0);
-      assert.equal(git(sources[0]!, 'rev-parse', branch), changedHead);
     });
   },
 );

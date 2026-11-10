@@ -38,11 +38,6 @@ export interface WorktreeGit {
     signal?: AbortSignal,
   ): Promise<ProcessResult | OperationResult<WorktreeWorkspace>>;
   remove(intent: WorktreeIntent, signal?: AbortSignal): Promise<ProcessResult>;
-  deleteBranch?(
-    intent: WorktreeIntent,
-    expectedHead: string,
-    signal?: AbortSignal,
-  ): Promise<ProcessResult>;
   ignored(intent: WorktreeIntent, signal?: AbortSignal): Promise<OperationResult<boolean>>;
   preflight(intent: WorktreeIntent, signal?: AbortSignal): Promise<OperationResult<null>>;
 }

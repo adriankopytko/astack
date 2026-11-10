@@ -5,7 +5,7 @@ import { persistedRunReconciliationSchema } from './run-reconciliation-codec.js'
 import { runReconciliationSchema } from '../../contracts/run-reconciliation.js';
 import { serviceEntrySchema } from '../../contracts/service.js';
 import { stateResourceIntentSchema } from '../../contracts/state.js';
-import { implementationProgressSchema } from '../../contracts/implementation-task.js';
+import { taskProgressSchema } from '../../contracts/task-delivery.js';
 import { createHash } from 'node:crypto';
 import {
   runViewSchema,
@@ -95,9 +95,7 @@ export function createSqliteRunStore(db: StateDatabase, now: () => number): RunS
       task && typeof task === 'object' && !Array.isArray(task) && typeof task.workflow === 'string'
         ? task.workflow
         : '';
-    const progress = implementationProgressSchema.safeParse(
-      selected.entry.observation?.evidence[workflow],
-    );
+    const progress = taskProgressSchema.safeParse(selected.entry.observation?.evidence[workflow]);
     const workflowBlocker =
       progress.success && ['needs_decision', 'blocked', 'failed'].includes(progress.data.state)
         ? (progress.data.state as 'needs_decision' | 'blocked' | 'failed')

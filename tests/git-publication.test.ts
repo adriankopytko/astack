@@ -4,12 +4,12 @@ import { mkdtemp, realpath, writeFile, chmod, readFile, rm } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  createGitPublisher,
   nodeProcessRunner,
   processRequestSchema,
   type ProcessExecution,
   type ProcessRequest,
 } from '../src/index.js';
+import { createGitPublisher } from '../src/adapters/git/publisher.js';
 import { http, timedOut } from './support/github.js';
 const sha = 'a'.repeat(40);
 const old = 'b'.repeat(40);

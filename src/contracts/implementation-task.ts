@@ -97,38 +97,12 @@ export const implementationWorkerReportSchema = z.strictObject({
     .array(workerInputTextSchema.refine((value) => Buffer.byteLength(value) <= 512))
     .max(16),
 });
-export const implementationInputReceiptSchema = z.strictObject({
-  key: stateIdSchema,
-  digest: configurationDigestSchema,
-  state: z.enum(['pending', 'acknowledged']),
-});
-export const implementationInputObservationSchema = z.strictObject({
-  receipt: implementationInputReceiptSchema.nullable(),
-  blocker: z
-    .enum(['needs_decision', 'busy', 'policy_blocked', 'identity_changed', 'provider_unavailable'])
-    .nullable(),
-});
-export const implementationProgressSchema = z.strictObject({
-  state: z.enum([
-    'queued',
-    'starting',
-    'started',
-    'needs_decision',
-    'blocked',
-    'failed',
-    'unknown',
-    'awaiting_result',
-    'completed',
-    'cancelled',
-  ]),
-  delivery: z.enum(['not_submitted', 'pending', 'acknowledged']),
-  reason: z.string().min(1).max(128).nullable(),
-  acceptedOutcome: z.enum(['completed', 'failed', 'cancelled']).nullable(),
-});
+export {
+  workerInputReceiptSchema as implementationInputReceiptSchema,
+  workerInputObservationSchema as implementationInputObservationSchema,
+  taskProgressSchema as implementationProgressSchema,
+} from './task-delivery.js';
 export type ImplementationSubmitRequest = z.infer<typeof implementationSubmitRequestSchema>;
 export type InstructionReference = z.infer<typeof instructionReferenceSchema>;
 export type ImplementationTask = z.infer<typeof implementationTaskSchema>;
 export type ImplementationWorkerReport = z.infer<typeof implementationWorkerReportSchema>;
-export type ImplementationInputReceipt = z.infer<typeof implementationInputReceiptSchema>;
-export type ImplementationInputObservation = z.infer<typeof implementationInputObservationSchema>;
-export type ImplementationProgress = z.infer<typeof implementationProgressSchema>;

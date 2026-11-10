@@ -2,8 +2,6 @@ import { createSqliteAllocationStore } from './allocation-store.js';
 import type { AllocationStore } from '../../ports/resources.js';
 import type { CleanupStore } from '../../ports/cleanup.js';
 import { createSqliteCleanupStore } from './cleanup-store.js';
-import type { ReviewResultStore } from '../../ports/review-results.js';
-import { createSqliteReviewResultStore } from './review-result-store.js';
 import { stateOpenRequestSchema } from '../../contracts/state.js';
 import { rejected, type RejectedResult } from '../../contracts/operation-result.js';
 import { parseOperationRequest } from '../../core/parse-operation-request.js';
@@ -23,12 +21,6 @@ import type { HerdrStore } from '../../ports/herdr.js';
 import { createSqliteHerdrStore } from './herdr-store.js';
 
 import type { RuntimeStore } from '../../ports/runtime.js';
-import { createSqliteHandoffStore } from './handoff-store.js';
-import { createSqliteCiStore } from './ci-store.js';
-import { createSqliteAutomaticReviewStore } from './automatic-review-store.js';
-import type { AutomaticReviewStore } from '../../ports/automatic-review.js';
-import type { CiStore } from '../../ports/ci.js';
-import type { HandoffStore } from '../../ports/handoff.js';
 import type { RunStore } from '../../ports/runs.js';
 import { createSqliteRunStore } from './run-store.js';
 import { createSqliteRuntimeStore } from './runtime-store.js';
@@ -55,12 +47,8 @@ export type StateOpenResult =
       errors: ErrorStore;
       workerQueue: WorkerQueueStore;
       runs: RunStore;
-      reviewResults: ReviewResultStore;
       cleanups: CleanupStore;
       allocations: AllocationStore;
-      handoffs: HandoffStore;
-      ci: CiStore;
-      automaticReviews: AutomaticReviewStore;
     }
   | RejectedResult;
 
@@ -102,10 +90,6 @@ export async function openSqliteState(
         allocations: createSqliteAllocationStore(database, dependencies.now ?? Date.now),
         worktrees: createSqliteWorktreeStore(database, dependencies.now ?? Date.now),
         service: createSqliteServiceStore(database, dependencies.now ?? Date.now),
-        handoffs: createSqliteHandoffStore(database, dependencies.now ?? Date.now),
-        ci: createSqliteCiStore(database, dependencies.now ?? Date.now),
-        automaticReviews: createSqliteAutomaticReviewStore(database),
-        reviewResults: createSqliteReviewResultStore(database, dependencies.now ?? Date.now),
         runs: createSqliteRunStore(database, dependencies.now ?? Date.now),
         herdr: createSqliteHerdrStore(database, dependencies.now ?? Date.now),
         runtime: createSqliteRuntimeStore(database, dependencies.now ?? Date.now),

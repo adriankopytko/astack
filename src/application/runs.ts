@@ -13,8 +13,7 @@ import {
   type RunView,
   type RunResume,
 } from '../contracts/runs.js';
-import { implementationInputReceiptSchema } from '../contracts/implementation-task.js';
-import { reviewSnapshotSchema } from '../contracts/review-task.js';
+import { workerInputReceiptSchema } from '../contracts/task-delivery.js';
 import { rejected, type OperationResult } from '../contracts/operation-result.js';
 import type { StateWriteResult } from '../contracts/state.js';
 import type {
@@ -23,19 +22,10 @@ import type {
   RunWorkerControl,
   RunEventWaiter,
 } from '../ports/runs.js';
-import type { ImplementationWorkerInput } from '../ports/implementation.js';
+import type { WorkerInput } from '../ports/task-delivery.js';
 import { workerInputDigest } from '../core/worker-input.js';
-import {
-  implementationInputKey,
-  renderImplementationPrompt,
-} from '../core/implementation-prompt.js';
-import { reviewInputKey, renderReviewPrompt } from '../core/review-prompt.js';
-import { sameReviewTarget, reviewGateBlocker } from '../core/review-gates.js';
 import { parseOperationRequest } from '../core/parse-operation-request.js';
 import { configurationDigest } from '../core/configuration.js';
-import { implementationTask } from './implementation.js';
-import { reviewTask } from './review.js';
-import type { ReviewTargetReader } from '../ports/review.js';
 import type { TaskDeliveryDependencies } from './task-delivery.js';
 import {
   genericHandoffTask,
@@ -45,10 +35,9 @@ import {
 import { inspectOwnedAssignment, OwnedAssignmentFailure } from './owned-assignment.js';
 
 export interface RunDependencies extends TaskDeliveryDependencies {
-  targets?: ReviewTargetReader;
   runs: RunStore;
   artifacts: RunArtifactReader;
-  workerInput: ImplementationWorkerInput;
+  workerInput: WorkerInput;
   workerControl: RunWorkerControl;
 }
 class RunFailure extends Error {
@@ -146,23 +135,10 @@ export async function acceptRunReport(
       return rejected('run_report_invalid', 'Report identity differs from the saved run.');
     }
 
-    const implementation = implementationTask(job);
-    const review = reviewTask(job);
-    const generic = genericHandoffTask(job);
-
-    if (
-      (!implementation && !review && !generic) ||
-      (implementation && !('headCommit' in proposal)) ||
-      (review && !('target' in proposal)) ||
-      (generic && ('headCommit' in proposal || 'target' in proposal))
-    ) {
-      return rejected('run_report_invalid', 'Report format does not match the accepted workflow.');
-    }
-
-    const assignment = implementation ?? review ?? generic;
+    const assignment = genericHandoffTask(job);
 
     if (!assignment) {
-      return rejected('run_report_invalid', 'A workflow assignment is required.');
+      return rejected('run_report_invalid', 'The report must match a generic handoff assignment.');
     }
 
     const owned = await inspectOwnedAssignment(assignment.submission, deps, signal, false);
@@ -171,32 +147,14 @@ export async function acceptRunReport(
       return rejected('run_report_invalid', 'Owned checkout assignment changed.');
     }
 
-    const receipt = implementationInputReceiptSchema.parse(
-      read(
-        deps.workerInput.receipt({
-          attemptId: job.attempt.id,
-          key: implementation
-            ? implementationInputKey
-            : review
-              ? reviewInputKey
-              : genericHandoffInputKey,
-        }),
-      ),
+    const receipt = workerInputReceiptSchema.parse(
+      read(deps.workerInput.receipt({ attemptId: job.attempt.id, key: genericHandoffInputKey })),
     );
-    const prompt = implementation
-      ? renderImplementationPrompt(job, implementation)
-      : review
-        ? renderReviewPrompt(job, review)
-        : renderGenericHandoff(job, generic!);
+    const prompt = renderGenericHandoff(job, assignment);
 
     if (
       receipt.state !== 'acknowledged' ||
-      receipt.key !==
-        (implementation
-          ? implementationInputKey
-          : review
-            ? reviewInputKey
-            : genericHandoffInputKey) ||
+      receipt.key !== genericHandoffInputKey ||
       receipt.digest !== workerInputDigest('input', prompt)
     ) {
       return rejected(
@@ -207,97 +165,8 @@ export async function acceptRunReport(
 
     const commit = owned.selected.git.checkout.head.commit;
 
-    if (
-      !commit ||
-      ('headCommit' in proposal &&
-        (proposal.branch !== job.entry.branch ||
-          proposal.baseCommit !== job.entry.commit ||
-          proposal.headCommit !== commit)) ||
-      (review && commit !== review.submission.target.sha)
-    ) {
-      return rejected(
-        'run_report_invalid',
-        'Report branch or full commit SHA differs from fresh checkout evidence.',
-      );
-    }
-
-    if (
-      ((proposal.outcome === 'completed' && !generic) ||
-        proposal.outcome === 'reviewed' ||
-        review) &&
-      !owned.selected.git.status.clean
-    ) {
-      return rejected(
-        'run_report_invalid',
-        'Completed work and static review require a clean owned checkout.',
-      );
-    }
-
-    let snapshot = null;
-    let historicalReview = false;
-
-    if (request.acceptHistoricalReview && (!review || proposal.outcome !== 'reviewed')) {
-      return rejected(
-        'run_report_invalid',
-        'Historical acceptance is only available for reviewed commit-bound results.',
-      );
-    }
-
-    if (review && 'target' in proposal) {
-      if (
-        !sameReviewTarget(proposal.target, review.submission.target) ||
-        !isDeepStrictEqual(proposal.gate, review.submission.gate) ||
-        !isDeepStrictEqual(proposal.acceptanceSnapshot, review.initialSnapshot)
-      ) {
-        return rejected(
-          'run_report_invalid',
-          'Review target, gate or acceptance evidence differs from the saved assignment.',
-        );
-      }
-
-      if (!deps.targets) {
-        return rejected('github_unavailable', 'Legacy review validation is unavailable.');
-      }
-
-      const observed = await deps.targets.read(
-        { target: review.submission.target, root: review.root },
-        signal,
-      );
-
-      if (observed.outcome === 'rejected') {
-        if (!request.acceptHistoricalReview || observed.error.code !== 'review_target_changed') {
-          return observed;
-        }
-
-        historicalReview = true;
-      } else {
-        snapshot = reviewSnapshotSchema.parse(observed.value);
-
-        if (
-          snapshot.target.host !== review.submission.target.host ||
-          snapshot.target.repository !== review.submission.target.repository ||
-          snapshot.target.number !== review.submission.target.number
-        ) {
-          return rejected(
-            'github_invalid_output',
-            'Provider returned a different PR while validating the report.',
-          );
-        }
-
-        if (
-          !sameReviewTarget(snapshot.target, review.submission.target) ||
-          snapshot.baseSha !== review.initialSnapshot.baseSha
-        ) {
-          if (!request.acceptHistoricalReview) {
-            return rejected(
-              'review_target_changed',
-              'Review scope changed; do not accept it as a current result.',
-            );
-          }
-
-          historicalReview = true;
-        }
-      }
+    if (!commit) {
+      return rejected('run_report_invalid', 'The checkout does not have a full commit SHA.');
     }
 
     read(
@@ -326,8 +195,7 @@ export async function acceptRunReport(
       evidence: {
         commit,
         inputDigest: receipt.digest,
-        reviewSnapshot: snapshot,
-        ...(historicalReview ? { historicalReview: true } : {}),
+        reviewSnapshot: null,
       },
     });
 
@@ -414,7 +282,7 @@ export async function resumeRun(
     );
 
     if (prior) {
-      const receipt = implementationInputReceiptSchema.parse(prior);
+      const receipt = workerInputReceiptSchema.parse(prior);
 
       if (receipt.digest !== digest || receipt.key !== resume.actionKey) {
         return rejected('state_conflict', 'Resume input differs from saved receipt.');
@@ -449,46 +317,16 @@ export async function resumeRun(
     }
 
     try {
-      const task =
-        implementationTask(run.job) ?? reviewTask(run.job) ?? genericHandoffTask(run.job);
+      const task = genericHandoffTask(run.job);
 
       if (!task) {
-        throw new RunFailure(rejected('run_closed', 'No resumable workflow assignment exists.'));
+        throw new RunFailure(rejected('run_closed', 'No resumable handoff assignment exists.'));
       }
 
       const owned = await inspectOwnedAssignment(task.submission, deps, signal, false);
 
       if (owned.root !== task.root || owned.managed.intent.id !== task.worktreeId) {
         throw new RunFailure(rejected('run_closed', 'Resume ownership changed.'));
-      }
-
-      const review = reviewTask(run.job);
-
-      if (review) {
-        if (!deps.targets) {
-          throw new RunFailure(
-            rejected('github_unavailable', 'Legacy review validation is unavailable.'),
-          );
-        }
-
-        const snapshot = reviewSnapshotSchema.parse(
-          read(
-            await deps.targets.read(
-              { target: review.submission.target, root: review.root },
-              signal,
-            ),
-          ),
-        );
-
-        if (
-          !sameReviewTarget(snapshot.target, review.submission.target) ||
-          snapshot.baseSha !== review.initialSnapshot.baseSha ||
-          reviewGateBlocker(snapshot, review.submission.gate)
-        ) {
-          throw new RunFailure(
-            rejected('review_blocked', 'Review target or gate blocks continuation.'),
-          );
-        }
       }
 
       if (signal?.aborted) {

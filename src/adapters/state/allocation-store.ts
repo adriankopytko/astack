@@ -1,4 +1,3 @@
-import { reviewTaskSchema } from '../../contracts/review-task.js';
 import { isDeepStrictEqual } from 'node:util';
 import {
   allocationRecordSchema,
@@ -22,7 +21,7 @@ import { runControl, appendRunEvent } from './run-events.js';
 export function createSqliteAllocationStore(db: StateDatabase, now: () => number): AllocationStore {
   const read = (id: string) =>
     db.get(allocationRecordSchema, 'SELECT data FROM resource_allocations WHERE id=?', id);
-  function source(jobId: string, attemptId: string, active: boolean, managed = false) {
+  function source(jobId: string, attemptId: string, active: boolean) {
     const job =
       db.get(stateJobSchema, 'SELECT data FROM jobs WHERE id=?', jobId) ??
       stateFailure('run_not_found');
@@ -35,15 +34,9 @@ export function createSqliteAllocationStore(db: StateDatabase, now: () => number
       stateFailure('state_conflict');
     }
 
-    const review = reviewTaskSchema.safeParse(job.intent.task);
-    const integration =
-      job.operation === 'delegate:reviewer' &&
-      review.success &&
-      review.data.submission.resources.length > 0;
-
     if (
       active &&
-      ((!managed && !integration && job.operation !== 'delegate:implementer') ||
+      ((job.operation !== 'handoff' && !job.operation.startsWith('delegate:')) ||
         runControl(db, jobId).phase !== 'active' ||
         db.statement('SELECT resolved_at FROM attempts WHERE id=?').get(attemptId)?.resolved_at !==
           null)
@@ -69,12 +62,7 @@ export function createSqliteAllocationStore(db: StateDatabase, now: () => number
       stateFailure('state_conflict');
     }
 
-    const current = source(
-      record.request.jobId,
-      record.request.attemptId,
-      active,
-      record.request.spec.kind === 'managed-port',
-    );
+    const current = source(record.request.jobId, record.request.attemptId, active);
 
     if (!isDeepStrictEqual(current.binding, record.binding)) {
       stateFailure('state_conflict');
@@ -162,20 +150,7 @@ export function createSqliteAllocationStore(db: StateDatabase, now: () => number
           return { value: old, disposition: 'existing' };
         }
 
-        const current = source(
-          request.jobId,
-          request.attemptId,
-          true,
-          request.spec.kind === 'managed-port',
-        );
-
-        if (current.job.operation === 'delegate:reviewer' && request.spec.kind !== 'managed-port') {
-          const review = reviewTaskSchema.safeParse(current.job.intent.task);
-
-          if (!review.success || !review.data.submission.resources.includes(request.key)) {
-            stateFailure('resource_blocked');
-          }
-        }
+        const current = source(request.jobId, request.attemptId, true);
 
         const selection = candidate(request, id, 0);
         const timestamp = now();

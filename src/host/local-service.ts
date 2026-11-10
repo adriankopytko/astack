@@ -41,7 +41,7 @@ import {
 } from '../application/runs.js';
 import { nodeRunArtifactReader } from '../adapters/filesystem/run-artifacts.js';
 import { nodeRunEventWaiter } from '../adapters/local/run-waiter.js';
-import type { ImplementationWorkerInput } from '../ports/implementation.js';
+import type { WorkerInput } from '../ports/task-delivery.js';
 import type { RunShutdownVerifier, RunWorkerControl } from '../ports/runs.js';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -69,7 +69,7 @@ import {
 } from '../application/service.js';
 import type { TaskDeliveryDependencies } from '../application/task-delivery.js';
 import { createNodeWorktreeFiles } from '../adapters/filesystem/worktree-files.js';
-import { nodeImplementationContextReader } from '../adapters/filesystem/implementation-context.js';
+import { nodeTaskContextReader } from '../adapters/filesystem/task-context.js';
 import { createGhReadPrimitives } from '../adapters/github/read.js';
 import { composeCodexHerdrRuntime } from './codex-runtime.js';
 import { listenLocalService } from '../service/local-transport.js';
@@ -81,7 +81,7 @@ export async function startLocalService(
   options: {
     runtimes?: readonly ServiceWorkerRuntime[];
     initializationHerdrProvider?: HerdrProvider;
-    implementationBase?: {
+    baseResolver?: {
       resolve(root: string, signal?: AbortSignal): Promise<OperationResult<string>>;
     };
     workerSetupProvider?: HerdrProvider;
@@ -90,7 +90,7 @@ export async function startLocalService(
     cleanupShutdown?: RunShutdownVerifier;
     githubExecutable?: string;
     githubContext?: HandoffContextReader;
-    runWorkerInput?: ImplementationWorkerInput;
+    runWorkerInput?: WorkerInput;
     runWorkerControl?: RunWorkerControl;
     codexHerdr?: { herdrExecutable?: string; codexExecutable?: string };
   } = {},
@@ -190,7 +190,7 @@ export async function startLocalService(
       ...dependencies,
       worktrees: opened.worktrees,
       files: createNodeWorktreeFiles(join(opened.stateDirectory, 'worktrees')),
-      instructions: nodeImplementationContextReader,
+      instructions: nodeTaskContextReader,
     };
     const gh = await hostExecutable('gh', options.githubExecutable);
 
@@ -222,7 +222,7 @@ export async function startLocalService(
           now: Date.now,
         })
       : null;
-    let workerInput: ImplementationWorkerInput = options.runWorkerInput ?? {
+    let workerInput: WorkerInput = options.runWorkerInput ?? {
       receipt({ attemptId, key }) {
         const result = opened.runtime.action(attemptId, key);
 
@@ -443,7 +443,7 @@ export async function startLocalService(
                 environment: process.env,
               }),
               baseResolver:
-                options.implementationBase ??
+                options.baseResolver ??
                 createMainBaseResolver({
                   executable,
                   runner: nodeProcessRunner,

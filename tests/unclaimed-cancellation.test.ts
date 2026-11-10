@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { access } from 'node:fs/promises';
 import { test } from 'node:test';
 import {
-  submitImplementation,
   cancelRun,
   requestCleanup,
   executeCleanup,
@@ -14,7 +13,8 @@ import {
   type CleanupDependencies,
   type ServiceJob,
 } from '../src/index.js';
-import { fixture } from './support/implementation.js';
+import { submitFixture } from './support/generic-job.js';
+import { fixture } from './support/task.js';
 import { git, gitPath } from './support/service.js';
 const options = { timeout: 90000 };
 function saved<T>(result: StateWriteResult<T>) {
@@ -26,7 +26,7 @@ function saved<T>(result: StateWriteResult<T>) {
 type Fixture = Parameters<Parameters<typeof fixture>[0]>[0];
 async function setup(f: Fixture) {
   const submission = await f.prepare();
-  const job = saved(await submitImplementation(submission, f.deps)).job;
+  const job = saved(await submitFixture(f, submission, f.deps));
   const cancel = {
     schemaVersion: 1 as const,
     jobId: job.job.id,

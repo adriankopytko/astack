@@ -249,10 +249,6 @@ export function wireRunCommands(program: Command) {
     .requiredOption('--key <key>', 'Stable report acceptance key')
     .option('--file <path>', 'Bounded JSON proposal or {proposal, artifacts} envelope')
     .option('--stdin', 'Read the JSON proposal from standard input')
-    .option(
-      '--accept-historical-review',
-      'Explicitly retain reviewed findings if the remote review scope moved; never grants publication or readiness',
-    )
     .option('--json')
     .action(
       async (
@@ -262,7 +258,6 @@ export function wireRunCommands(program: Command) {
           file?: string;
           stdin?: boolean;
           json?: boolean;
-          acceptHistoricalReview?: boolean;
         },
       ) => {
         await execute(
@@ -354,7 +349,6 @@ export function wireRunCommands(program: Command) {
                 key: options.key,
                 proposal: envelope.proposal,
                 artifacts: envelope.artifacts ?? [],
-                ...(options.acceptHistoricalReview ? { acceptHistoricalReview: true } : {}),
               });
             } catch {
               return rejected('invalid_request', 'Report file could not be read as bounded JSON.');
