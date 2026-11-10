@@ -8,6 +8,10 @@ The integration was implemented against the installed Herdr 0.9.0 bundled protoc
 
 Herdr documents worktree creation and grouping in its [CLI reference](https://herdr.dev/docs/cli-reference/#worktrees). Its [socket API](https://herdr.dev/docs/socket-api/) describes snapshot fields and scoped runtime identities. The installed schema is the authority for this adapter's supported wire shape; raw diagnostics and unrelated metadata do not become Astack results.
 
+## Worker event notifications
+
+The running service subscribes to Herdr pane-close and agent-status events for its verified Codex workers. The listener checks the saved socket identity and wakes the coordinator after subscription, relevant events, and disconnects. Reconnection subscribes again and triggers a fresh inspection because events are not replayed. Event messages are hints, not identity, task-result, or shutdown evidence. The listener does not close workers or release capacity. In an isolated Herdr 0.9.0 test, closing a pane stopped the foreground process but a detached child survived. Automatic close and capacity release therefore require stronger process containment or other independent shutdown evidence.
+
 ## Commands
 
 ```sh

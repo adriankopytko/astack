@@ -120,7 +120,7 @@ Use `astack errors list --json` for recent service errors, worker-dispatch block
 
 One coordinator owns each private state directory through a kernel-backed lock. Other instances reject. SIGINT/SIGTERM drain foreground work and release the coordinator; they do not prove existing workers stopped. On restart, claimed launches are inspected without replaying them. Unknown launches retain capacity despite claim expiry. Only trusted runtime evidence can establish launch absence or quiescence. `awaiting_result` means a known worker stopped, not that the task succeeded.
 
-Transport is a private Unix socket with same-host-user authority, not a TCP service or restricted worker-report endpoint. Use a short private state path if socket length is rejected. Preserve edited/unowned endpoint files and obtain host inspection; do not remove sockets, steal locks or force cleanup as an automatic repair. Runtime events, submissions, startup and explicit wake drive reconciliation; there is no recurring GitHub polling loop.
+Transport is a private Unix socket with same-host-user authority, not a TCP service or restricted worker-report endpoint. Use a short private state path if socket length is rejected. Preserve edited/unowned endpoint files and obtain host inspection; do not remove sockets, steal locks or force cleanup as an automatic repair. Herdr pane and agent-status events, submissions, startup and explicit wake drive reconciliation; reconnect triggers a fresh inspection. These events do not prove worker shutdown or release capacity. There is no recurring GitHub polling loop.
 
 ## Herdr project and worker layouts
 
@@ -148,7 +148,7 @@ Repeated keys return the saved receipt/current observation; changed text/kind co
 
 ## Planned capabilities
 
-The stage remains `foundation`. Automatic handoffs/report harvesting, runtime wake-up and automatic review-result publication are not implemented. Report missing capabilities rather than inventing commands or treating unknown commands as accepted work.
+The stage remains `foundation`. Automatic handoffs/report harvesting, automatic worker shutdown and automatic review-result publication are not implemented. Report missing capabilities rather than inventing commands or treating unknown commands as accepted work.
 
 As those operations arrive, use commit-specific results and explicit automation policy. A pushed PR or idle agent alone is not proof of completion or authorization for another action.
 

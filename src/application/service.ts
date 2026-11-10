@@ -217,6 +217,7 @@ export function createServiceCoordinator(input: {
   dependencies: ServiceDependencies;
   onFailure: () => void;
   afterCycle?: (signal: AbortSignal) => Promise<boolean>;
+  onObservation?: (job: ServiceJob, observation: WorkerObservation) => void;
 }) {
   const limits = serviceLimitsSchema.parse(input.limits);
   const runtimeEntries = input.runtimes.flatMap((runtime) =>
@@ -331,6 +332,7 @@ export function createServiceCoordinator(input: {
     }
 
     written(dependencies.queue.observe(job.job.id, observation, dependencies.now()));
+    input.onObservation?.(job, observation);
   }
 
   async function cycle(): Promise<void> {

@@ -20,6 +20,7 @@ import { nodeManagedFileStore } from '../core/node-managed-file-store.js';
 import { createBundledSkillReader } from '../adapters/filesystem/skill-bundle.js';
 import { nodeSkillDirectories } from '../adapters/filesystem/skill-directories.js';
 import { createHerdrCliProvider } from '../adapters/herdr/cli-provider.js';
+import { watchHerdrPane } from '../adapters/herdr/event-stream.js';
 import { nodeHerdrEndpointReader } from '../adapters/filesystem/herdr-endpoint.js';
 import { requestCleanup, controlCleanup, inspectCleanup } from '../application/cleanup.js';
 import { createAgentHooks } from './agent-hooks.js';
@@ -332,11 +333,48 @@ export async function startLocalService(
         .filter((runtime) => runtime.workflows?.includes('handoff'))
         .flatMap((runtime) => [runtime.id, ...(runtime.aliases ?? [])]),
     });
+    const eventWatches = new Map<string, () => void>();
     const coordinator = createServiceCoordinator({
       sessionId,
       limits: request.value.limits,
       runtimes,
       dependencies,
+      onObservation(job, observation) {
+        const attemptId = job.attempt.id;
+
+        if (!options.codexHerdr || observation.state !== 'running') {
+          if (observation.state === 'quiescent' || observation.state === 'not_started') {
+            eventWatches.get(attemptId)?.();
+            eventWatches.delete(attemptId);
+          }
+
+          return;
+        }
+
+        if (eventWatches.has(attemptId)) {
+          return;
+        }
+
+        const saved = opened.runtime.read(attemptId);
+
+        if (
+          saved.outcome !== 'completed' ||
+          saved.value?.phase !== 'ready' ||
+          !saved.value.space.handle
+        ) {
+          return;
+        }
+
+        eventWatches.set(
+          attemptId,
+          watchHerdrPane({
+            server: saved.value.space.server,
+            paneId: saved.value.space.handle.paneId,
+            endpoint: nodeHerdrEndpointReader,
+            changed: () => coordinator.wake(),
+          }),
+        );
+      },
       async afterCycle(signal) {
         if (!workerHerdr) {
           return false;
@@ -866,6 +904,11 @@ export async function startLocalService(
           let result: OperationResult<{ closed: true }> = completed({ closed: true });
 
           try {
+            for (const stop of eventWatches.values()) {
+              stop();
+            }
+
+            eventWatches.clear();
             const drained = await Promise.allSettled([
               transport.close(),
               coordinator.stop(),

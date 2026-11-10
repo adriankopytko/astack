@@ -1236,3 +1236,42 @@ await test('configured ports block runtimes that cannot inject them', options, a
     await coordinator.stop();
   });
 });
+
+await test(
+  'runtime observation callbacks run after the observation is persisted',
+  options,
+  async () => {
+    await fixture(async ({ deps, request, opened }) => {
+      const submitted = await submitServiceJob(request(0, 'observation-callback'), deps);
+
+      assert.ok(submitted.outcome === 'persisted');
+
+      const seen: string[] = [];
+      const worker = provider();
+      const coordinator = createServiceCoordinator({
+        sessionId: 'observation-test',
+        dependencies: deps,
+        limits: { global: 1, defaultRole: 1, perRole: {} },
+        runtimes: [worker.runtime],
+        onFailure: () => assert.fail('coordinator failed'),
+        onObservation(job, observation) {
+          const saved = opened.service.read(job.job.id);
+
+          assert.ok(saved.outcome === 'completed' && saved.value);
+          assert.equal(saved.value.entry.observation?.state, observation.state);
+
+          seen.push(observation.state);
+        },
+      });
+
+      try {
+        coordinator.start();
+        await coordinator.idle();
+
+        assert.ok(seen.includes('running'));
+      } finally {
+        await coordinator.stop();
+      }
+    });
+  },
+);
