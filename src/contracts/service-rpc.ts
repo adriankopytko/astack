@@ -13,19 +13,6 @@ import {
   cleanupWriteResultSchema,
 } from './cleanup.js';
 import {
-  reviewAutomationReadResultSchema,
-  reviewAutomationWriteResultSchema,
-  followUpReadResultSchema,
-  followUpWriteResultSchema,
-  followUpListResultSchema,
-} from './automatic-review.js';
-import {
-  ciReadResultSchema,
-  ciWriteResultSchema,
-  ciListResultSchema,
-  ciWakeResultSchema,
-} from './ci.js';
-import {
   runReadRequestSchema,
   runReportRequestSchema,
   runResponseRequestSchema,
@@ -47,11 +34,6 @@ import {
   serviceStatusSchema,
   serviceJobSchema,
 } from './service.js';
-import {
-  implementationReadResultSchema,
-  implementationSubmitResultSchema,
-} from './implementation.js';
-import { reviewReadResultSchema, reviewSubmitResultSchema } from './review.js';
 import { createOperationResultSchema } from './operation-result.js';
 import { createStateWriteResultSchema } from './state.js';
 import { workerQueueReadResultSchema, workerQueueWriteResultSchema } from './worker-queue.js';
@@ -93,23 +75,10 @@ export const serviceRpcResponseSchema = z.union([
   createOperationResultSchema(initializationResultSchema),
   cleanupReadResultSchema,
   cleanupWriteResultSchema,
-  reviewAutomationReadResultSchema,
-  reviewAutomationWriteResultSchema,
-  followUpReadResultSchema,
-  followUpWriteResultSchema,
-  followUpListResultSchema,
-  ciReadResultSchema,
-  ciWriteResultSchema,
-  ciListResultSchema,
-  ciWakeResultSchema,
   createOperationResultSchema(serviceStatusSchema),
   createOperationResultSchema(z.strictObject({ stopping: z.literal(true) })),
   createOperationResultSchema(serviceJobSchema.nullable()),
   createStateWriteResultSchema(serviceJobSchema),
-  implementationReadResultSchema,
-  implementationSubmitResultSchema,
-  reviewReadResultSchema,
-  reviewSubmitResultSchema,
   runReadResultSchema,
   runWriteResultSchema,
   runEventsResultSchema,

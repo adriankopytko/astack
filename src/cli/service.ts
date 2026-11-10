@@ -42,10 +42,6 @@ function render(result: ServiceRpcResponse, json?: boolean): void {
       process.stdout.write(`Events: ${value.events.length}\nCursor: ${value.nextCursor}\n`);
     } else if ('consumer' in value) {
       process.stdout.write(`Consumer: ${value.consumer}\nCursor: ${value.after}\n`);
-    } else if ('review' in value) {
-      process.stdout.write(`Job: ${value.job.job.id}\nState: ${value.review.state}\n`);
-    } else if ('implementation' in value) {
-      process.stdout.write(`Job: ${value.job.job.id}\nState: ${value.implementation.state}\n`);
     } else if ('entry' in value) {
       process.stdout.write(
         `Job: ${value.job.id}\nAttempt: ${value.attempt.id}\nState: ${value.entry.state}\nReason: ${value.entry.reason ?? 'none'}\n`,
